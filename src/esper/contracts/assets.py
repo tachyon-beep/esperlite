@@ -3,13 +3,30 @@ Core asset models for the Esper system.
 These models define the primary entities: Seeds, Blueprints, and related structures.
 """
 
-from datetime import datetime, UTC
-from typing import Any, Dict, List, Optional
+from datetime import UTC
+from datetime import datetime
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
 
-from .enums import BlueprintState, SeedState
+from .enums import BlueprintState
+from .enums import SeedState
+
+
+def _empty_dict() -> Dict[str, Any]:
+    """Factory function for empty dictionaries to help pylint understand types."""
+    return {}
+
+
+def _empty_float_dict() -> Dict[str, float]:
+    """Factory function for empty float dictionaries to help pylint understand types."""
+    return {}
 
 
 class Seed(BaseModel):
@@ -33,7 +50,7 @@ class Seed(BaseModel):
     blueprint_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=_empty_dict)
 
     def state_display(self) -> str:
         """Display-friendly state name."""
@@ -62,8 +79,8 @@ class Blueprint(BaseModel):
     description: str = Field(min_length=1, max_length=1000)
     state: BlueprintState = BlueprintState.PROPOSED
     architecture: Dict[str, Any]  # Architecture definition
-    hyperparameters: Dict[str, Any] = Field(default_factory=dict)
-    performance_metrics: Dict[str, float] = Field(default_factory=dict)
+    hyperparameters: Dict[str, Any] = Field(default_factory=_empty_dict)
+    performance_metrics: Dict[str, float] = Field(default_factory=_empty_float_dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     created_by: str = Field(
@@ -83,8 +100,11 @@ class Blueprint(BaseModel):
         if not self.performance_metrics:
             return "No metrics available"
 
+        # Explicit type hint forces Pylint to recognize this as a dict
+        metrics: Dict[str, float] = self.performance_metrics
         metrics_str = ", ".join(
-            f"{k}: {v:.3f}" for k, v in self.performance_metrics.items()
+            f"{k}: {v:.3f}"
+            for k, v in metrics.items()  # pylint: disable=no-member
         )
         return f"Performance: {metrics_str}"
 

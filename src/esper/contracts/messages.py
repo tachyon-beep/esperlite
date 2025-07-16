@@ -3,11 +3,14 @@ Message bus contracts for the Oona communication system.
 """
 
 import uuid
+from datetime import UTC
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 
 class TopicNames(str, Enum):
@@ -27,7 +30,7 @@ class OonaMessage(BaseModel):
 
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     sender_id: str  # e.g., 'Tezzeret-Worker-5', 'Tamiyo-Controller'
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     trace_id: str  # To trace a request across multiple services
     topic: TopicNames
     payload: Dict[str, Any]

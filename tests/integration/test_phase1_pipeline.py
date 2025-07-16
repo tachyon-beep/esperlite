@@ -6,11 +6,27 @@ of the Oona -> Urza -> Tezzeret pipeline.
 """
 
 import json
+import os
 from unittest.mock import Mock, patch
 
 import pytest
 
 from esper.services.contracts import BlueprintSubmissionRequest
+
+
+@pytest.fixture(autouse=True)
+def mock_s3_env():
+    """Mock S3 environment variables for tests."""
+    with patch.dict(
+        os.environ,
+        {
+            "S3_ENDPOINT_URL": "http://test-minio:9000",
+            "MINIO_ROOT_USER": "test-user",
+            "MINIO_ROOT_PASSWORD": "test-password",
+        },
+        clear=False,
+    ):
+        yield
 
 
 class TestPhase1Pipeline:

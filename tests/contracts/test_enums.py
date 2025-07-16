@@ -4,14 +4,12 @@ Tests for enum definitions and validation.
 
 import time
 
-from esper.contracts.enums import (
-    BlueprintState,
-    BlueprintStatus,
-    ComponentType,
-    KernelStatus,
-    SeedState,
-    SystemHealth,
-)
+from esper.contracts.enums import BlueprintState
+from esper.contracts.enums import BlueprintStatus
+from esper.contracts.enums import ComponentType
+from esper.contracts.enums import KernelStatus
+from esper.contracts.enums import SeedState
+from esper.contracts.enums import SystemHealth
 
 
 class TestSeedState:

@@ -27,7 +27,7 @@ class TestSeed:
         assert len(seed.seed_id) == 36  # UUID4 format
         assert isinstance(seed.created_at, datetime)
         assert isinstance(seed.updated_at, datetime)
-        assert seed.metadata == {}
+        assert not seed.metadata
 
     def test_seed_serialization(self):
         """Test Seed JSON serialization/deserialization."""
@@ -137,8 +137,8 @@ class TestBlueprint:
         assert blueprint.description == "Test architectural blueprint"
         assert blueprint.state == BlueprintState.PROPOSED
         assert blueprint.architecture == architecture
-        assert blueprint.hyperparameters == {}
-        assert blueprint.performance_metrics == {}
+        assert not blueprint.hyperparameters
+        assert not blueprint.performance_metrics
         assert blueprint.created_by == "test-system"
         assert isinstance(blueprint.blueprint_id, str)
 

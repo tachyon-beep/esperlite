@@ -32,12 +32,12 @@ class TestHealthSignal:
         assert signal.seed_id == 123
         assert signal.chunk_id == 456
         assert signal.epoch == 10
-        assert signal.activation_variance == 0.25
-        assert signal.dead_neuron_ratio == 0.05
-        assert signal.avg_correlation == 0.75
+        assert signal.activation_variance == pytest.approx(0.25)
+        assert signal.dead_neuron_ratio == pytest.approx(0.05)
+        assert signal.avg_correlation == pytest.approx(0.75)
         assert signal.is_ready_for_transition is False
-        assert signal.health_score == 1.0  # Default value
-        assert signal.execution_latency == 0.0  # Default value
+        assert signal.health_score == pytest.approx(1.0)  # Default value
+        assert signal.execution_latency == pytest.approx(0.0)  # Default value
         assert signal.error_count == 0  # Default value
         assert signal.active_seeds == 1  # Default value
         assert signal.total_seeds == 1  # Default value
@@ -57,8 +57,8 @@ class TestHealthSignal:
             execution_latency=10.5,
         )
         assert signal.layer_id == 0
-        assert signal.dead_neuron_ratio == 0.0
-        assert signal.avg_correlation == -1.0
+        assert signal.dead_neuron_ratio == pytest.approx(0.0)
+        assert signal.avg_correlation == pytest.approx(-1.0)
 
         # Test constraint violations - negative layer_id
         with pytest.raises(
@@ -231,10 +231,10 @@ class TestSystemStatePacket:
         assert packet.epoch == 100
         assert packet.total_seeds == 50
         assert packet.active_seeds == 35
-        assert packet.training_loss == 0.25
-        assert packet.validation_loss == 0.32
-        assert packet.system_load == 0.65
-        assert packet.memory_usage == 0.78
+        assert packet.training_loss == pytest.approx(0.25)
+        assert packet.validation_loss == pytest.approx(0.32)
+        assert packet.system_load == pytest.approx(0.65)
+        assert packet.memory_usage == pytest.approx(0.78)
 
     def test_system_state_packet_validation(self):
         """Test SystemStatePacket validation constraints."""
@@ -324,8 +324,8 @@ class TestAdaptationDecision:
 
         assert decision.layer_name == "transformer_block_5"
         assert decision.adaptation_type == "add_seed"
-        assert decision.confidence == 0.85
-        assert decision.urgency == 0.6
+        assert decision.confidence == pytest.approx(0.85)
+        assert decision.urgency == pytest.approx(0.6)
         assert decision.metadata["reason"] == "performance_bottleneck"
         assert isinstance(decision.timestamp, float)
 
@@ -451,9 +451,9 @@ class TestModelGraphState:
         assert len(state.health_signals) == 2
         assert "layer_1" in state.health_signals
         assert "layer_2" in state.health_signals
-        assert state.health_trends["layer_1"] == 0.8
+        assert state.health_trends["layer_1"] == pytest.approx(0.8)
         assert "layer_2" in state.problematic_layers
-        assert state.overall_health == 0.7
+        assert state.overall_health == pytest.approx(0.7)
         assert isinstance(state.analysis_timestamp, float)
 
 

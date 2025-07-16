@@ -5,7 +5,9 @@ Tests for message bus contracts validation and performance.
 import time
 from datetime import datetime
 
-from esper.contracts.messages import BlueprintSubmitted, OonaMessage, TopicNames
+from esper.contracts.messages import BlueprintSubmitted
+from esper.contracts.messages import OonaMessage
+from esper.contracts.messages import TopicNames
 
 
 class TestTopicNames:

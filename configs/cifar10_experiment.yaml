@@ -1,0 +1,51 @@
+# Esper Morphogenetic Training Configuration
+# CIFAR-10 Experiment with ResNet18
+
+run_id: "cifar10-resnet18-morphogenetic"
+max_epochs: 50
+learning_rate: 0.001
+batch_size: 128
+device: "auto" # "auto", "cuda", "cpu", "cuda:0", etc.
+compile_model: true
+
+# Model Configuration
+model:
+  architecture: "resnet18"
+  num_classes: 10
+  pretrained: false
+
+  # Morphogenetic Configuration
+  target_layers:
+    - "layer1"
+    - "layer2"
+    - "layer3"
+  seeds_per_layer: 4
+  seed_cache_size_mb: 256
+
+# Dataset Configuration
+dataset:
+  name: "cifar10"
+  data_dir: "./data"
+  download: true
+  val_split: 0.1
+
+# Training Configuration
+optimizer: "adamw"
+weight_decay: 0.01
+scheduler: "cosine"
+
+# Checkpointing
+checkpoint_dir: "./checkpoints"
+checkpoint_frequency: 5 # Save every N epochs
+
+# Morphogenetic Adaptation Settings
+adaptation_frequency: 2 # Consider adaptations every N epochs
+adaptation_cooldown: 1 # Minimum epochs between adaptations
+max_adaptations_per_epoch: 2
+
+# Service Integration
+oona:
+  url: "http://localhost:8001"
+  timeout: 30.0
+# Optional: Tamiyo strategic controller
+# tamiyo_policy_path: "./models/tamiyo_policy.pt"

@@ -1,0 +1,49 @@
+# Esper Development and Testing Configuration
+# Minimal configuration for quick testing and development
+
+run_id: "dev-test"
+max_epochs: 5
+learning_rate: 0.01
+batch_size: 64
+device: "auto"
+compile_model: false # Disable for faster iteration
+
+# Model Configuration
+model:
+  architecture: "resnet18"
+  num_classes: 10
+  pretrained: false
+
+  # Minimal morphogenetic configuration
+  target_layers:
+    - "layer1"
+  seeds_per_layer: 2
+  seed_cache_size_mb: 128
+
+# Dataset Configuration
+dataset:
+  name: "cifar10"
+  data_dir: "./data"
+  download: true
+  val_split: 0.2 # Larger validation set for quick feedback
+
+# Training Configuration
+optimizer: "adam"
+weight_decay: 0.0001
+scheduler: "none"
+
+# Checkpointing
+checkpoint_dir: "./dev_checkpoints"
+checkpoint_frequency: 2
+
+# Morphogenetic Adaptation Settings (conservative for testing)
+adaptation_frequency: 5 # Only once per run
+adaptation_cooldown: 10
+max_adaptations_per_epoch: 1
+
+# Service Integration
+oona:
+  url: "http://localhost:8001"
+  timeout: 10.0
+# No Tamiyo for development
+# tamiyo_policy_path: null

@@ -1,0 +1,53 @@
+# Esper Morphogenetic Training Configuration
+# CIFAR-100 Experiment with ResNet34
+
+run_id: "cifar100-resnet34-morphogenetic"
+max_epochs: 100
+learning_rate: 0.001
+batch_size: 128
+device: "auto"
+compile_model: true
+
+# Model Configuration
+model:
+  architecture: "resnet34"
+  num_classes: 100
+  pretrained: false
+
+  # Morphogenetic Configuration
+  target_layers:
+    - "layer1"
+    - "layer2"
+    - "layer3"
+    - "layer4"
+  seeds_per_layer: 6
+  seed_cache_size_mb: 512
+
+# Dataset Configuration
+dataset:
+  name: "cifar100"
+  data_dir: "./data"
+  download: true
+  val_split: 0.1
+
+# Training Configuration
+optimizer: "adamw"
+weight_decay: 0.01
+scheduler: "cosine"
+
+# Checkpointing
+checkpoint_dir: "./checkpoints"
+checkpoint_frequency: 10
+
+# Morphogenetic Adaptation Settings
+adaptation_frequency: 3
+adaptation_cooldown: 2
+max_adaptations_per_epoch: 3
+
+# Service Integration
+oona:
+  url: "http://localhost:8001"
+  timeout: 30.0
+
+# Tamiyo strategic controller
+tamiyo_policy_path: "./models/tamiyo_policy.pt"

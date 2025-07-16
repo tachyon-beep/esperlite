@@ -1,0 +1,413 @@
+"""
+KasminaLayer: High-performance execution layer for morphogenetic kernels.
+
+This module implements the core execution engine that loads and runs
+pre-compiled kernel artifacts with minimal overhead.
+"""
+
+import asyncio
+import logging
+import time
+from typing import Dict, List, Optional, Any
+
+import torch
+import torch.nn as nn
+
+from esper.contracts.operational import HealthSignal
+from esper.contracts.messages import OonaMessage, TopicNames
+from esper.services.oona_client import OonaClient
+from .state_layout import KasminaStateLayout, SeedLifecycleState
+from .kernel_cache import KernelCache
+
+logger = logging.getLogger(__name__)
+
+
+class KasminaLayer(nn.Module):
+    """
+    High-performance execution layer for morphogenetic kernels.
+    
+    This layer acts as a pure executor, loading and running pre-compiled
+    kernel artifacts from Urza with GPU-resident caching.
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        num_seeds: int = 4,
+        cache_size_mb: int = 128,
+        telemetry_enabled: bool = True,
+        layer_name: str = "kasmina_layer",
+    ):
+        """
+        Initialize KasminaLayer.
+        
+        Args:
+            input_size: Input tensor size
+            output_size: Output tensor size
+            num_seeds: Number of morphogenetic seeds
+            cache_size_mb: Kernel cache size in MB
+            telemetry_enabled: Whether to collect telemetry
+            layer_name: Name of this layer for telemetry
+        """
+        super().__init__()
+        
+        self.input_size = input_size
+        self.output_size = output_size
+        self.num_seeds = num_seeds
+        self.layer_name = layer_name
+        self.telemetry_enabled = telemetry_enabled
+        
+        # Default transformation (preserves original model behavior)
+        self.default_transform = nn.Linear(input_size, output_size)
+        
+        # State management
+        device = next(self.parameters()).device if list(self.parameters()) else torch.device("cpu")
+        self.state_layout = KasminaStateLayout(num_seeds, device)
+        
+        # Kernel cache
+        self.kernel_cache = KernelCache(
+            max_cache_size_mb=cache_size_mb,
+            max_entries=min(num_seeds * 4, 64)  # Reasonable default
+        )
+        
+        # Telemetry
+        self.oona_client = None
+        self._telemetry_available = False
+        if telemetry_enabled:
+            try:
+                self.oona_client = OonaClient()
+                self._telemetry_available = True
+            except Exception as e:
+                logger.warning(f"Failed to initialize Oona client: {e}")
+                # Keep telemetry_enabled as requested by user, but mark as unavailable
+        
+        # Performance tracking
+        self.total_forward_calls = 0
+        self.total_kernel_executions = 0
+        
+        logger.info(f"Initialized KasminaLayer '{layer_name}' with {num_seeds} seeds")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Execute forward pass with morphogenetic kernel execution.
+        
+        Args:
+            x: Input tensor
+            
+        Returns:
+            Output tensor
+        """
+        self.total_forward_calls += 1
+        start_time = time.perf_counter()
+        
+        # Fast path for dormant seeds - check if we have any active seeds at all
+        # This avoids expensive GPU operations when all seeds are dormant (common case)
+        if not self.state_layout.has_active_seeds():
+            # All seeds dormant - use default transform only
+            output = self.default_transform(x)
+        else:
+            # Default transformation (always computed for blending)
+            default_output = self.default_transform(x)
+            
+            # Execute with kernels if any are active
+            active_seeds = self.state_layout.get_active_seeds()
+            kernel_output = self._execute_with_kernels(x, active_seeds)
+            output = self._blend_outputs(default_output, kernel_output, active_seeds)
+        
+        # Update telemetry
+        if self.telemetry_enabled and self._telemetry_available:
+            exec_time_us = int((time.perf_counter() - start_time) * 1_000_000)
+            # For telemetry, we need the actual count - use a lightweight check
+            active_count = self.state_layout.get_active_count() if self.state_layout.has_active_seeds() else 0
+            self._update_telemetry(exec_time_us, active_count)
+        
+        return output
+
+    def _execute_with_kernels(self, x: torch.Tensor, active_seeds: torch.Tensor) -> torch.Tensor:
+        """
+        Execute forward pass using active kernels.
+        
+        Args:
+            x: Input tensor
+            active_seeds: Boolean mask of active seeds
+            
+        Returns:
+            Output tensor from kernel execution
+        """
+        batch_size = x.size(0)
+        output = torch.zeros(batch_size, self.output_size, device=x.device, dtype=x.dtype)
+        
+        for seed_idx in range(self.num_seeds):
+            if not active_seeds[seed_idx]:
+                continue
+                
+            try:
+                # Execute kernel for this seed
+                kernel_output = self._execute_kernel_placeholder(x, seed_idx)
+                
+                # Accumulate output (in production, this would be more sophisticated)
+                alpha = self.state_layout.alpha_blend[seed_idx].item()
+                output += alpha * kernel_output
+                
+                self.total_kernel_executions += 1
+                
+                # Update telemetry for this seed
+                health_score = self._compute_health_score(kernel_output)
+                self.state_layout.update_telemetry(seed_idx, 100, health_score)  # 100us placeholder
+                
+            except Exception as e:
+                logger.warning(f"Kernel execution failed for seed {seed_idx}: {e}")
+                error_count = self.state_layout.increment_error_count(seed_idx)
+                
+                if error_count >= 3:
+                    logger.error(f"Seed {seed_idx} moved to error recovery after {error_count} failures")
+        
+        return output
+
+    def _execute_kernel_placeholder(self, x: torch.Tensor, seed_idx: int) -> torch.Tensor:
+        """
+        Placeholder kernel execution for MVP.
+        
+        In production, this would load and execute actual compiled kernels.
+        
+        Args:
+            x: Input tensor
+            seed_idx: Index of the seed
+            
+        Returns:
+            Kernel output tensor
+        """
+        # Placeholder: Apply a simple transformation that differs from default
+        # This simulates morphogenetic behavior
+        weight_scale = 0.5 + (seed_idx * 0.1)  # Different scale per seed
+        return self.default_transform(x) * weight_scale
+
+    def _blend_outputs(
+        self, 
+        default_output: torch.Tensor, 
+        kernel_output: torch.Tensor, 
+        active_seeds: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Blend default and kernel outputs using alpha blending.
+        
+        Args:
+            default_output: Output from default transformation
+            kernel_output: Output from kernel execution
+            active_seeds: Boolean mask of active seeds
+            
+        Returns:
+            Blended output tensor
+        """
+        # Compute overall alpha (how much to blend in kernel output)
+        total_alpha = 0.0
+        for seed_idx in range(self.num_seeds):
+            if active_seeds[seed_idx]:
+                total_alpha += self.state_layout.alpha_blend[seed_idx].item()
+        
+        # Clamp alpha to [0, 1]
+        total_alpha = min(total_alpha, 1.0)
+        
+        # Blend outputs
+        return (1.0 - total_alpha) * default_output + total_alpha * kernel_output
+
+    def _compute_health_score(self, output: torch.Tensor) -> float:
+        """
+        Compute health score for kernel output.
+        
+        Args:
+            output: Kernel output tensor
+            
+        Returns:
+            Health score between 0.0 and 1.0
+        """
+        # Simple health metric: inverse of gradient norm
+        # In production, this would be more sophisticated
+        try:
+            grad_norm = torch.norm(output, dim=None).item()
+            return 1.0 / (1.0 + grad_norm)
+        except:
+            return 0.5  # Neutral score if computation fails
+
+    def _update_telemetry(self, exec_time_us: int, active_seed_count: int) -> None:
+        """
+        Update and publish telemetry data.
+        
+        Args:
+            exec_time_us: Execution time in microseconds
+            active_seed_count: Number of active seeds
+        """
+        try:
+            # Collect layer statistics
+            state_stats = self.state_layout.get_stats()
+            
+            # Create health signal (using fields from the actual contract)
+            health_signal = HealthSignal(
+                layer_id=hash(self.layer_name) % 10000,  # Simple layer ID
+                seed_id=0,  # Representative seed
+                chunk_id=0,  # Placeholder chunk ID
+                epoch=0,    # Placeholder epoch
+                activation_variance=state_stats["avg_health"],
+                dead_neuron_ratio=min(state_stats["total_errors"] / max(state_stats["num_seeds"], 1), 1.0),
+                avg_correlation=state_stats["avg_health"],
+                is_ready_for_transition=False
+            )
+            
+            # Publish via Oona (async)
+            if self.oona_client:
+                _ = asyncio.create_task(self._publish_health_signal(health_signal))
+                # Task will be garbage collected after completion, which is fine for fire-and-forget telemetry
+                
+        except Exception as e:
+            logger.warning(f"Failed to update telemetry: {e}")
+
+    async def _publish_health_signal(self, health_signal: HealthSignal) -> None:
+        """
+        Publish health signal to Oona message bus.
+        
+        Args:
+            health_signal: Health signal to publish
+        """
+        try:
+            message = OonaMessage(
+                sender_id=f"kasmina.{self.layer_name}",
+                trace_id=f"telemetry-{int(time.time())}",
+                topic=TopicNames.TELEMETRY_SEED_HEALTH,
+                payload=health_signal.model_dump()
+            )
+            await self.oona_client.publish(message)
+        except Exception as e:
+            logger.warning(f"Failed to publish health signal: {e}")
+
+    async def load_kernel(self, seed_idx: int, artifact_id: str) -> bool:
+        """
+        Load a compiled kernel for a specific seed.
+        
+        Args:
+            seed_idx: Index of the seed
+            artifact_id: ID of the kernel artifact
+            
+        Returns:
+            True if kernel was loaded successfully
+        """
+        if seed_idx < 0 or seed_idx >= self.num_seeds:
+            raise ValueError(f"Invalid seed index: {seed_idx}")
+        
+        try:
+            # Transition to loading state
+            self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.LOADING)
+            
+            # Load kernel from cache
+            kernel_tensor = await self.kernel_cache.load_kernel(artifact_id)
+            
+            if kernel_tensor is not None:
+                # Transition to active state
+                kernel_id = hash(artifact_id)
+                self.state_layout.transition_seed_state(
+                    seed_idx, SeedLifecycleState.ACTIVE, kernel_id
+                )
+                
+                # Set blend factor (could be configured)
+                self.state_layout.alpha_blend[seed_idx] = 0.3  # 30% kernel, 70% default
+                
+                logger.info(f"Loaded kernel {artifact_id} for seed {seed_idx}")
+                return True
+            else:
+                # Failed to load, return to dormant
+                self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.DORMANT)
+                logger.warning(f"Failed to load kernel {artifact_id} for seed {seed_idx}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error loading kernel {artifact_id} for seed {seed_idx}: {e}")
+            self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.ERROR_RECOVERY)
+            return False
+
+    async def unload_kernel(self, seed_idx: int) -> bool:
+        """
+        Unload kernel from a specific seed.
+        
+        Args:
+            seed_idx: Index of the seed
+            
+        Returns:
+            True if kernel was unloaded successfully
+        """
+        if seed_idx < 0 or seed_idx >= self.num_seeds:
+            raise ValueError(f"Invalid seed index: {seed_idx}")
+        
+        try:
+            self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.DORMANT)
+            self.state_layout.alpha_blend[seed_idx] = 0.0
+            
+            logger.info(f"Unloaded kernel from seed {seed_idx}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error unloading kernel from seed {seed_idx}: {e}")
+            return False
+
+    def get_layer_stats(self) -> Dict[str, Any]:
+        """
+        Get comprehensive layer statistics.
+        
+        Returns:
+            Dictionary containing layer statistics
+        """
+        state_stats = self.state_layout.get_stats()
+        cache_stats = self.kernel_cache.get_cache_stats()
+        
+        return {
+            "layer_name": self.layer_name,
+            "total_forward_calls": self.total_forward_calls,
+            "total_kernel_executions": self.total_kernel_executions,
+            "kernel_execution_ratio": (
+                self.total_kernel_executions / max(self.total_forward_calls, 1)
+            ),
+            "state_stats": state_stats,
+            "cache_stats": cache_stats,
+            "telemetry_enabled": self.telemetry_enabled,
+        }
+
+    def set_seed_alpha(self, seed_idx: int, alpha: float) -> None:
+        """
+        Set the alpha blend factor for a specific seed.
+        
+        Args:
+            seed_idx: Index of the seed
+            alpha: Blend factor (0.0 to 1.0)
+        """
+        if seed_idx < 0 or seed_idx >= self.num_seeds:
+            raise ValueError(f"Invalid seed index: {seed_idx}")
+        
+        alpha = max(0.0, min(1.0, alpha))  # Clamp to [0, 1]
+        self.state_layout.alpha_blend[seed_idx] = alpha
+        
+        logger.debug(f"Set alpha={alpha} for seed {seed_idx}")
+
+    def to(self, device: torch.device) -> 'KasminaLayer':
+        """
+        Move layer to specified device.
+        
+        Args:
+            device: Target device
+            
+        Returns:
+            Self for method chaining
+        """
+        super().to(device)
+        
+        # Move state tensors to device
+        self.state_layout.lifecycle_states = self.state_layout.lifecycle_states.to(device)
+        self.state_layout.active_kernel_id = self.state_layout.active_kernel_id.to(device)
+        self.state_layout.alpha_blend = self.state_layout.alpha_blend.to(device)
+        self.state_layout.health_accumulator = self.state_layout.health_accumulator.to(device)
+        self.state_layout.last_update_epoch = self.state_layout.last_update_epoch.to(device)
+        self.state_layout.exec_latency_us = self.state_layout.exec_latency_us.to(device)
+        self.state_layout.error_count = self.state_layout.error_count.to(device)
+        self.state_layout.fallback_active = self.state_layout.fallback_active.to(device)
+        
+        self.state_layout.device = device
+        
+        return self

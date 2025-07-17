@@ -114,6 +114,10 @@ class TestOptimizedS3Client:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Reset global client state for isolation
+        import esper.utils.s3_client
+        esper.utils.s3_client._client_manager._default_client = None
+
         self.config = S3ClientConfig(
             endpoint_url="http://localhost:9000",
             bucket_name="test-bucket",
@@ -193,7 +197,9 @@ class TestOptimizedS3Client:
     @pytest.mark.asyncio
     async def test_upload_file_no_bucket(self):
         """Test upload file with no bucket specified."""
-        client = OptimizedS3Client()  # No bucket in config
+        # Explicitly create config with no bucket to avoid environment variables
+        config = S3ClientConfig(bucket_name=None)
+        client = OptimizedS3Client(config)
 
         with pytest.raises(ValueError, match="Bucket name must be provided"):
             await client.upload_file("/tmp/test.txt", "test-key")
@@ -441,7 +447,7 @@ class TestModuleFunctions:
         """Reset global client between tests."""
         import esper.utils.s3_client
 
-        esper.utils.s3_client._default_client = None
+        esper.utils.s3_client._client_manager._default_client = None
 
     @patch("esper.utils.s3_client.OptimizedS3Client")
     def test_get_s3_client_singleton(self, mock_client_class):

@@ -123,3 +123,5 @@ Your work will contribute directly to the following phases. Understand what we a
   - ✅ The wrapped model can successfully download a specific kernel from `Urza` and execute it during a forward pass.
 
 Welcome aboard. Your contributions will be critical to achieving these milestones. If you have any questions, please refer to the HLD or ask the project lead. Let's get to work.
+
+ABOVE ALL ELSE, YOU MUST EXPLICITLY READ ALL RELEVANT FILES BFEORE EXECUTING A TASK. EVEN IF YOU THINK YOU KNOW WHAT TO DO OR WHAT THE CODE DOES, YOU MUST HAVE READ IT BEFORE YOU PROCEED. THIS IS NON-NEGOTIABLE.

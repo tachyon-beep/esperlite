@@ -12,6 +12,7 @@ This module provides a high-performance S3 client implementation with:
 import asyncio
 import logging
 import os
+import tempfile
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -347,18 +348,18 @@ class OptimizedS3Client:
                     )
                 )
                 return False
-            else:
-                # Actual error
-                self._record_operation(
-                    S3Operation(
-                        operation="head_object",
-                        duration_ms=duration_ms,
-                        success=False,
-                        error=f"{error_code}: {str(e)}",
-                    )
+
+            # Actual error
+            self._record_operation(
+                S3Operation(
+                    operation="head_object",
+                    duration_ms=duration_ms,
+                    success=False,
+                    error=f"{error_code}: {str(e)}",
                 )
-                logger.error("Error checking object existence: %s", e)
-                return False
+            )
+            logger.error("Error checking object existence: %s", e)
+            return False
 
         except (OSError, IOError, RuntimeError) as e:
             duration_ms = (time.time() - start_time) * 1000
@@ -496,8 +497,6 @@ def upload_bytes(s3_client, data: bytes, bucket: str, key: str) -> str:
     Note: This is a compatibility function for the existing tezzeret worker.
     For new code, prefer using the async upload_file method.
     """
-    import tempfile
-
     # Create temporary file
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         tmp_file.write(data)
@@ -510,8 +509,8 @@ def upload_bytes(s3_client, data: bytes, bucket: str, key: str) -> str:
 
         if success:
             return f"s3://{bucket}/{key}"
-        else:
-            raise RuntimeError(f"Failed to upload to s3://{bucket}/{key}")
+
+        raise RuntimeError(f"Failed to upload to s3://{bucket}/{key}")
     finally:
         # Clean up temporary file
         if os.path.exists(tmp_path):

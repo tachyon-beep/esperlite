@@ -26,6 +26,9 @@ from botocore.config import Config
 
 logger = logging.getLogger(__name__)
 
+# Constants
+BUCKET_NAME_REQUIRED_ERROR = "Bucket name must be provided"
+
 
 @dataclass
 class S3ClientConfig:
@@ -124,11 +127,11 @@ class OptimizedS3Client:
         """
         bucket = bucket or self.config.bucket_name
         if not bucket:
-            raise ValueError("Bucket name must be provided")
+            raise ValueError(BUCKET_NAME_REQUIRED_ERROR)
 
         start_time = time.time()
         retry_count = 0
-        
+
         # Get file size safely
         try:
             file_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
@@ -190,7 +193,7 @@ class OptimizedS3Client:
                 )
                 await asyncio.sleep(wait_time)
 
-            except Exception as e:
+            except (OSError, IOError, RuntimeError) as e:
                 duration_ms = (time.time() - start_time) * 1000
                 self._record_operation(
                     S3Operation(
@@ -222,7 +225,7 @@ class OptimizedS3Client:
         """
         bucket = bucket or self.config.bucket_name
         if not bucket:
-            raise ValueError("Bucket name must be provided")
+            raise ValueError(BUCKET_NAME_REQUIRED_ERROR)
 
         start_time = time.time()
         retry_count = 0
@@ -282,7 +285,7 @@ class OptimizedS3Client:
                 )
                 await asyncio.sleep(wait_time)
 
-            except Exception as e:
+            except (OSError, IOError, RuntimeError) as e:
                 duration_ms = (time.time() - start_time) * 1000
                 self._record_operation(
                     S3Operation(
@@ -311,7 +314,7 @@ class OptimizedS3Client:
         """
         bucket = bucket or self.config.bucket_name
         if not bucket:
-            raise ValueError("Bucket name must be provided")
+            raise ValueError(BUCKET_NAME_REQUIRED_ERROR)
 
         start_time = time.time()
 
@@ -357,7 +360,7 @@ class OptimizedS3Client:
                 logger.error("Error checking object existence: %s", e)
                 return False
 
-        except Exception as e:
+        except (OSError, IOError, RuntimeError) as e:
             duration_ms = (time.time() - start_time) * 1000
             self._record_operation(
                 S3Operation(
@@ -435,16 +438,30 @@ class OptimizedS3Client:
             pass
 
 
-# Global client instance for convenient access
-_default_client: Optional[OptimizedS3Client] = None
+# Module-level client instance for convenient access
+class _ClientManager:
+    """Manages the default S3 client instance."""
+
+    def __init__(self):
+        self._default_client: Optional[OptimizedS3Client] = None
+
+    def get_client(self, config: Optional[S3ClientConfig] = None) -> OptimizedS3Client:
+        """Get the default S3 client instance."""
+        if config is not None:
+            # If custom config is provided, always create a new client
+            return OptimizedS3Client(config)
+
+        if self._default_client is None:
+            self._default_client = OptimizedS3Client(config)
+        return self._default_client
+
+
+_client_manager = _ClientManager()
 
 
 def get_s3_client(config: Optional[S3ClientConfig] = None) -> OptimizedS3Client:
     """Get the default S3 client instance."""
-    global _default_client
-    if _default_client is None:
-        _default_client = OptimizedS3Client(config)
-    return _default_client
+    return _client_manager.get_client(config)
 
 
 async def upload_file(

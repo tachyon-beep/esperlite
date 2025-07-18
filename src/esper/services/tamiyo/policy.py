@@ -107,7 +107,9 @@ class TamiyoPolicyGNN(nn.Module):
         if SCATTER_AVAILABLE:
             logger.info("TamiyoPolicyGNN: Using torch-scatter acceleration")
         else:
-            logger.info("TamiyoPolicyGNN: Using fallback pooling (install torch-scatter for 2-10x speedup)")
+            logger.info(
+                "TamiyoPolicyGNN: Using fallback pooling (install torch-scatter for 2-10x speedup)"
+            )
 
     def forward(
         self,
@@ -249,7 +251,7 @@ class TamiyoPolicyGNN(nn.Module):
     def acceleration_status(self) -> Dict[str, Any]:
         """
         Report current acceleration status.
-        
+
         Returns:
             Dictionary containing acceleration availability and status
         """

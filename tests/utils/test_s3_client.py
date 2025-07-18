@@ -116,6 +116,7 @@ class TestOptimizedS3Client:
         """Set up test fixtures."""
         # Reset global client state for isolation
         import esper.utils.s3_client
+
         esper.utils.s3_client._client_manager._default_client = None
 
         self.config = S3ClientConfig(

@@ -93,7 +93,7 @@ class TestGNNAcceleration:
         avg_time = (end_time - start_time) / num_iterations
 
         # Log performance for reference
-        print(f"Fallback mode average time: {avg_time*1000:.2f}ms per forward pass")
+        print(f"Fallback mode average time: {avg_time * 1000:.2f}ms per forward pass")
 
         # Sanity check - should complete in reasonable time
         assert avg_time < 1.0, f"Forward pass too slow: {avg_time:.3f}s"
@@ -132,7 +132,9 @@ class TestGNNAcceleration:
         end_time = time.perf_counter()
         avg_time = (end_time - start_time) / num_iterations
 
-        print(f"Accelerated mode average time: {avg_time*1000:.2f}ms per forward pass")
+        print(
+            f"Accelerated mode average time: {avg_time * 1000:.2f}ms per forward pass"
+        )
 
         # Should be reasonably fast
         assert avg_time < 1.0, f"Accelerated forward pass too slow: {avg_time:.3f}s"
@@ -177,8 +179,8 @@ class TestGNNAcceleration:
 
         # For now, just verify consistency within same mode
         with torch.no_grad():
-            adaptation_prob2, layer_priorities2, urgency_score2, value_estimate2 = policy(
-                node_features, edge_index
+            adaptation_prob2, layer_priorities2, urgency_score2, value_estimate2 = (
+                policy(node_features, edge_index)
             )
 
         # Results should be identical (deterministic)
@@ -215,7 +217,9 @@ class TestGNNAcceleration:
                 memory_growth = current_memory - initial_memory
 
                 # Allow some memory growth but not excessive
-                assert memory_growth < 100 * 1024 * 1024, f"Memory leak detected: {memory_growth / 1024 / 1024:.1f}MB growth"
+                assert memory_growth < 100 * 1024 * 1024, (
+                    f"Memory leak detected: {memory_growth / 1024 / 1024:.1f}MB growth"
+                )
 
         # Final cleanup
         gc.collect()
@@ -241,7 +245,7 @@ def run_performance_comparison():
     test_instance = TestGNNAcceleration()
     accel_time = test_instance.test_acceleration_performance()
 
-    print(f"Acceleration performance: {accel_time*1000:.2f}ms per forward pass")
+    print(f"Acceleration performance: {accel_time * 1000:.2f}ms per forward pass")
 
 
 if __name__ == "__main__":
@@ -256,7 +260,7 @@ if __name__ == "__main__":
     print("✅ Fallback functionality test passed")
 
     baseline_time = test_instance.test_pooling_performance_baseline()
-    print(f"✅ Baseline performance: {baseline_time*1000:.2f}ms per forward pass")
+    print(f"✅ Baseline performance: {baseline_time * 1000:.2f}ms per forward pass")
 
     test_instance.test_numerical_equivalence()
     print("✅ Numerical equivalence test passed")

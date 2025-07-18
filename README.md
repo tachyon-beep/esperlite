@@ -178,15 +178,18 @@ print(f"Fallback mode: {status['fallback_mode']}")
 #### Troubleshooting
 
 **Compilation Errors:**
+
 - Ensure CUDA toolkit is installed and matches PyTorch version
 - Set `CUDA_HOME` environment variable
 - Check PyTorch CUDA compatibility: `python -c "import torch; print(torch.cuda.is_available())"`
 
 **Version Conflicts:**
+
 - torch-scatter 2.1.0+ requires PyTorch 2.2+
 - Verify versions: `pip list | grep torch`
 
 **Performance Issues:**
+
 - Check logs for "torch-scatter acceleration enabled" message
 - Monitor forward pass latency improvements (2-10x expected)
 - Ensure GPU is available for optimal performance

@@ -5,6 +5,8 @@ This module implements the core intelligence of the Tamiyo Strategic Controller,
 using Graph Neural Networks to analyze model topology and performance metrics.
 """
 
+import importlib.util
+import logging
 from dataclasses import dataclass
 from typing import Any
 from typing import Dict
@@ -21,6 +23,16 @@ from torch_geometric.nn import global_mean_pool
 
 from esper.contracts.operational import AdaptationDecision
 from esper.contracts.operational import ModelGraphState
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+# Detect torch-scatter acceleration availability
+SCATTER_AVAILABLE = importlib.util.find_spec("torch_scatter") is not None
+if SCATTER_AVAILABLE:
+    logger.info("torch-scatter acceleration enabled")
+else:
+    logger.info("torch-scatter not available, using fallback pooling")
 
 
 @dataclass
@@ -90,6 +102,12 @@ class TamiyoPolicyGNN(nn.Module):
             nn.ReLU(),
             nn.Linear(config.hidden_dim, 1),
         )
+
+        # Log acceleration status
+        if SCATTER_AVAILABLE:
+            logger.info("TamiyoPolicyGNN: Using torch-scatter acceleration")
+        else:
+            logger.info("TamiyoPolicyGNN: Using fallback pooling (install torch-scatter for 2-10x speedup)")
 
     def forward(
         self,
@@ -226,6 +244,20 @@ class TamiyoPolicyGNN(nn.Module):
             edge_index = torch.empty((2, 0), dtype=torch.long)
 
         return node_features, edge_index
+
+    @property
+    def acceleration_status(self) -> Dict[str, Any]:
+        """
+        Report current acceleration status.
+        
+        Returns:
+            Dictionary containing acceleration availability and status
+        """
+        return {
+            "torch_scatter_available": SCATTER_AVAILABLE,
+            "acceleration_enabled": SCATTER_AVAILABLE,
+            "fallback_mode": not SCATTER_AVAILABLE,
+        }
 
 
 class PolicyTrainingState:

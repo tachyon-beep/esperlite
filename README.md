@@ -129,6 +129,68 @@ The system consists of 11 specialized components organized into three functional
    docker-compose -f docker/docker-compose.yml logs -f
    ```
 
+## Performance Optimization
+
+### GNN Acceleration
+
+For maximum performance in Tamiyo strategic decision-making, install the acceleration dependencies:
+
+```bash
+pip install -e .[acceleration]
+```
+
+This enables 2-10x faster graph operations via torch-scatter acceleration. The system gracefully falls back to standard implementations if not installed.
+
+#### System Requirements
+
+- **CUDA Toolkit**: Required for torch-scatter compilation
+- **Compatible PyTorch**: Version 2.2+ (see requirements)
+- **GPU**: Recommended for optimal performance
+
+#### Installation Examples
+
+```bash
+# Development with acceleration
+pip install -e .[dev,acceleration]
+
+# Production deployment
+pip install -e .[acceleration]
+
+# Base installation (fallback mode)
+pip install -e .
+```
+
+#### Verifying Acceleration Status
+
+Check if acceleration is active in your Python code:
+
+```python
+from src.esper.services.tamiyo.policy import TamiyoPolicyGNN, PolicyConfig
+
+config = PolicyConfig()
+policy = TamiyoPolicyGNN(config)
+status = policy.acceleration_status
+
+print(f"Acceleration enabled: {status['acceleration_enabled']}")
+print(f"Fallback mode: {status['fallback_mode']}")
+```
+
+#### Troubleshooting
+
+**Compilation Errors:**
+- Ensure CUDA toolkit is installed and matches PyTorch version
+- Set `CUDA_HOME` environment variable
+- Check PyTorch CUDA compatibility: `python -c "import torch; print(torch.cuda.is_available())"`
+
+**Version Conflicts:**
+- torch-scatter 2.1.0+ requires PyTorch 2.2+
+- Verify versions: `pip list | grep torch`
+
+**Performance Issues:**
+- Check logs for "torch-scatter acceleration enabled" message
+- Monitor forward pass latency improvements (2-10x expected)
+- Ensure GPU is available for optimal performance
+
 ## Project Structure
 
 ```plaintext

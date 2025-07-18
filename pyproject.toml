@@ -38,6 +38,11 @@ docs = [
     "sphinx-rtd-theme>=2.0",
     "myst-parser>=2.0",
 ]
+acceleration = [
+    "torch-scatter>=2.1.0,<3.0",
+    "torch-sparse>=0.6.17,<1.0",
+    "torch-cluster>=1.6.1,<2.0",
+]
 
 [tool.black]
 line-length = 88

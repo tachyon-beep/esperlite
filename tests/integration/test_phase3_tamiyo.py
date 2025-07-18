@@ -56,6 +56,20 @@ class TestTamiyoPolicyGNN:
         assert 0 <= urgency_score.item() <= 1
         assert value_estimate.shape == torch.Size([1, 1])
     
+    def test_policy_acceleration_status(self):
+        """Verify policy reports acceleration status correctly."""
+        config = PolicyConfig()
+        policy = TamiyoPolicyGNN(config)
+        
+        status = policy.acceleration_status
+        assert isinstance(status["torch_scatter_available"], bool)
+        assert isinstance(status["acceleration_enabled"], bool)
+        assert isinstance(status["fallback_mode"], bool)
+        
+        # Logical consistency
+        assert status["acceleration_enabled"] == status["torch_scatter_available"]
+        assert status["fallback_mode"] == (not status["torch_scatter_available"])
+    
     def test_make_decision(self):
         """Test decision making functionality."""
         # Use lower confidence threshold for testing with untrained network

@@ -125,7 +125,9 @@ class KernelCache:
             
             # Deserialize the kernel tensor with writable copy
             kernel_data = s3_response.content
-            kernel_tensor = torch.frombuffer(kernel_data, dtype=torch.float32).clone()
+            # Create writable copy to avoid PyTorch warning about non-writable buffers
+            writable_data = bytearray(kernel_data)
+            kernel_tensor = torch.frombuffer(writable_data, dtype=torch.float32).clone()
             
             # Move to GPU if available
             if torch.cuda.is_available():

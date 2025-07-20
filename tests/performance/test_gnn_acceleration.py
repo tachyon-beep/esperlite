@@ -98,7 +98,7 @@ class TestGNNAcceleration:
         # Sanity check - should complete in reasonable time
         assert avg_time < 1.0, f"Forward pass too slow: {avg_time:.3f}s"
 
-        return avg_time
+        # Test passes if assertions are met
 
     @pytest.mark.skipif(not SCATTER_AVAILABLE, reason="torch-scatter not available")
     def test_acceleration_performance(self):
@@ -139,7 +139,7 @@ class TestGNNAcceleration:
         # Should be reasonably fast
         assert avg_time < 1.0, f"Accelerated forward pass too slow: {avg_time:.3f}s"
 
-        return avg_time
+        # Test passes if assertions are met
 
     def test_numerical_equivalence(self):
         """Verify numerical equivalence between accelerated and fallback modes."""
@@ -259,13 +259,17 @@ if __name__ == "__main__":
     test_instance.test_policy_works_with_fallback()
     print("✅ Fallback functionality test passed")
 
-    baseline_time = test_instance.test_pooling_performance_baseline()
-    print(f"✅ Baseline performance: {baseline_time * 1000:.2f}ms per forward pass")
+    test_instance.test_pooling_performance_baseline()
+    print("✅ Baseline performance test passed")
 
     test_instance.test_numerical_equivalence()
     print("✅ Numerical equivalence test passed")
 
     test_instance.test_memory_usage_stability()
     print("✅ Memory stability test passed")
+
+    if SCATTER_AVAILABLE:
+        test_instance.test_acceleration_performance()
+        print("✅ Acceleration performance test passed")
 
     print("\nAll GNN acceleration tests completed successfully!")

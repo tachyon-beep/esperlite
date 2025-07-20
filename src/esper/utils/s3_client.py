@@ -302,6 +302,49 @@ class OptimizedS3Client:
 
         return False
 
+    def upload_bytes(
+        self, data: bytes, s3_key: str, bucket: Optional[str] = None
+    ) -> str:
+        """
+        Upload bytes data to S3 synchronously.
+
+        Args:
+            data: Bytes data to upload
+            s3_key: S3 object key
+            bucket: S3 bucket name (uses config default if not provided)
+
+        Returns:
+            S3 object reference string
+
+        Raises:
+            ValueError: If bucket name is not provided
+            RuntimeError: If upload fails
+        """
+        bucket = bucket or self.config.bucket_name
+        if not bucket:
+            raise ValueError(BUCKET_NAME_REQUIRED_ERROR)
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            tmp_file.write(data)
+            tmp_path = tmp_file.name
+
+        try:
+            # Use asyncio to run the async upload
+            loop = asyncio.get_event_loop()
+            success = loop.run_until_complete(
+                self.upload_file(tmp_path, s3_key, bucket)
+            )
+
+            if success:
+                return f"s3://{bucket}/{s3_key}"
+
+            raise RuntimeError(f"Failed to upload to s3://{bucket}/{s3_key}")
+        finally:
+            # Clean up temporary file
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
     async def object_exists(self, s3_key: str, bucket: Optional[str] = None) -> bool:
         """
         Check if an S3 object exists.

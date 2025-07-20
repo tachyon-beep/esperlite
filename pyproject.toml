@@ -68,6 +68,12 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "--cov=src/esper --cov-report=term-missing --cov-report=html"
+markers = [
+    "stress: marks tests as stress tests (deselect with '-m \"not stress\"')",
+    "integration: marks tests as integration tests",
+    "performance: marks tests as performance tests",
+    "slow: marks tests as slow running tests",
+]
 
 [tool.coverage.run]
 source = ["src/esper"]

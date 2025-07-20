@@ -5,6 +5,7 @@ This module provides the background worker that compiles blueprints into
 executable kernel artifacts.
 """
 
+import asyncio
 import hashlib
 import io
 import json
@@ -13,7 +14,6 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-import requests
 import torch
 import torch.nn as nn
 
@@ -143,7 +143,7 @@ class TezzeretWorker:
         content = f"{blueprint_id}:{pipeline}:{int(time.time())}"
         return hashlib.sha256(content.encode()).hexdigest()
 
-    def fetch_unvalidated_blueprints(self) -> list:
+    async def fetch_unvalidated_blueprints(self) -> list:
         """
         Fetches unvalidated blueprints from Urza.
 
@@ -151,15 +151,19 @@ class TezzeretWorker:
             list: List of blueprint data
         """
         try:
+            from esper.utils.http_client import AsyncHttpClient
+            
             url = f"{self.urza_base_url}/internal/v1/blueprints/unvalidated"
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
+            
+            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
+                response = await client.get(url)
+                return await response.json()
+                    
+        except Exception as e:
             logger.error("Failed to fetch blueprints: %s", e)
             return []
 
-    def update_blueprint_status(
+    async def update_blueprint_status(
         self, blueprint_id: str, status: BlueprintStatus
     ) -> bool:
         """
@@ -173,15 +177,19 @@ class TezzeretWorker:
             bool: True if successful
         """
         try:
+            from esper.utils.http_client import AsyncHttpClient
+            
             url = f"{self.urza_base_url}/internal/v1/blueprints/{blueprint_id}/status"
-            response = requests.put(url, json={"status": status.value}, timeout=30)
-            response.raise_for_status()
-            return True
-        except requests.RequestException as e:
+            
+            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
+                response = await client.put(url, json={"status": status.value})
+                return True
+                    
+        except Exception as e:
             logger.error("Failed to update blueprint status: %s", e)
             return False
 
-    def submit_compiled_kernel(self, kernel: CompiledKernelArtifact) -> bool:
+    async def submit_compiled_kernel(self, kernel: CompiledKernelArtifact) -> bool:
         """
         Submits compiled kernel to Urza.
 
@@ -192,22 +200,26 @@ class TezzeretWorker:
             bool: True if successful
         """
         try:
+            from esper.utils.http_client import AsyncHttpClient
+            
             url = f"{self.urza_base_url}/internal/v1/kernels"
-            response = requests.post(url, json=kernel.model_dump(), timeout=30)
-            response.raise_for_status()
-            return True
-        except requests.RequestException as e:
+            
+            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
+                response = await client.post(url, json=kernel.model_dump())
+                return True
+                    
+        except Exception as e:
             logger.error("Failed to submit compiled kernel: %s", e)
             return False
 
-    def process_one_blueprint(self) -> bool:
+    async def process_one_blueprint(self) -> bool:
         """
         Processes one blueprint from the queue.
 
         Returns:
             bool: True if a blueprint was processed
         """
-        blueprints = self.fetch_unvalidated_blueprints()
+        blueprints = await self.fetch_unvalidated_blueprints()
 
         if not blueprints:
             return False
@@ -218,7 +230,7 @@ class TezzeretWorker:
         logger.info("Processing blueprint %s", blueprint_id)
 
         # Update status to COMPILING to prevent other workers from picking it up
-        if not self.update_blueprint_status(blueprint_id, BlueprintStatus.COMPILING):
+        if not await self.update_blueprint_status(blueprint_id, BlueprintStatus.COMPILING):
             logger.error(
                 "Failed to update blueprint %s status to COMPILING", blueprint_id
             )
@@ -251,7 +263,7 @@ class TezzeretWorker:
             )
 
             # Submit kernel to Urza
-            if self.submit_compiled_kernel(kernel_artifact):
+            if await self.submit_compiled_kernel(kernel_artifact):
                 logger.info(
                     "Successfully compiled blueprint %s -> kernel %s",
                     blueprint_id,
@@ -262,15 +274,15 @@ class TezzeretWorker:
                 logger.error(
                     "Failed to submit compiled kernel for blueprint %s", blueprint_id
                 )
-                self.update_blueprint_status(blueprint_id, BlueprintStatus.INVALID)
+                await self.update_blueprint_status(blueprint_id, BlueprintStatus.INVALID)
                 return False
 
         except Exception as e:
             logger.error("Failed to compile blueprint %s: %s", blueprint_id, e)
-            self.update_blueprint_status(blueprint_id, BlueprintStatus.INVALID)
+            await self.update_blueprint_status(blueprint_id, BlueprintStatus.INVALID)
             return False
 
-    def start_polling(self) -> None:
+    async def start_polling(self) -> None:
         """
         Starts the main polling loop.
 
@@ -280,13 +292,13 @@ class TezzeretWorker:
 
         while True:
             try:
-                processed = self.process_one_blueprint()
+                processed = await self.process_one_blueprint()
                 if not processed:
                     # No blueprints to process, wait before next poll
-                    time.sleep(self.poll_interval)
+                    await asyncio.sleep(self.poll_interval)
                 else:
                     # Blueprint processed, poll immediately for next one
-                    time.sleep(1)
+                    await asyncio.sleep(1)
 
             except KeyboardInterrupt:
                 logger.info(
@@ -296,6 +308,6 @@ class TezzeretWorker:
                 break
             except Exception as e:
                 logger.error("Unexpected error in polling loop: %s", e)
-                time.sleep(self.poll_interval)
+                await asyncio.sleep(self.poll_interval)
 
         logger.info("Tezzeret worker %s stopped", self.worker_id)

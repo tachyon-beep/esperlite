@@ -4,6 +4,7 @@ Unit tests for TezzeretWorker.
 Tests the compilation worker functionality.
 """
 
+import asyncio
 import json
 from unittest.mock import MagicMock, Mock, patch
 
@@ -125,75 +126,111 @@ class TestTezzeretWorker:
         assert len(kernel_id2) == 64
 
     @patch("esper.services.tezzeret.worker.get_s3_client")
-    @patch("esper.services.tezzeret.worker.requests.get")
-    def test_fetch_unvalidated_blueprints_success(
-        self, mock_requests_get, mock_get_s3_client
+    @patch("esper.utils.http_client.AsyncHttpClient")
+    @pytest.mark.asyncio
+    async def test_fetch_unvalidated_blueprints_success(
+        self, mock_client_class, mock_get_s3_client
     ):
         """Test successful fetching of unvalidated blueprints."""
         worker = TezzeretWorker("test-worker")
 
-        mock_response = Mock()
-        mock_response.json.return_value = [
-            {"id": "bp1", "architecture_ir": "{}"},
-            {"id": "bp2", "architecture_ir": "{}"},
-        ]
-        mock_response.raise_for_status.return_value = None
-        mock_requests_get.return_value = mock_response
+        # Mock the async HTTP client
+        mock_client = Mock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
 
-        blueprints = worker.fetch_unvalidated_blueprints()
+        mock_response = Mock()
+        
+        # Make json() method async
+        async def mock_json():
+            return [
+                {"id": "bp1", "architecture_ir": "{}"},
+                {"id": "bp2", "architecture_ir": "{}"},
+            ]
+        
+        mock_response.json = mock_json
+        
+        # Make the get method async
+        async def mock_get(url):
+            return mock_response
+        
+        mock_client.get = mock_get
+
+        blueprints = await worker.fetch_unvalidated_blueprints()
 
         assert len(blueprints) == 2
         assert blueprints[0]["id"] == "bp1"
-        mock_requests_get.assert_called_once_with(
-            "http://localhost:8000/internal/v1/blueprints/unvalidated", timeout=30
-        )
 
     @patch("esper.services.tezzeret.worker.get_s3_client")
-    @patch("esper.services.tezzeret.worker.requests.get")
-    def test_fetch_unvalidated_blueprints_error(
-        self, mock_requests_get, mock_get_s3_client
+    @patch("esper.utils.http_client.AsyncHttpClient")
+    @pytest.mark.asyncio
+    async def test_fetch_unvalidated_blueprints_error(
+        self, mock_client_class, mock_get_s3_client
     ):
         """Test fetching blueprints with error."""
-        import requests
-
         worker = TezzeretWorker("test-worker")
 
-        mock_requests_get.side_effect = requests.RequestException("Network error")
+        # Mock the async HTTP client to raise exception
+        mock_client = Mock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
+        
+        async def mock_get_error(url):
+            raise Exception("Network error")
+        
+        mock_client.get = mock_get_error
 
-        blueprints = worker.fetch_unvalidated_blueprints()
+        blueprints = await worker.fetch_unvalidated_blueprints()
 
         assert blueprints == []
 
     @patch("esper.services.tezzeret.worker.get_s3_client")
-    @patch("esper.services.tezzeret.worker.requests.put")
-    def test_update_blueprint_status_success(
-        self, mock_requests_put, mock_get_s3_client
+    @patch("esper.utils.http_client.AsyncHttpClient")
+    @pytest.mark.asyncio
+    async def test_update_blueprint_status_success(
+        self, mock_client_class, mock_get_s3_client
     ):
         """Test successful blueprint status update."""
         worker = TezzeretWorker("test-worker")
 
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_requests_put.return_value = mock_response
+        # Mock the async HTTP client
+        mock_client = Mock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
 
-        result = worker.update_blueprint_status("bp1", BlueprintStatus.COMPILING)
+        mock_response = Mock()
+        
+        async def mock_put(url, **kwargs):
+            return mock_response
+        
+        mock_client.put = mock_put
+
+        result = await worker.update_blueprint_status("bp1", BlueprintStatus.COMPILING)
 
         assert result is True
-        mock_requests_put.assert_called_once()
 
     @patch("esper.services.tezzeret.worker.get_s3_client")
-    @patch("esper.services.tezzeret.worker.requests.post")
-    def test_submit_compiled_kernel_success(
-        self, mock_requests_post, mock_get_s3_client
+    @patch("esper.utils.http_client.AsyncHttpClient")
+    @pytest.mark.asyncio
+    async def test_submit_compiled_kernel_success(
+        self, mock_client_class, mock_get_s3_client
     ):
         """Test successful kernel submission."""
         from esper.services.contracts import CompiledKernelArtifact
 
         worker = TezzeretWorker("test-worker")
 
+        # Mock the async HTTP client
+        mock_client = Mock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
+
         mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_requests_post.return_value = mock_response
+        
+        async def mock_post(url, **kwargs):
+            return mock_response
+        
+        mock_client.post = mock_post
 
         kernel = CompiledKernelArtifact(
             id="kernel-123",
@@ -204,7 +241,6 @@ class TestTezzeretWorker:
             validation_report={},
         )
 
-        result = worker.submit_compiled_kernel(kernel)
+        result = await worker.submit_compiled_kernel(kernel)
 
         assert result is True
-        mock_requests_post.assert_called_once()

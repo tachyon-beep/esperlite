@@ -82,13 +82,13 @@ class KernelCache:
             self._misses += 1
             logger.debug(f"Cache miss for kernel {artifact_id}, fetching from Urza")
 
-            kernel_tensor = self._fetch_from_urza(artifact_id)
+            kernel_tensor = await self._fetch_from_urza(artifact_id)
             if kernel_tensor is not None:
                 self._add_to_cache(artifact_id, kernel_tensor)
 
             return kernel_tensor
 
-    def _fetch_from_urza(self, artifact_id: str) -> Optional[torch.Tensor]:
+    async def _fetch_from_urza(self, artifact_id: str) -> Optional[torch.Tensor]:
         """
         Fetch kernel binary from Urza and load to GPU.
 
@@ -99,36 +99,31 @@ class KernelCache:
             Compiled kernel tensor, or None if not found
         """
         try:
-            import requests
-            import json
+            from esper.utils.http_client import AsyncHttpClient
 
             # Get Urza API URL from environment or use default
             urza_url = os.getenv("URZA_API_URL", "http://localhost:8000")
 
-            # Fetch kernel metadata from Urza API
-            response = requests.get(
-                f"{urza_url}/api/v1/kernels/{artifact_id}", timeout=5
-            )
+            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
+                # Fetch kernel metadata from Urza API
+                response = await client.get(f"{urza_url}/api/v1/kernels/{artifact_id}")
+                if response.status == 404:
+                    logger.warning(f"Kernel {artifact_id} not found in Urza")
+                    return None
 
-            if response.status_code == 404:
-                logger.warning(f"Kernel {artifact_id} not found in Urza")
-                return None
+                kernel_metadata = await response.json()
 
-            response.raise_for_status()
-            kernel_metadata = response.json()
+                # Extract S3 binary reference
+                binary_ref = kernel_metadata.get("kernel_binary_ref")
+                if not binary_ref:
+                    logger.error(f"No binary reference found for kernel {artifact_id}")
+                    return None
 
-            # Extract S3 binary reference
-            binary_ref = kernel_metadata.get("kernel_binary_ref")
-            if not binary_ref:
-                logger.error(f"No binary reference found for kernel {artifact_id}")
-                return None
-
-            # Download actual kernel binary from S3
-            s3_response = requests.get(binary_ref, timeout=10)
-            s3_response.raise_for_status()
+                # Download actual kernel binary from S3
+                s3_response = await client.get(binary_ref)
+                kernel_data = await s3_response.read()
 
             # Deserialize the kernel tensor with writable copy
-            kernel_data = s3_response.content
             # Create writable copy to avoid PyTorch warning about non-writable buffers
             writable_data = bytearray(kernel_data)
             kernel_tensor = torch.frombuffer(writable_data, dtype=torch.float32).clone()
@@ -140,9 +135,6 @@ class KernelCache:
             logger.debug(f"Successfully fetched kernel {artifact_id} from Urza")
             return kernel_tensor
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"HTTP error fetching kernel {artifact_id}: {e}")
-            return None
         except Exception as e:
             logger.error(f"Failed to fetch kernel {artifact_id}: {e}")
             return None

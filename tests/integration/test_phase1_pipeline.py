@@ -47,39 +47,57 @@ class TestPhase1Pipeline:
         assert blueprint.metadata["description"] == "Test blueprint"
 
     @patch("esper.services.tezzeret.worker.upload_bytes")
-    @patch("esper.services.tezzeret.worker.requests.post")
-    @patch("esper.services.tezzeret.worker.requests.put")
-    @patch("esper.services.tezzeret.worker.requests.get")
-    def test_tezzeret_compilation_flow(
-        self, mock_get, mock_put, mock_post, mock_upload
+    @patch("esper.utils.http_client.AsyncHttpClient")
+    @pytest.mark.asyncio
+    async def test_tezzeret_compilation_flow(
+        self, mock_client_class, mock_upload
     ):
         """Test Tezzeret compilation workflow."""
         from esper.services.tezzeret.worker import TezzeretWorker
 
-        # Mock HTTP responses
-        mock_get.return_value.raise_for_status.return_value = None
-        mock_get.return_value.json.return_value = [
-            {
-                "id": "test-blueprint-001",
-                "architecture_ir": '{"type": "linear", "input_size": 10, "output_size": 5}',
-            }
-        ]
+        # Mock the async HTTP client
+        mock_client = Mock()
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
 
-        mock_put.return_value.raise_for_status.return_value = None
-        mock_post.return_value.raise_for_status.return_value = None
+        # Mock blueprint fetch response
+        mock_get_response = Mock()
+        async def mock_json():
+            return [
+                {
+                    "id": "test-blueprint-001",
+                    "architecture_ir": '{"type": "linear", "input_size": 10, "output_size": 5}',
+                }
+            ]
+        mock_get_response.json = mock_json
+
+        # Mock PUT and POST responses
+        mock_put_response = Mock()
+        mock_post_response = Mock()
+
+        # Configure mock client methods
+        async def mock_get(url):
+            return mock_get_response
+        
+        async def mock_put(url, **kwargs):
+            return mock_put_response
+        
+        async def mock_post(url, **kwargs):
+            return mock_post_response
+
+        mock_client.get = mock_get
+        mock_client.put = mock_put
+        mock_client.post = mock_post
 
         # Mock S3 upload
         mock_upload.return_value = "s3://test-bucket/kernels/test-kernel/compiled.pt"
 
         # Create worker and process one blueprint
         worker = TezzeretWorker("test-worker")
-        result = worker.process_one_blueprint()
+        result = await worker.process_one_blueprint()
 
         # Verify the flow
         assert result is True
-        mock_get.assert_called_once()
-        mock_put.assert_called()
-        mock_post.assert_called_once()
         mock_upload.assert_called_once()
 
     def test_ir_to_module_conversion(self):

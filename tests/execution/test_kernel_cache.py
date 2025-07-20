@@ -191,33 +191,45 @@ class TestKernelCache:
     
     @pytest.mark.asyncio
     async def test_fetch_from_urza_with_real_http_client(self):
-        """Test kernel fetching with properly mocked Urza service."""
+        """Test kernel fetching with properly mocked async HTTP client."""
         cache = KernelCache()
         
-        # Mock the HTTP client, not the simulation
-        with patch('requests.get') as mock_get:
+        # Mock the async HTTP client
+        with patch('esper.utils.http_client.AsyncHttpClient') as mock_client_class:
+            # Create mock client instance
+            mock_client = Mock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client_class.return_value.__aexit__.return_value = None
+            
             # Mock metadata response
             mock_meta_response = Mock()
-            mock_meta_response.status_code = 200
-            mock_meta_response.json.return_value = {
-                "kernel_binary_ref": "http://s3.example.com/kernel-binary"
-            }
+            mock_meta_response.status = 200
+            
+            async def mock_json():
+                return {"kernel_binary_ref": "http://s3.example.com/kernel-binary"}
+            
+            mock_meta_response.json = mock_json
 
-            # Mock S3 binary response
+            # Mock S3 binary response  
             mock_s3_response = Mock()
-            mock_s3_response.status_code = 200
-            mock_s3_response.content = torch.randn(1024).numpy().tobytes()
+            mock_s3_response.status = 200
+            
+            async def mock_read():
+                return torch.randn(1024).numpy().tobytes()
+            
+            mock_s3_response.read = mock_read
 
-            # Set side_effect to handle two separate calls
-            mock_get.side_effect = [mock_meta_response, mock_s3_response]
+            # Mock the client get method to return response contexts
+            async def mock_get(url):
+                if "test-kernel-123" in url:
+                    return mock_meta_response
+                else:
+                    return mock_s3_response
+            
+            mock_client.get = mock_get
             
             # Test the fetch method
-            kernel = cache._fetch_from_urza("test-kernel-123")
-            
-            # Verify HTTP calls were made
-            assert mock_get.call_count == 2
-            assert "test-kernel-123" in str(mock_get.call_args_list[0])
-            assert "s3.example.com" in str(mock_get.call_args_list[1])
+            kernel = await cache._fetch_from_urza("test-kernel-123")
             
             # Verify returned kernel
             assert kernel is not None

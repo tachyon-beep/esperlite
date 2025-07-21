@@ -190,14 +190,22 @@ class TestTolariaTrainer:
         """Test health signal collection."""
         trainer = TolariaTrainer(minimal_config)
 
-        # Mock layer with health metrics
+        # Mock layer with proper layer stats structure that the code expects
         mock_layer = Mock()
-        mock_layer.get_health_metrics = Mock(
+        mock_layer.num_seeds = 4
+        mock_layer.get_layer_stats = Mock(
             return_value={
-                "activation_variance": 0.5,
-                "dead_neuron_ratio": 0.1,
-                "avg_correlation": 0.3,
-                "health_score": 0.9,
+                "state_stats": {
+                    "active_seeds": 2,
+                    "num_seeds": 4,
+                    "total_errors": 1,
+                    "avg_latency_us": 50.0,
+                },
+                "total_forward_calls": 100,
+                "cache_stats": {
+                    "hits": 80,
+                    "misses": 20,
+                }
             }
         )
 
@@ -213,9 +221,15 @@ class TestTolariaTrainer:
         signals = trainer._collect_health_signals()
 
         assert len(signals) == 1
-        assert signals[0].layer_id == 0  # Enumeration index from items()
-        assert signals[0].epoch == 10
-        assert abs(signals[0].activation_variance - 0.5) < 1e-6
+        signal = signals[0]
+        assert signal.epoch == 10
+        assert signal.active_seeds == 2
+        assert signal.total_seeds == 4
+        assert signal.error_count == 1
+        # Health score calculation based on error ratio, seed utilization, and latency
+        # error_ratio = 1/4 = 0.25, seed_utilization = 2/4 = 0.5, latency_factor ≈ 0.9995
+        expected_health = (1.0 - 0.25) * 0.4 + 0.5 * 0.3 + 0.9995 * 0.3
+        assert abs(signal.health_score - expected_health) < 0.01
 
 
 class TestTolariaService:

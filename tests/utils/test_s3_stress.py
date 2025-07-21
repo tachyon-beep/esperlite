@@ -66,12 +66,12 @@ class TestS3ClientStress:
         avg_creation_time = sum(creation_times) / len(creation_times)
 
         # Test actual performance characteristics (adjusted for test environment)
-        assert success_rate >= 0.99, (
-            f"Client creation success rate {success_rate:.4f} below 99%"
-        )
-        assert avg_creation_time < 5.0, (
-            f"Average creation time {avg_creation_time:.4f}s too slow (expect ~3s timeout)"
-        )
+        assert (
+            success_rate >= 0.99
+        ), f"Client creation success rate {success_rate:.4f} below 99%"
+        assert (
+            avg_creation_time < 5.0
+        ), f"Average creation time {avg_creation_time:.4f}s too slow (expect ~3s timeout)"
         assert len(clients) >= 99, "Not enough clients were created successfully"
 
         print("✅ Client Lifecycle Stress Results:")
@@ -166,15 +166,15 @@ class TestS3ClientStress:
         total_time = time.perf_counter() - start_time
 
         # Verify metrics collection exists
-        assert hasattr(client, "_operation_metrics"), (
-            "Client should track operation metrics"
-        )
-        assert hasattr(client, "_total_operations"), (
-            "Client should track total operations"
-        )
-        assert hasattr(client, "_successful_operations"), (
-            "Client should track successful operations"
-        )
+        assert hasattr(
+            client, "_operation_metrics"
+        ), "Client should track operation metrics"
+        assert hasattr(
+            client, "_total_operations"
+        ), "Client should track total operations"
+        assert hasattr(
+            client, "_successful_operations"
+        ), "Client should track successful operations"
 
         print("✅ Metrics Collection Results:")
         print(f"   Operations Attempted: {test_operations}")
@@ -224,9 +224,9 @@ class TestS3PerformanceValidation:
 
         # Verify performance targets (adjusted for test environment)
         assert avg_init_time < 5.0, f"Client init too slow: {avg_init_time:.3f}s"
-        assert avg_config_time < 0.001, (
-            f"Config access too slow: {avg_config_time:.6f}s"
-        )
+        assert (
+            avg_config_time < 0.001
+        ), f"Config access too slow: {avg_config_time:.6f}s"
 
         print("✅ Throughput Benchmark Results:")
         print(f"   Average Init Time: {avg_init_time:.3f}s")

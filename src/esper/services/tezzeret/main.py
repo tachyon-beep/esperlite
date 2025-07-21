@@ -4,27 +4,40 @@ Tezzeret main entrypoint.
 This module provides the main entry point for the Tezzeret compilation worker.
 """
 
+import asyncio
 import logging
 import os
+import sys
 
 from esper.services.tezzeret.worker import TezzeretWorker
+from esper.utils.config import init_service_config
+from esper.utils.logging import setup_logging
 
 
-def main():
+async def main():
     """Main entry point for Tezzeret worker."""
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    try:
+        # Initialize and validate configuration
+        config = init_service_config()
 
-    # Get worker ID from environment or generate one
-    worker_id = os.getenv("TEZZERET_WORKER_ID", "tezzeret-worker-01")
+        # Setup logging with configuration
+        setup_logging("tezzeret", getattr(logging, config.log_level.upper()))
+        logger = logging.getLogger(__name__)
 
-    # Create and start worker
-    worker = TezzeretWorker(worker_id=worker_id)
-    worker.start_polling()
+        logger.info("Starting Tezzeret compilation worker")
+        logger.info(f"Configuration: {config.to_dict()}")
+
+        # Get worker ID from environment or generate one
+        worker_id = os.getenv("TEZZERET_WORKER_ID", "tezzeret-worker-01")
+
+        # Create and start worker with validated configuration
+        worker = TezzeretWorker(worker_id=worker_id, config=config)
+        await worker.start_polling()
+
+    except Exception as e:
+        logger.error(f"Failed to start Tezzeret worker: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

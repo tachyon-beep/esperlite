@@ -48,20 +48,20 @@ class TestContractPerformanceBenchmarks:
         elapsed_deserialize = time.perf_counter() - start_time
 
         # Performance assertions
-        assert elapsed_serialize < 1.0, (
-            f"Batch serialization took {elapsed_serialize:.3f}s, expected <1.0s"
-        )
-        assert elapsed_deserialize < 1.0, (
-            f"Batch deserialization took {elapsed_deserialize:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed_serialize < 1.0
+        ), f"Batch serialization took {elapsed_serialize:.3f}s, expected <1.0s"
+        assert (
+            elapsed_deserialize < 1.0
+        ), f"Batch deserialization took {elapsed_deserialize:.3f}s, expected <1.0s"
 
         # Total throughput check
         total_operations = len(seeds) * 2  # serialize + deserialize
         total_time = elapsed_serialize + elapsed_deserialize
         ops_per_second = total_operations / total_time
-        assert ops_per_second > 1000, (
-            f"Throughput {ops_per_second:.0f} ops/s, expected >1000 ops/s"
-        )
+        assert (
+            ops_per_second > 1000
+        ), f"Throughput {ops_per_second:.0f} ops/s, expected >1000 ops/s"
 
     def test_blueprint_complex_architecture_performance(self):
         """Test performance with complex blueprint architectures."""
@@ -135,9 +135,9 @@ class TestContractPerformanceBenchmarks:
             Blueprint.model_validate_json(json_str)
         elapsed = time.perf_counter() - start_time
 
-        assert elapsed < 2.0, (
-            f"Complex Blueprint serialization took {elapsed:.3f}s, expected <2.0s"
-        )
+        assert (
+            elapsed < 2.0
+        ), f"Complex Blueprint serialization took {elapsed:.3f}s, expected <2.0s"
 
         # Test that the complex data is preserved
         json_str = blueprint.model_dump_json()
@@ -187,19 +187,19 @@ class TestContractPerformanceBenchmarks:
         elapsed_deserialize = time.perf_counter() - start_time
 
         # Performance requirements for high-frequency data
-        assert elapsed_serialize < 0.5, (
-            f"Health signal serialization took {elapsed_serialize:.3f}s, expected <0.5s"
-        )
-        assert elapsed_deserialize < 0.5, (
-            f"Health signal deserialization took {elapsed_deserialize:.3f}s, expected <0.5s"
-        )
+        assert (
+            elapsed_serialize < 0.5
+        ), f"Health signal serialization took {elapsed_serialize:.3f}s, expected <0.5s"
+        assert (
+            elapsed_deserialize < 0.5
+        ), f"Health signal deserialization took {elapsed_deserialize:.3f}s, expected <0.5s"
 
         # Throughput requirement for real-time processing
         total_time = elapsed_serialize + elapsed_deserialize
         signals_per_second = len(health_signals) / total_time
-        assert signals_per_second > 2000, (
-            f"Throughput {signals_per_second:.0f} signals/s, expected >2000 signals/s"
-        )
+        assert (
+            signals_per_second > 2000
+        ), f"Throughput {signals_per_second:.0f} signals/s, expected >2000 signals/s"
 
     def test_oona_message_bus_performance(self):
         """Test message bus performance with realistic message patterns."""
@@ -272,19 +272,19 @@ class TestContractPerformanceBenchmarks:
         elapsed_deserialize = time.perf_counter() - start_time
 
         # Message bus performance requirements
-        assert elapsed_serialize < 1.0, (
-            f"Message serialization took {elapsed_serialize:.3f}s, expected <1.0s"
-        )
-        assert elapsed_deserialize < 1.0, (
-            f"Message deserialization took {elapsed_deserialize:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed_serialize < 1.0
+        ), f"Message serialization took {elapsed_serialize:.3f}s, expected <1.0s"
+        assert (
+            elapsed_deserialize < 1.0
+        ), f"Message deserialization took {elapsed_deserialize:.3f}s, expected <1.0s"
 
         # Throughput requirement for message bus
         total_time = elapsed_serialize + elapsed_deserialize
         messages_per_second = len(messages) / total_time
-        assert messages_per_second > 500, (
-            f"Throughput {messages_per_second:.0f} msgs/s, expected >500 msgs/s"
-        )
+        assert (
+            messages_per_second > 500
+        ), f"Throughput {messages_per_second:.0f} msgs/s, expected >500 msgs/s"
 
     def test_training_session_with_large_state_performance(self):
         """Test performance with large training session state."""
@@ -372,12 +372,12 @@ class TestContractPerformanceBenchmarks:
         elapsed_deserialize = time.perf_counter() - start_time
 
         # Performance requirements for large sessions
-        assert elapsed_serialize < 3.0, (
-            f"Large session serialization took {elapsed_serialize:.3f}s, expected <3.0s"
-        )
-        assert elapsed_deserialize < 3.0, (
-            f"Large session deserialization took {elapsed_deserialize:.3f}s, expected <3.0s"
-        )
+        assert (
+            elapsed_serialize < 3.0
+        ), f"Large session serialization took {elapsed_serialize:.3f}s, expected <3.0s"
+        assert (
+            elapsed_deserialize < 3.0
+        ), f"Large session deserialization took {elapsed_deserialize:.3f}s, expected <3.0s"
 
         # Verify data integrity
         assert len(reconstructed.seeds) == 1000
@@ -475,12 +475,12 @@ class TestContractPerformanceBenchmarks:
         elapsed_deserialize = time.perf_counter() - start_time
 
         # Integrated workflow performance requirements
-        assert elapsed_serialize < 1.0, (
-            f"Integrated serialization took {elapsed_serialize:.3f}s, expected <1.0s"
-        )
-        assert elapsed_deserialize < 1.0, (
-            f"Integrated deserialization took {elapsed_deserialize:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed_serialize < 1.0
+        ), f"Integrated serialization took {elapsed_serialize:.3f}s, expected <1.0s"
+        assert (
+            elapsed_deserialize < 1.0
+        ), f"Integrated deserialization took {elapsed_deserialize:.3f}s, expected <1.0s"
 
         # Verify all items processed correctly
         assert len(reconstructed_items) == total_items
@@ -488,6 +488,6 @@ class TestContractPerformanceBenchmarks:
         # Calculate overall throughput
         total_time = elapsed_serialize + elapsed_deserialize
         items_per_second = total_items / total_time
-        assert items_per_second > 100, (
-            f"Integrated throughput {items_per_second:.0f} items/s, expected >100 items/s"
-        )
+        assert (
+            items_per_second > 100
+        ), f"Integrated throughput {items_per_second:.0f} items/s, expected >100 items/s"

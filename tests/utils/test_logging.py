@@ -2,9 +2,11 @@
 
 import logging
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
-from esper.utils.logging import EsperStreamHandler, setup_logging
+from esper.utils.logging import EsperStreamHandler
+from esper.utils.logging import setup_logging
 
 
 class TestSetupLogging:

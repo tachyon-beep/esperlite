@@ -346,9 +346,9 @@ class TestAssetPerformance:
 
         # Calculate average per operation
         avg_time_ms = (elapsed / 1000) * 1000
-        assert avg_time_ms < 1.0, (
-            f"Average operation time {avg_time_ms:.3f}ms exceeds 1ms target"
-        )
+        assert (
+            avg_time_ms < 1.0
+        ), f"Average operation time {avg_time_ms:.3f}ms exceeds 1ms target"
 
     def test_blueprint_serialization_performance(self):
         """Test Blueprint serialization performance with complex architecture."""
@@ -394,9 +394,9 @@ class TestAssetPerformance:
         elapsed = time.perf_counter() - start_time
 
         # Should handle 500 complex serializations in under 1 second
-        assert elapsed < 1.0, (
-            f"Complex Blueprint serialization took {elapsed:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"Complex Blueprint serialization took {elapsed:.3f}s, expected <1.0s"
 
     def test_training_session_performance(self):
         """Test TrainingSession performance with multiple nested objects."""
@@ -429,9 +429,9 @@ class TestAssetPerformance:
         elapsed = time.perf_counter() - start_time
 
         # Should handle 100 complex session serializations in under 1 second
-        assert elapsed < 1.0, (
-            f"TrainingSession serialization took {elapsed:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"TrainingSession serialization took {elapsed:.3f}s, expected <1.0s"
 
     def test_training_session_get_active_seed_count(self):
         """Test TrainingSession.get_active_seed_count() method."""

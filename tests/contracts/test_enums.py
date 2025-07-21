@@ -254,9 +254,9 @@ class TestEnumPerformance:
                     _ = repr(enum_val)
 
             elapsed = time.perf_counter() - start_time
-            assert elapsed < 0.1, (
-                f"{enum_class.__name__} access took {elapsed:.3f}s, expected <0.1s"
-            )
+            assert (
+                elapsed < 0.1
+            ), f"{enum_class.__name__} access took {elapsed:.3f}s, expected <0.1s"
 
     def test_enum_comparison_performance(self):
         """Test enum comparison performance."""
@@ -292,6 +292,6 @@ class TestEnumPerformance:
                 assert reconstructed == enum_val
 
         elapsed = time.perf_counter() - start_time
-        assert elapsed < 0.1, (
-            f"Enum serialization round-trip took {elapsed:.3f}s, expected <0.1s"
-        )
+        assert (
+            elapsed < 0.1
+        ), f"Enum serialization round-trip took {elapsed:.3f}s, expected <0.1s"

@@ -13,12 +13,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from src.esper.utils.logging import (
-    AsyncEsperLogger,
-    OptimizedStructuredFormatter,
-    setup_high_performance_logging,
-    setup_logging,
-)
+from src.esper.utils.logging import AsyncEsperLogger
+from src.esper.utils.logging import OptimizedStructuredFormatter
+from src.esper.utils.logging import setup_high_performance_logging
+from src.esper.utils.logging import setup_logging
 
 
 class TestLoggingPerformance:
@@ -48,15 +46,15 @@ class TestLoggingPerformance:
         )  # 99th percentile
 
         # Performance assertions
-        assert avg_latency_ms < 0.1, (
-            f"Average logging overhead {avg_latency_ms:.3f}ms exceeds 0.1ms target"
-        )
-        assert p95_latency_ms < 0.2, (
-            f"P95 logging overhead {p95_latency_ms:.3f}ms exceeds 0.2ms target"
-        )
-        assert p99_latency_ms < 0.5, (
-            f"P99 logging overhead {p99_latency_ms:.3f}ms exceeds 0.5ms target"
-        )
+        assert (
+            avg_latency_ms < 0.1
+        ), f"Average logging overhead {avg_latency_ms:.3f}ms exceeds 0.1ms target"
+        assert (
+            p95_latency_ms < 0.2
+        ), f"P95 logging overhead {p95_latency_ms:.3f}ms exceeds 0.2ms target"
+        assert (
+            p99_latency_ms < 0.5
+        ), f"P99 logging overhead {p99_latency_ms:.3f}ms exceeds 0.5ms target"
 
         print(
             f"✅ Logging Performance: avg={avg_latency_ms:.3f}ms, p95={p95_latency_ms:.3f}ms, p99={p99_latency_ms:.3f}ms"
@@ -73,12 +71,12 @@ class TestLoggingPerformance:
 
         # Should handle 10k messages in reasonable time
         messages_per_second = 10000 / elapsed
-        assert elapsed < 5.0, (
-            f"High frequency logging took {elapsed:.2f}s, expected <5s"
-        )
-        assert messages_per_second > 5000, (
-            f"Throughput {messages_per_second:.0f} msg/s too low"
-        )
+        assert (
+            elapsed < 5.0
+        ), f"High frequency logging took {elapsed:.2f}s, expected <5s"
+        assert (
+            messages_per_second > 5000
+        ), f"Throughput {messages_per_second:.0f} msg/s too low"
 
         print(f"✅ High Frequency Stability: {messages_per_second:.0f} messages/second")
 
@@ -104,12 +102,12 @@ class TestLoggingPerformance:
         memory_growth_mb = (final_memory - initial_memory) / 1024 / 1024
         bytes_per_message = (final_memory - initial_memory) / 10000
 
-        assert memory_growth_mb < 10.0, (
-            f"Memory usage {memory_growth_mb:.1f}MB too high"
-        )
-        assert bytes_per_message < 1024, (
-            f"Memory per message {bytes_per_message:.0f} bytes too high"
-        )
+        assert (
+            memory_growth_mb < 10.0
+        ), f"Memory usage {memory_growth_mb:.1f}MB too high"
+        assert (
+            bytes_per_message < 1024
+        ), f"Memory per message {bytes_per_message:.0f} bytes too high"
 
         print(
             f"✅ Memory Efficiency: {memory_growth_mb:.1f}MB growth, {bytes_per_message:.0f} bytes/message"
@@ -193,28 +191,13 @@ class TestLoggingPerformance:
 
         # Should be faster than 0.1ms per call
         avg_latency = elapsed / 100 * 1000  # Convert to ms
-        assert avg_latency < 0.1, (
-            f"Performance regression: {avg_latency:.3f}ms per call"
-        )
+        assert (
+            avg_latency < 0.1
+        ), f"Performance regression: {avg_latency:.3f}ms per call"
 
         print(
             f"✅ Regression Check: {avg_latency:.3f}ms average latency (no performance regression)"
         )
-
-
-import gc
-import logging
-import statistics
-import time
-import tracemalloc
-from concurrent.futures import ThreadPoolExecutor
-
-import pytest
-
-from src.esper.utils.logging import AsyncEsperLogger
-from src.esper.utils.logging import OptimizedStructuredFormatter
-from src.esper.utils.logging import setup_high_performance_logging
-from src.esper.utils.logging import setup_logging
 
 
 class TestLoggingPerformance:
@@ -244,15 +227,15 @@ class TestLoggingPerformance:
         )  # 99th percentile
 
         # Performance assertions
-        assert avg_latency_ms < 0.1, (
-            f"Average logging overhead {avg_latency_ms:.3f}ms exceeds 0.1ms target"
-        )
-        assert p95_latency_ms < 0.2, (
-            f"P95 logging overhead {p95_latency_ms:.3f}ms exceeds 0.2ms target"
-        )
-        assert p99_latency_ms < 0.5, (
-            f"P99 logging overhead {p99_latency_ms:.3f}ms exceeds 0.5ms target"
-        )
+        assert (
+            avg_latency_ms < 0.1
+        ), f"Average logging overhead {avg_latency_ms:.3f}ms exceeds 0.1ms target"
+        assert (
+            p95_latency_ms < 0.2
+        ), f"P95 logging overhead {p95_latency_ms:.3f}ms exceeds 0.2ms target"
+        assert (
+            p99_latency_ms < 0.5
+        ), f"P99 logging overhead {p99_latency_ms:.3f}ms exceeds 0.5ms target"
 
         print(
             f"✅ Logging Performance: avg={avg_latency_ms:.3f}ms, p95={p95_latency_ms:.3f}ms, p99={p99_latency_ms:.3f}ms"
@@ -269,12 +252,12 @@ class TestLoggingPerformance:
 
         # Should handle 10k messages in reasonable time
         messages_per_second = 10000 / elapsed
-        assert elapsed < 5.0, (
-            f"High frequency logging took {elapsed:.2f}s, expected <5s"
-        )
-        assert messages_per_second > 5000, (
-            f"Throughput {messages_per_second:.0f} msg/s too low"
-        )
+        assert (
+            elapsed < 5.0
+        ), f"High frequency logging took {elapsed:.2f}s, expected <5s"
+        assert (
+            messages_per_second > 5000
+        ), f"Throughput {messages_per_second:.0f} msg/s too low"
 
         print(f"✅ High Frequency Stability: {messages_per_second:.0f} messages/second")
 
@@ -300,12 +283,12 @@ class TestLoggingPerformance:
         memory_growth_mb = (final_memory - initial_memory) / 1024 / 1024
         bytes_per_message = (final_memory - initial_memory) / 10000
 
-        assert memory_growth_mb < 10.0, (
-            f"Memory usage {memory_growth_mb:.1f}MB too high"
-        )
-        assert bytes_per_message < 1024, (
-            f"Memory per message {bytes_per_message:.0f} bytes too high"
-        )
+        assert (
+            memory_growth_mb < 10.0
+        ), f"Memory usage {memory_growth_mb:.1f}MB too high"
+        assert (
+            bytes_per_message < 1024
+        ), f"Memory per message {bytes_per_message:.0f} bytes too high"
 
         print(
             f"✅ Memory Efficiency: {memory_growth_mb:.1f}MB growth, {bytes_per_message:.0f} bytes/message"
@@ -442,9 +425,9 @@ class TestLoggingPerformance:
 
             # Async operations should be very fast
             avg_time_ms = elapsed / 1000 * 1000
-            assert avg_time_ms < 0.05, (
-                f"Async logging overhead {avg_time_ms:.3f}ms too high"
-            )
+            assert (
+                avg_time_ms < 0.05
+            ), f"Async logging overhead {avg_time_ms:.3f}ms too high"
 
             print(f"✅ Async Logger: {avg_time_ms:.3f}ms average overhead per message")
 
@@ -472,9 +455,9 @@ class TestLoggingPerformance:
 
         # Should be faster than 0.1ms per call
         avg_latency = elapsed / 100 * 1000  # Convert to ms
-        assert avg_latency < 0.1, (
-            f"Performance regression: {avg_latency:.3f}ms per call"
-        )
+        assert (
+            avg_latency < 0.1
+        ), f"Performance regression: {avg_latency:.3f}ms per call"
 
         print(
             f"✅ Regression Check: {avg_latency:.3f}ms average latency (no performance regression)"
@@ -497,19 +480,19 @@ class TestLoggingPerformance:
                 current_time = time.perf_counter()
                 elapsed = current_time - start_time
                 rate = i / elapsed
-                assert rate > 1000, (
-                    f"Performance degraded: {rate:.0f} msg/s at message {i}"
-                )
+                assert (
+                    rate > 1000
+                ), f"Performance degraded: {rate:.0f} msg/s at message {i}"
 
         total_elapsed = time.perf_counter() - start_time
         final_rate = message_count / total_elapsed
 
-        assert final_rate > 5000, (
-            f"Extended operation rate {final_rate:.0f} msg/s too low"
-        )
-        assert total_elapsed < 30, (
-            f"Extended operation took {total_elapsed:.1f}s, expected <30s"
-        )
+        assert (
+            final_rate > 5000
+        ), f"Extended operation rate {final_rate:.0f} msg/s too low"
+        assert (
+            total_elapsed < 30
+        ), f"Extended operation took {total_elapsed:.1f}s, expected <30s"
 
         print(
             f"✅ Extended Stability: {message_count} messages in {total_elapsed:.1f}s ({final_rate:.0f} msg/s)"

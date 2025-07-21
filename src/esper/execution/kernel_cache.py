@@ -7,15 +7,19 @@ microsecond-latency execution.
 
 import asyncio
 import logging
-import hashlib
 import time
-import os
 from collections import OrderedDict
-from typing import Dict, Optional, Tuple, Any
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 import torch
 
-from esper.services.contracts import SimpleCompiledKernelContract
+from esper.utils.circuit_breaker import CircuitBreaker
+from esper.utils.circuit_breaker import CircuitBreakerConfig
+from esper.utils.circuit_breaker import CircuitBreakerOpenError
+from esper.utils.config import ServiceConfig
+from esper.utils.config import get_service_config
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +32,25 @@ class KernelCache:
     microsecond-latency execution.
     """
 
-    def __init__(self, max_cache_size_mb: int = 512, max_entries: int = 128):
+    def __init__(
+        self,
+        config: Optional[ServiceConfig] = None,
+        max_cache_size_mb: Optional[int] = None,
+        max_entries: Optional[int] = None,
+    ):
         """
         Initialize the kernel cache.
 
         Args:
-            max_cache_size_mb: Maximum cache size in megabytes
-            max_entries: Maximum number of cache entries
+            config: Service configuration instance (uses global if None)
+            max_cache_size_mb: Maximum cache size in megabytes (overrides config)
+            max_entries: Maximum number of cache entries (overrides config)
         """
-        self.max_cache_size_mb = max_cache_size_mb
-        self.max_entries = max_entries
+        self.config = config or get_service_config()
+
+        # Use provided values or fall back to config
+        self.max_cache_size_mb = max_cache_size_mb or self.config.cache_size_mb
+        self.max_entries = max_entries or self.config.max_cache_entries
         self.total_size_mb = 0.0
 
         # LRU cache using OrderedDict
@@ -48,12 +61,24 @@ class KernelCache:
         self._hits = 0
         self._misses = 0
         self._evictions = 0
+        self._circuit_breaker_failures = 0
 
         # Lock for thread safety
         self._lock = asyncio.Lock()
 
+        # Circuit breaker for Urza service calls
+        self._circuit_breaker = CircuitBreaker(
+            name="kernel_cache_urza",
+            config=CircuitBreakerConfig(
+                failure_threshold=5,  # Open after 5 failures
+                recovery_timeout=30,  # Try recovery after 30 seconds
+                success_threshold=3,  # Need 3 successes to close
+                timeout=self.config.http_timeout,  # Use config timeout
+            ),
+        )
+
         logger.info(
-            f"Initialized KernelCache with {max_cache_size_mb}MB max size, {max_entries} max entries"
+            f"Initialized KernelCache with {self.max_cache_size_mb}MB max size, {self.max_entries} max entries"
         )
 
     async def load_kernel(self, artifact_id: str) -> Optional[torch.Tensor]:
@@ -99,45 +124,69 @@ class KernelCache:
             Compiled kernel tensor, or None if not found
         """
         try:
-            from esper.utils.http_client import AsyncHttpClient
+            # Use circuit breaker for Urza calls
+            return await self._circuit_breaker.call(
+                self._fetch_from_urza_impl, artifact_id
+            )
 
-            # Get Urza API URL from environment or use default
-            urza_url = os.getenv("URZA_API_URL", "http://localhost:8000")
-
-            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
-                # Fetch kernel metadata from Urza API
-                response = await client.get(f"{urza_url}/api/v1/kernels/{artifact_id}")
-                if response.status == 404:
-                    logger.warning(f"Kernel {artifact_id} not found in Urza")
-                    return None
-
-                kernel_metadata = await response.json()
-
-                # Extract S3 binary reference
-                binary_ref = kernel_metadata.get("kernel_binary_ref")
-                if not binary_ref:
-                    logger.error(f"No binary reference found for kernel {artifact_id}")
-                    return None
-
-                # Download actual kernel binary from S3
-                s3_response = await client.get(binary_ref)
-                kernel_data = await s3_response.read()
-
-            # Deserialize the kernel tensor with writable copy
-            # Create writable copy to avoid PyTorch warning about non-writable buffers
-            writable_data = bytearray(kernel_data)
-            kernel_tensor = torch.frombuffer(writable_data, dtype=torch.float32).clone()
-
-            # Move to GPU if available
-            if torch.cuda.is_available():
-                kernel_tensor = kernel_tensor.cuda()
-
-            logger.debug(f"Successfully fetched kernel {artifact_id} from Urza")
-            return kernel_tensor
+        except CircuitBreakerOpenError:
+            self._circuit_breaker_failures += 1
+            logger.warning(
+                f"Circuit breaker open for Urza, cannot fetch kernel {artifact_id}"
+            )
+            return None
 
         except Exception as e:
             logger.error(f"Failed to fetch kernel {artifact_id}: {e}")
             return None
+
+    async def _fetch_from_urza_impl(self, artifact_id: str) -> Optional[torch.Tensor]:
+        """
+        Implementation of kernel fetching from Urza (called through circuit breaker).
+
+        Args:
+            artifact_id: ID of the kernel artifact
+
+        Returns:
+            Compiled kernel tensor, or None if not found
+        """
+        from esper.utils.http_client import AsyncHttpClient
+
+        # Use configured Urza URL
+        urza_url = self.config.get_urza_api_url()
+
+        async with AsyncHttpClient(
+            timeout=self.config.http_timeout, max_retries=self.config.retry_attempts
+        ) as client:
+            # Fetch kernel metadata from Urza API
+            response = await client.get(f"{urza_url}/kernels/{artifact_id}")
+            if response.status == 404:
+                logger.warning(f"Kernel {artifact_id} not found in Urza")
+                return None
+
+            kernel_metadata = await response.json()
+
+            # Extract S3 binary reference
+            binary_ref = kernel_metadata.get("kernel_binary_ref")
+            if not binary_ref:
+                logger.error(f"No binary reference found for kernel {artifact_id}")
+                return None
+
+            # Download actual kernel binary from S3
+            s3_response = await client.get(binary_ref)
+            kernel_data = await s3_response.read()
+
+        # Deserialize the kernel tensor with writable copy
+        # Create writable copy to avoid PyTorch warning about non-writable buffers
+        writable_data = bytearray(kernel_data)
+        kernel_tensor = torch.frombuffer(writable_data, dtype=torch.float32).clone()
+
+        # Move to GPU if available
+        if torch.cuda.is_available():
+            kernel_tensor = kernel_tensor.cuda()
+
+        logger.debug(f"Successfully fetched kernel {artifact_id} from Urza")
+        return kernel_tensor
 
     def _add_to_cache(self, artifact_id: str, kernel_tensor: torch.Tensor) -> None:
         """
@@ -215,6 +264,8 @@ class KernelCache:
             "evictions": self._evictions,
             "hit_rate": hit_rate,
             "cache_keys": list(self._cache.keys()),
+            "circuit_breaker_failures": self._circuit_breaker_failures,
+            "circuit_breaker_stats": self._circuit_breaker.get_stats(),
         }
 
     def clear_cache(self) -> None:

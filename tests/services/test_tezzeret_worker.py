@@ -4,15 +4,15 @@ Unit tests for TezzeretWorker.
 Tests the compilation worker functionality.
 """
 
-import asyncio
-import json
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 import torch
 import torch.nn as nn
 
-from esper.contracts.enums import BlueprintStatus, KernelStatus
+from esper.contracts.enums import BlueprintStatus
+from esper.contracts.enums import KernelStatus
 from esper.services.tezzeret.worker import TezzeretWorker
 
 
@@ -140,20 +140,20 @@ class TestTezzeretWorker:
         mock_client_class.return_value.__aexit__.return_value = None
 
         mock_response = Mock()
-        
+
         # Make json() method async
         async def mock_json():
             return [
                 {"id": "bp1", "architecture_ir": "{}"},
                 {"id": "bp2", "architecture_ir": "{}"},
             ]
-        
+
         mock_response.json = mock_json
-        
+
         # Make the get method async
         async def mock_get(url):
             return mock_response
-        
+
         mock_client.get = mock_get
 
         blueprints = await worker.fetch_unvalidated_blueprints()
@@ -174,10 +174,10 @@ class TestTezzeretWorker:
         mock_client = Mock()
         mock_client_class.return_value.__aenter__.return_value = mock_client
         mock_client_class.return_value.__aexit__.return_value = None
-        
+
         async def mock_get_error(url):
             raise Exception("Network error")
-        
+
         mock_client.get = mock_get_error
 
         blueprints = await worker.fetch_unvalidated_blueprints()
@@ -199,10 +199,10 @@ class TestTezzeretWorker:
         mock_client_class.return_value.__aexit__.return_value = None
 
         mock_response = Mock()
-        
+
         async def mock_put(url, **kwargs):
             return mock_response
-        
+
         mock_client.put = mock_put
 
         result = await worker.update_blueprint_status("bp1", BlueprintStatus.COMPILING)
@@ -226,10 +226,10 @@ class TestTezzeretWorker:
         mock_client_class.return_value.__aexit__.return_value = None
 
         mock_response = Mock()
-        
+
         async def mock_post(url, **kwargs):
             return mock_response
-        
+
         mock_client.post = mock_post
 
         kernel = CompiledKernelArtifact(

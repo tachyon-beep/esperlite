@@ -5,22 +5,24 @@ This module contains tests that verify the end-to-end functionality
 of the Tamiyo strategic controller and policy training system.
 """
 
-import pytest
-import torch
 import tempfile
-import os
 import warnings
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+import torch
+
 # Suppress torch_geometric warnings for cleaner test output
 warnings.filterwarnings("ignore", category=UserWarning, module="torch_geometric")
 
-from esper.services.tamiyo.policy import TamiyoPolicyGNN, PolicyConfig
-from esper.services.tamiyo.training import TamiyoTrainer, TrainingConfig
+from esper.contracts.operational import HealthSignal
 from esper.services.tamiyo.analyzer import ModelGraphAnalyzer
 from esper.services.tamiyo.main import TamiyoService
-from esper.contracts.operational import HealthSignal, AdaptationDecision
+from esper.services.tamiyo.policy import PolicyConfig
+from esper.services.tamiyo.policy import TamiyoPolicyGNN
+from esper.services.tamiyo.training import TamiyoTrainer
+from esper.services.tamiyo.training import TrainingConfig
 
 
 class TestTamiyoPolicyGNN:

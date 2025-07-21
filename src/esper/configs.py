@@ -2,9 +2,12 @@
 Configuration models for parsing YAML configuration files.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 
 class DatabaseConfig(BaseModel):

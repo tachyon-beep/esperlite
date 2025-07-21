@@ -151,9 +151,9 @@ class TestValidatorPerformance:
 
         # Test throughput
         ops_per_second = len(test_cases) / elapsed
-        assert ops_per_second > 50000, (
-            f"Validation throughput {ops_per_second:.0f} ops/s, expected >50000 ops/s"
-        )
+        assert (
+            ops_per_second > 50000
+        ), f"Validation throughput {ops_per_second:.0f} ops/s, expected >50000 ops/s"
 
     def test_validate_seed_id_error_performance(self):
         """Test validate_seed_id error handling performance."""

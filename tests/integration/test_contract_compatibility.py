@@ -7,14 +7,17 @@ and maintain compatibility across different service boundaries.
 
 import json
 
-from esper.contracts.assets import Blueprint, Seed, TrainingSession
-from esper.contracts.enums import BlueprintState, SeedState
-from esper.contracts.messages import BlueprintSubmitted, OonaMessage, TopicNames
-from esper.contracts.operational import (
-    AdaptationDecision,
-    HealthSignal,
-    SystemStatePacket,
-)
+from esper.contracts.assets import Blueprint
+from esper.contracts.assets import Seed
+from esper.contracts.assets import TrainingSession
+from esper.contracts.enums import BlueprintState
+from esper.contracts.enums import SeedState
+from esper.contracts.messages import BlueprintSubmitted
+from esper.contracts.messages import OonaMessage
+from esper.contracts.messages import TopicNames
+from esper.contracts.operational import AdaptationDecision
+from esper.contracts.operational import HealthSignal
+from esper.contracts.operational import SystemStatePacket
 
 
 class TestCrossContractCompatibility:

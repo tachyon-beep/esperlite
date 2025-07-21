@@ -217,9 +217,9 @@ class TestGNNAcceleration:
                 memory_growth = current_memory - initial_memory
 
                 # Allow some memory growth but not excessive
-                assert memory_growth < 100 * 1024 * 1024, (
-                    f"Memory leak detected: {memory_growth / 1024 / 1024:.1f}MB growth"
-                )
+                assert (
+                    memory_growth < 100 * 1024 * 1024
+                ), f"Memory leak detected: {memory_growth / 1024 / 1024:.1f}MB growth"
 
         # Final cleanup
         gc.collect()

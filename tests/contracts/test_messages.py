@@ -216,15 +216,15 @@ class TestMessagePerformance:
         elapsed = time.perf_counter() - start_time
 
         # Should serialize/deserialize 1000 times in under 1 second
-        assert elapsed < 1.0, (
-            f"Message serialization took {elapsed:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"Message serialization took {elapsed:.3f}s, expected <1.0s"
 
         # Calculate average per operation
         avg_time_ms = (elapsed / 1000) * 1000
-        assert avg_time_ms < 1.0, (
-            f"Average operation time {avg_time_ms:.3f}ms exceeds 1ms target"
-        )
+        assert (
+            avg_time_ms < 1.0
+        ), f"Average operation time {avg_time_ms:.3f}ms exceeds 1ms target"
 
     def test_blueprint_submitted_performance(self):
         """Test BlueprintSubmitted serialization performance."""
@@ -239,9 +239,9 @@ class TestMessagePerformance:
         elapsed = time.perf_counter() - start_time
 
         # Should handle 5000 operations in under 1 second
-        assert elapsed < 1.0, (
-            f"BlueprintSubmitted serialization took {elapsed:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"BlueprintSubmitted serialization took {elapsed:.3f}s, expected <1.0s"
 
     def test_topic_enum_performance(self):
         """Test TopicNames enum access performance."""
@@ -311,6 +311,6 @@ class TestMessagePerformance:
         elapsed = time.perf_counter() - start_time
 
         # Should handle large payloads reasonably fast
-        assert elapsed < 1.0, (
-            f"Large payload processing took {elapsed:.3f}s, expected <1.0s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"Large payload processing took {elapsed:.3f}s, expected <1.0s"

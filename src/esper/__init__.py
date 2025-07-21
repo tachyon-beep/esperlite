@@ -3,10 +3,12 @@ Esper - Morphogenetic Training Platform
 A neural network training system that enables autonomous architectural evolution.
 """
 
-from .core.model_wrapper import wrap, MorphableModel, unwrap
+from .configs import EsperConfig
+from .core.model_wrapper import MorphableModel
+from .core.model_wrapper import unwrap
+from .core.model_wrapper import wrap
 from .execution.kasmina_layer import KasminaLayer
 from .execution.state_layout import SeedLifecycleState
-from .configs import EsperConfig
 
 API_VERSION = "v1"
 
@@ -24,4 +26,5 @@ __all__ = [
 
 # Set up logging
 import logging
+
 logging.getLogger(__name__).addHandler(logging.NullHandler())

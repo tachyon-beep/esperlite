@@ -2,18 +2,23 @@
 Simple test for TezzeretWorker.
 """
 
-from unittest.mock import Mock, patch
-
-import pytest
+import os
+from unittest.mock import Mock
+from unittest.mock import patch
 
 
 class TestTezzeretWorkerSimple:
     """Simple test cases for TezzeretWorker."""
 
+    @patch.dict(os.environ, {}, clear=True)
     @patch("esper.services.tezzeret.worker.get_s3_client")
     def test_worker_creation(self, mock_get_s3_client):
         """Test basic TezzeretWorker creation."""
         from esper.services.tezzeret.worker import TezzeretWorker
+        from esper.utils.config import reset_service_config
+
+        # Reset configuration to ensure clean test environment
+        reset_service_config()
 
         mock_s3_client = Mock()
         mock_get_s3_client.return_value = mock_s3_client

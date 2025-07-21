@@ -1,0 +1,296 @@
+name: Test Infrastructure
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run comprehensive tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  PYTHON_VERSION: '3.12'
+  PYTORCH_VERSION: '2.1.0'
+
+jobs:
+  test-infrastructure:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-type: [unit, integration, performance]
+        
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Setup test environment
+      run: |
+        # Create necessary directories
+        mkdir -p logs
+        mkdir -p temp
+        
+        # Set test environment variables
+        echo "ESPER_ENV=testing" >> $GITHUB_ENV
+        echo "ESPER_LOG_LEVEL=WARNING" >> $GITHUB_ENV
+        echo "PYTEST_CURRENT_TEST=true" >> $GITHUB_ENV
+        
+    - name: Run code quality checks
+      run: |
+        # Format check
+        black --check src tests
+        
+        # Lint check
+        ruff check src tests
+        
+        # Type check
+        pytype src/esper
+        
+    - name: Run unit tests
+      if: matrix.test-type == 'unit'
+      run: |
+        pytest tests/core/ tests/execution/ tests/utils/ \
+          --cov=src/esper \
+          --cov-report=xml \
+          --cov-report=html \
+          --cov-branch \
+          --junitxml=test-results-unit.xml \
+          -v
+          
+    - name: Run integration tests
+      if: matrix.test-type == 'integration'
+      run: |
+        # Start test services if needed
+        docker-compose -f docker/docker-compose.test.yml up -d || true
+        
+        # Wait for services to be ready
+        sleep 10
+        
+        # Run integration tests
+        pytest tests/integration/ \
+          --cov=src/esper \
+          --cov-append \
+          --cov-report=xml \
+          --junitxml=test-results-integration.xml \
+          -v
+          
+        # Cleanup
+        docker-compose -f docker/docker-compose.test.yml down || true
+        
+    - name: Run performance tests
+      if: matrix.test-type == 'performance'
+      run: |
+        pytest tests/performance/ \
+          --junitxml=test-results-performance.xml \
+          -v \
+          -m performance
+          
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.test-type }}
+        path: |
+          test-results-*.xml
+          htmlcov/
+          .coverage
+          
+    - name: Upload coverage to Codecov
+      if: matrix.test-type == 'unit'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: ${{ matrix.test-type }}
+        name: codecov-umbrella
+
+  coverage-quality-gates:
+    runs-on: ubuntu-latest
+    needs: [test-infrastructure]
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Download test artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: test-results-unit
+        
+    - name: Run comprehensive coverage analysis
+      run: |
+        python tests/utils/test_coverage.py
+        
+    - name: Check coverage quality gates
+      run: |
+        python -c "
+        from tests.utils.test_coverage import run_comprehensive_coverage_check
+        import sys
+        success = run_comprehensive_coverage_check(min_coverage=85.0)
+        sys.exit(0 if success else 1)
+        "
+        
+    - name: Generate coverage badge
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Extract coverage percentage for badge generation
+        coverage report --format=total > coverage_total.txt
+        echo "COVERAGE=$(cat coverage_total.txt)" >> $GITHUB_ENV
+        
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: |
+          htmlcov/
+          coverage.xml
+          *.json
+
+  benchmark-regression:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for comparison
+        
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Run baseline benchmarks (main branch)
+      run: |
+        git checkout origin/main
+        pytest tests/performance/ -m performance --benchmark-json=baseline.json || true
+        
+    - name: Run current benchmarks (PR branch)
+      run: |
+        git checkout ${{ github.sha }}
+        pytest tests/performance/ -m performance --benchmark-json=current.json || true
+        
+    - name: Compare performance
+      run: |
+        python -c "
+        import json
+        import sys
+        
+        try:
+            with open('baseline.json') as f:
+                baseline = json.load(f)
+            with open('current.json') as f:
+                current = json.load(f)
+            
+            print('Performance comparison results available')
+            # Add actual comparison logic here
+            
+        except FileNotFoundError:
+            print('Benchmark files not found - performance tests may have failed')
+            sys.exit(1)
+        except Exception as e:
+            print(f'Error comparing benchmarks: {e}')
+            sys.exit(1)
+        "
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        pip install safety bandit
+        
+    - name: Run security checks
+      run: |
+        # Check for known vulnerabilities in dependencies
+        safety check
+        
+        # Static security analysis
+        bandit -r src/ -f json -o bandit-report.json || true
+        
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [test-infrastructure, coverage-quality-gates]
+    if: always()
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Generate test summary
+      run: |
+        echo "# Test Infrastructure Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check if all jobs succeeded
+        if [ "${{ needs.test-infrastructure.result }}" == "success" ] && [ "${{ needs.coverage-quality-gates.result }}" == "success" ]; then
+          echo "✅ All test infrastructure checks passed!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Some test infrastructure checks failed:" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Infrastructure: ${{ needs.test-infrastructure.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage Quality Gates: ${{ needs.coverage-quality-gates.result }}" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        
+        # List available test result files
+        if ls test-results-*.xml >/dev/null 2>&1; then
+          echo "- Test result files generated successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⚠️ Test result files missing" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Check coverage report
+        if ls htmlcov/index.html >/dev/null 2>&1; then
+          echo "- Coverage report generated successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "- ⚠️ Coverage report missing" >> $GITHUB_STEP_SUMMARY
+        fi

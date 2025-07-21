@@ -5,9 +5,11 @@ These contracts are simplified versions for the MVP implementation
 and may differ from the full Esper contracts.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from esper.contracts.enums import KernelStatus
 

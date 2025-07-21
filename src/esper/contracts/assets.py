@@ -103,8 +103,7 @@ class Blueprint(BaseModel):
         # Explicit type hint forces Pylint to recognize this as a dict
         metrics: Dict[str, float] = self.performance_metrics
         metrics_str = ", ".join(
-            f"{k}: {v:.3f}"
-            for k, v in metrics.items()  # pylint: disable=no-member
+            f"{k}: {v:.3f}" for k, v in metrics.items()  # pylint: disable=no-member
         )
         return f"Performance: {metrics_str}"
 

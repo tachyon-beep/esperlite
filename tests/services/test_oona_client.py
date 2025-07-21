@@ -2,16 +2,17 @@
 Tests for OonaClient message bus functionality.
 """
 
-import json
 import warnings
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 
 # Suppress Pydantic deprecation warnings for cleaner test output
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pydantic")
 
-from esper.contracts.messages import OonaMessage, TopicNames
+from esper.contracts.messages import OonaMessage
+from esper.contracts.messages import TopicNames
 from esper.services.oona_client import OonaClient
 
 

@@ -525,12 +525,12 @@ class TestOperationalPerformance:
             model.model_dump_json()
         elapsed = time.perf_counter() - start_time
 
-        assert elapsed < 0.3, (
-            f"Mixed model serialization took {elapsed:.3f}s, expected <0.3s"
-        )
+        assert (
+            elapsed < 0.3
+        ), f"Mixed model serialization took {elapsed:.3f}s, expected <0.3s"
 
         # Test throughput
         ops_per_second = len(models) / elapsed
-        assert ops_per_second > 500, (
-            f"Mixed model throughput {ops_per_second:.0f} ops/s, expected >500 ops/s"
-        )
+        assert (
+            ops_per_second > 500
+        ), f"Mixed model throughput {ops_per_second:.0f} ops/s, expected >500 ops/s"

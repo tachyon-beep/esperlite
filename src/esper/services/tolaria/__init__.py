@@ -5,12 +5,14 @@ This module implements the master training orchestrator that coordinates
 all components of the Esper morphogenetic training system.
 """
 
-from .config import TolariaConfig, ModelConfig, DatasetConfig
+from .config import DatasetConfig
+from .config import ModelConfig
+from .config import TolariaConfig
 from .trainer import TolariaTrainer
 
 __all__ = [
     "TolariaTrainer",
-    "TolariaConfig", 
+    "TolariaConfig",
     "ModelConfig",
     "DatasetConfig",
 ]

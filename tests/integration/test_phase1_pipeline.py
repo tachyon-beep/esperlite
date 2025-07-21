@@ -5,9 +5,9 @@ This module contains tests that verify the end-to-end functionality
 of the Oona -> Urza -> Tezzeret pipeline.
 """
 
-import json
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
 
@@ -49,9 +49,7 @@ class TestPhase1Pipeline:
     @patch("esper.services.tezzeret.worker.upload_bytes")
     @patch("esper.utils.http_client.AsyncHttpClient")
     @pytest.mark.asyncio
-    async def test_tezzeret_compilation_flow(
-        self, mock_client_class, mock_upload
-    ):
+    async def test_tezzeret_compilation_flow(self, mock_client_class, mock_upload):
         """Test Tezzeret compilation workflow."""
         from esper.services.tezzeret.worker import TezzeretWorker
 
@@ -62,6 +60,7 @@ class TestPhase1Pipeline:
 
         # Mock blueprint fetch response
         mock_get_response = Mock()
+
         async def mock_json():
             return [
                 {
@@ -69,6 +68,7 @@ class TestPhase1Pipeline:
                     "architecture_ir": '{"type": "linear", "input_size": 10, "output_size": 5}',
                 }
             ]
+
         mock_get_response.json = mock_json
 
         # Mock PUT and POST responses
@@ -78,10 +78,10 @@ class TestPhase1Pipeline:
         # Configure mock client methods
         async def mock_get(url):
             return mock_get_response
-        
+
         async def mock_put(url, **kwargs):
             return mock_put_response
-        
+
         async def mock_post(url, **kwargs):
             return mock_post_response
 

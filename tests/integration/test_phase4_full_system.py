@@ -6,19 +6,23 @@ including the Tolaria trainer, service orchestration, and end-to-end workflows.
 """
 
 import asyncio
-import pytest
 import tempfile
-import yaml
 import warnings
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import Mock
+from unittest.mock import patch
+
+import pytest
+import yaml
 
 # Suppress torchvision deprecation warnings for cleaner test output
 warnings.filterwarnings("ignore", category=UserWarning, module="torchvision")
 
 from esper.services.tolaria.config import TolariaConfig
-from esper.services.tolaria.trainer import TolariaTrainer, TrainingState
 from esper.services.tolaria.main import TolariaService
+from esper.services.tolaria.trainer import TolariaTrainer
+from esper.services.tolaria.trainer import TrainingState
 
 
 @pytest.fixture

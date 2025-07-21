@@ -10,16 +10,24 @@ import hashlib
 import io
 import json
 import logging
-import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 import torch
 import torch.nn as nn
 
-from esper.contracts.enums import BlueprintStatus, KernelStatus
+from esper.contracts.enums import BlueprintStatus
+from esper.contracts.enums import KernelStatus
 from esper.services.contracts import CompiledKernelArtifact
-from esper.utils.s3_client import get_s3_client, upload_bytes
+from esper.utils.circuit_breaker import CircuitBreaker
+from esper.utils.circuit_breaker import CircuitBreakerConfig
+from esper.utils.circuit_breaker import CircuitBreakerOpenError
+from esper.utils.config import ServiceConfig
+from esper.utils.config import get_service_config
+from esper.utils.s3_client import get_s3_client
+from esper.utils.s3_client import upload_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +41,31 @@ class TezzeretWorker:
     back to Urza.
     """
 
-    def __init__(self, worker_id: str):
+    def __init__(self, worker_id: str, config: Optional[ServiceConfig] = None):
         self.worker_id = worker_id
-        self.urza_base_url = os.getenv("URZA_BASE_URL", "http://localhost:8000")
+        self.config = config or get_service_config()
+
+        # Use configuration instead of environment variables directly
+        self.urza_base_url = self.config.urza_url
         self.s3_client = get_s3_client()
-        self.bucket_name = os.getenv("S3_BUCKET_NAME", "esper-artifacts")
-        self.poll_interval = int(os.getenv("TEZZERET_POLL_INTERVAL", "10"))
+        self.bucket_name = self.config.s3_bucket
+        self.poll_interval = self.config.poll_interval_seconds
+
+        # Circuit breaker for Urza service calls
+        self._circuit_breaker = CircuitBreaker(
+            name=f"tezzeret_worker_{worker_id}_urza",
+            config=CircuitBreakerConfig(
+                failure_threshold=3,  # Open after 3 failures (more sensitive for workers)
+                recovery_timeout=45,  # Try recovery after 45 seconds
+                success_threshold=2,  # Need 2 successes to close
+                timeout=self.config.http_timeout,  # Use config timeout
+            ),
+        )
+
+        # Statistics
+        self._circuit_breaker_failures = 0
+        self._total_blueprints_processed = 0
+        self._total_compilation_failures = 0
 
         logger.info("Tezzeret Worker %s initialized", self.worker_id)
 
@@ -151,17 +178,37 @@ class TezzeretWorker:
             list: List of blueprint data
         """
         try:
-            from esper.utils.http_client import AsyncHttpClient
-            
-            url = f"{self.urza_base_url}/internal/v1/blueprints/unvalidated"
-            
-            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
-                response = await client.get(url)
-                return await response.json()
-                    
+            return await self._circuit_breaker.call(
+                self._fetch_unvalidated_blueprints_impl
+            )
+
+        except CircuitBreakerOpenError:
+            self._circuit_breaker_failures += 1
+            logger.warning(
+                f"Circuit breaker open for Urza, cannot fetch blueprints (worker {self.worker_id})"
+            )
+            return []
+
         except Exception as e:
             logger.error("Failed to fetch blueprints: %s", e)
             return []
+
+    async def _fetch_unvalidated_blueprints_impl(self) -> list:
+        """
+        Implementation of fetching unvalidated blueprints from Urza.
+
+        Returns:
+            list: List of blueprint data
+        """
+        from esper.utils.http_client import AsyncHttpClient
+
+        url = f"{self.urza_base_url}/internal/v1/blueprints/unvalidated"
+
+        async with AsyncHttpClient(
+            timeout=self.config.http_timeout, max_retries=self.config.retry_attempts
+        ) as client:
+            response = await client.get(url)
+            return await response.json()
 
     async def update_blueprint_status(
         self, blueprint_id: str, status: BlueprintStatus
@@ -177,17 +224,43 @@ class TezzeretWorker:
             bool: True if successful
         """
         try:
-            from esper.utils.http_client import AsyncHttpClient
-            
-            url = f"{self.urza_base_url}/internal/v1/blueprints/{blueprint_id}/status"
-            
-            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
-                response = await client.put(url, json={"status": status.value})
-                return True
-                    
+            return await self._circuit_breaker.call(
+                self._update_blueprint_status_impl, blueprint_id, status
+            )
+
+        except CircuitBreakerOpenError:
+            self._circuit_breaker_failures += 1
+            logger.warning(
+                f"Circuit breaker open for Urza, cannot update blueprint {blueprint_id} status (worker {self.worker_id})"
+            )
+            return False
+
         except Exception as e:
             logger.error("Failed to update blueprint status: %s", e)
             return False
+
+    async def _update_blueprint_status_impl(
+        self, blueprint_id: str, status: BlueprintStatus
+    ) -> bool:
+        """
+        Implementation of updating blueprint status in Urza.
+
+        Args:
+            blueprint_id: Blueprint ID
+            status: New status
+
+        Returns:
+            bool: True if successful
+        """
+        from esper.utils.http_client import AsyncHttpClient
+
+        url = f"{self.urza_base_url}/internal/v1/blueprints/{blueprint_id}/status"
+
+        async with AsyncHttpClient(
+            timeout=self.config.http_timeout, max_retries=self.config.retry_attempts
+        ) as client:
+            await client.put(url, json={"status": status.value})
+            return True
 
     async def submit_compiled_kernel(self, kernel: CompiledKernelArtifact) -> bool:
         """
@@ -200,17 +273,42 @@ class TezzeretWorker:
             bool: True if successful
         """
         try:
-            from esper.utils.http_client import AsyncHttpClient
-            
-            url = f"{self.urza_base_url}/internal/v1/kernels"
-            
-            async with AsyncHttpClient(timeout=30, max_retries=3) as client:
-                response = await client.post(url, json=kernel.model_dump())
-                return True
-                    
+            return await self._circuit_breaker.call(
+                self._submit_compiled_kernel_impl, kernel
+            )
+
+        except CircuitBreakerOpenError:
+            self._circuit_breaker_failures += 1
+            logger.warning(
+                f"Circuit breaker open for Urza, cannot submit kernel {kernel.id} (worker {self.worker_id})"
+            )
+            return False
+
         except Exception as e:
             logger.error("Failed to submit compiled kernel: %s", e)
             return False
+
+    async def _submit_compiled_kernel_impl(
+        self, kernel: CompiledKernelArtifact
+    ) -> bool:
+        """
+        Implementation of submitting compiled kernel to Urza.
+
+        Args:
+            kernel: Compiled kernel artifact
+
+        Returns:
+            bool: True if successful
+        """
+        from esper.utils.http_client import AsyncHttpClient
+
+        url = f"{self.urza_base_url}/internal/v1/kernels"
+
+        async with AsyncHttpClient(
+            timeout=self.config.http_timeout, max_retries=self.config.retry_attempts
+        ) as client:
+            await client.post(url, json=kernel.model_dump())
+            return True
 
     async def process_one_blueprint(self) -> bool:
         """
@@ -228,9 +326,12 @@ class TezzeretWorker:
         blueprint_id = blueprint_data["id"]
 
         logger.info("Processing blueprint %s", blueprint_id)
+        self._total_blueprints_processed += 1
 
         # Update status to COMPILING to prevent other workers from picking it up
-        if not await self.update_blueprint_status(blueprint_id, BlueprintStatus.COMPILING):
+        if not await self.update_blueprint_status(
+            blueprint_id, BlueprintStatus.COMPILING
+        ):
             logger.error(
                 "Failed to update blueprint %s status to COMPILING", blueprint_id
             )
@@ -274,13 +375,38 @@ class TezzeretWorker:
                 logger.error(
                     "Failed to submit compiled kernel for blueprint %s", blueprint_id
                 )
-                await self.update_blueprint_status(blueprint_id, BlueprintStatus.INVALID)
+                # Only try to update status if circuit breaker allows it
+                await self.update_blueprint_status(
+                    blueprint_id, BlueprintStatus.INVALID
+                )
+                self._total_compilation_failures += 1
                 return False
 
         except Exception as e:
             logger.error("Failed to compile blueprint %s: %s", blueprint_id, e)
+            # Only try to update status if circuit breaker allows it
             await self.update_blueprint_status(blueprint_id, BlueprintStatus.INVALID)
+            self._total_compilation_failures += 1
             return False
+
+    def get_worker_stats(self) -> dict:
+        """
+        Get worker performance and circuit breaker statistics.
+
+        Returns:
+            Dictionary containing worker metrics
+        """
+        return {
+            "worker_id": self.worker_id,
+            "total_blueprints_processed": self._total_blueprints_processed,
+            "total_compilation_failures": self._total_compilation_failures,
+            "circuit_breaker_failures": self._circuit_breaker_failures,
+            "circuit_breaker_stats": self._circuit_breaker.get_stats(),
+            "success_rate": (
+                (self._total_blueprints_processed - self._total_compilation_failures)
+                / max(self._total_blueprints_processed, 1)
+            ),
+        }
 
     async def start_polling(self) -> None:
         """

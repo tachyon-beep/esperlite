@@ -143,9 +143,7 @@ async def get_blueprint(blueprint_id: str, db: Session = Depends(get_db)):
         ) from e
 
 
-@app.get(
-    "/api/v1/kernels/{kernel_id}", response_model=dict, tags=["kernels"]
-)
+@app.get("/api/v1/kernels/{kernel_id}", response_model=dict, tags=["kernels"])
 async def get_kernel(kernel_id: str, db: Session = Depends(get_db)):
     """Get a compiled kernel by ID."""
     try:
@@ -154,7 +152,7 @@ async def get_kernel(kernel_id: str, db: Session = Depends(get_db)):
         if not kernel:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Kernel {kernel_id} not found"
+                detail=f"Kernel {kernel_id} not found",
             )
 
         logger.info("Retrieved kernel: %s", kernel_id)
@@ -175,7 +173,7 @@ async def get_kernel(kernel_id: str, db: Session = Depends(get_db)):
         logger.error("Failed to get kernel %s: %s", kernel_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get kernel"
+            detail="Failed to get kernel",
         ) from e
 
 
@@ -281,6 +279,27 @@ async def create_kernel(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create kernel",
+        ) from e
+
+
+# Database monitoring endpoint
+@app.get("/internal/v1/database/stats", tags=["internal", "monitoring"])
+async def get_database_stats():
+    """Get database connection pool statistics for monitoring."""
+    from .database import db_config
+
+    try:
+        stats = db_config.get_pool_stats()
+        return {
+            "database_pool": stats,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "service": "urza",
+        }
+    except Exception as e:
+        logger.error("Failed to get database stats: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve database statistics",
         ) from e
 
 

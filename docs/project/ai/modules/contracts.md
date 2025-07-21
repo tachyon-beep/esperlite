@@ -19,6 +19,85 @@ API_VERSION = "v1"
 - Establishes contract versioning for backward compatibility
 - Provides central version reference for all services
 
+### `assets.py` - ✅ **ENHANCED IN PHASE 1** - Core Asset Models
+
+**Purpose:** Defines the primary data entities with enhanced kernel metadata support.
+
+#### ✅ **NEW: Kernel Metadata Models**
+
+**`KernelMetadata`** - Compiled Kernel Metadata
+```python
+class KernelMetadata(BaseModel):
+    """Metadata for compiled kernel artifacts."""
+    
+    kernel_id: str
+    blueprint_id: str
+    name: str = Field(min_length=1, max_length=255)
+    input_shape: List[int]  # Expected input tensor shape (excluding batch)
+    output_shape: List[int]  # Expected output tensor shape (excluding batch)
+    parameter_count: int = Field(ge=0)
+    device_requirements: List[str] = Field(default_factory=list)  # ["cuda", "cpu"]
+    memory_footprint_mb: float = Field(ge=0.0)
+    compilation_target: str = Field(default="torchscript")  # "torchscript" or "pickle"
+    optimization_flags: Dict[str, Any] = Field(default_factory=dict)
+    performance_profile: Dict[str, float] = Field(default_factory=dict)
+    compatibility_version: str = Field(default="1.0")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    checksum: Optional[str] = None  # SHA256 of kernel binary
+    
+    def is_compatible_with_shape(self, input_shape: List[int]) -> bool:
+        """Check if kernel is compatible with given input shape."""
+        if len(input_shape) != len(self.input_shape):
+            return False
+        
+        # Allow flexible batch dimension (index 0), check others
+        for i in range(1, len(input_shape)):
+            if input_shape[i] != self.input_shape[i]:
+                return False
+        
+        return True
+    
+    def get_memory_estimate(self, batch_size: int) -> float:
+        """Estimate memory usage in MB for given batch size."""
+        base_memory = self.memory_footprint_mb
+        # Rough estimate: linear scaling with batch size
+        return base_memory * (batch_size / 32.0)  # Assume baseline is batch=32
+```
+
+**`CompiledKernel`** - Complete Kernel Artifact
+```python
+class CompiledKernel(BaseModel):
+    """A compiled kernel artifact ready for execution."""
+    
+    kernel_id: str = Field(default_factory=lambda: str(uuid4()))
+    blueprint_id: str
+    binary_ref: str  # S3 reference to kernel binary
+    metadata: KernelMetadata
+    status: str = Field(
+        default="compiled",
+        pattern=r"^(compiled|validated|deployed|deprecated)$"
+    )
+    validation_results: Dict[str, Any] = Field(default_factory=dict)
+    deployment_stats: Dict[str, float] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_used_at: Optional[datetime] = None
+    
+    def is_ready_for_deployment(self) -> bool:
+        """Check if kernel is ready for deployment."""
+        return self.status in {"validated", "deployed"}
+    
+    def update_usage_stats(self):
+        """Update usage statistics."""
+        self.last_used_at = datetime.now(UTC)
+```
+
+**Key Features:**
+- **Shape Validation:** Built-in compatibility checking for tensor shapes
+- **Memory Estimation:** Intelligent memory usage prediction
+- **Checksum Verification:** SHA256 validation for kernel integrity
+- **Performance Profiling:** Metadata for execution performance tracking
+- **Device Requirements:** GPU/CPU compatibility specification
+
 ### `enums.py` - System-Wide Enumerations
 
 **Purpose:** Defines controlled vocabulary for state machines and system components.

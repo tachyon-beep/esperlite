@@ -4,6 +4,18 @@
 
 The services module implements the distributed system components of the Esper platform, organized according to the three-plane architecture: Training Plane (Tolaria), Control Plane (Tamiyo, Urza), and Innovation Plane (Tezzeret, Oona). Each service is independently deployable with well-defined APIs and clear separation of concerns.
 
+## Implementation Status Summary
+
+### Fully Operational Services
+- **Oona Client** - Production-ready Redis Streams message bus
+- **Urza Service** - Complete REST API with PostgreSQL backend
+- **Tezzeret Worker** - Functional blueprint compilation service
+- **Tolaria Trainer** - Complete training orchestration with real integrations
+- **Service Clients** - Production HTTP clients with circuit breakers
+
+### Partially Implemented
+- **Tamiyo Service** - Core GNN policy works, using simulated data for training
+
 ## Architecture Summary
 
 ### Three-Plane Architecture

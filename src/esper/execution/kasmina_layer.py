@@ -10,6 +10,9 @@ import logging
 import time
 from typing import Any
 from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -20,9 +23,11 @@ from esper.contracts.operational import HealthSignal
 from esper.services.oona_client import OonaClient
 from esper.utils.circuit_breaker import CircuitBreakerOpenError
 
-from .kernel_cache import KernelCache
+from .enhanced_kernel_cache import EnhancedKernelCache
 from .state_layout import KasminaStateLayout
 from .state_layout import SeedLifecycleState
+from .kernel_executor import RealKernelExecutor, KernelExecutionError
+from .error_recovery import ErrorRecoveryManager, ErrorType, create_error_context, classify_kernel_error
 
 logger = logging.getLogger(__name__)
 
@@ -74,11 +79,21 @@ class KasminaLayer(nn.Module):
         )
         self.state_layout = KasminaStateLayout(num_seeds, device)
 
-        # Kernel cache
-        self.kernel_cache = KernelCache(
+        # Enhanced kernel cache with metadata support
+        self.kernel_cache = EnhancedKernelCache(
             max_cache_size_mb=cache_size_mb,
             max_entries=min(num_seeds * 4, 64),  # Reasonable default
         )
+        
+        # Real kernel executor
+        self.kernel_executor = RealKernelExecutor(
+            device=device,
+            max_kernel_cache_size=min(num_seeds * 2, 32),
+            enable_validation=True
+        )
+        
+        # Error recovery system
+        self.error_recovery = ErrorRecoveryManager()
 
         # Telemetry
         self.oona_client = None
@@ -121,7 +136,22 @@ class KasminaLayer(nn.Module):
 
             # Execute with kernels if any are active
             active_seeds = self.state_layout.get_active_seeds()
-            kernel_output = self._execute_with_kernels(x, active_seeds)
+            
+            # Handle async kernel execution in sync context
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # We're in an async context, create a task
+                    kernel_output = self._execute_with_kernels_sync(x, active_seeds)
+                else:
+                    # No running loop, safe to use run_until_complete
+                    kernel_output = loop.run_until_complete(
+                        self._execute_with_kernels(x, active_seeds)
+                    )
+            except RuntimeError:
+                # Fallback to sync execution if async fails
+                kernel_output = self._execute_with_kernels_sync(x, active_seeds)
+            
             output = self._blend_outputs(default_output, kernel_output, active_seeds)
 
         # Update telemetry
@@ -137,7 +167,59 @@ class KasminaLayer(nn.Module):
 
         return output
 
-    def _execute_with_kernels(
+    def _execute_with_kernels_sync(
+        self, x: torch.Tensor, active_seeds: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Synchronous kernel execution fallback.
+        
+        Used when async execution is not available or fails.
+        Falls back to placeholder execution for backward compatibility.
+        
+        Args:
+            x: Input tensor
+            active_seeds: Boolean mask of active seeds
+            
+        Returns:
+            Output tensor from kernel execution
+        """
+        batch_size = x.size(0)
+        output = torch.zeros(
+            batch_size, self.output_size, device=x.device, dtype=x.dtype
+        )
+
+        for seed_idx in range(self.num_seeds):
+            if not active_seeds[seed_idx]:
+                continue
+
+            try:
+                # Fall back to placeholder execution for sync context
+                kernel_output = self._execute_kernel_placeholder(x, seed_idx)
+
+                # Accumulate output
+                alpha = self.state_layout.alpha_blend[seed_idx].item()
+                output += alpha * kernel_output
+
+                self.total_kernel_executions += 1
+
+                # Update telemetry for this seed
+                health_score = self._compute_health_score(kernel_output)
+                self.state_layout.update_telemetry(seed_idx, 100, health_score)
+
+            except Exception as e:
+                logger.error(f"Sync kernel execution failed for seed {seed_idx}: {e}")
+                
+                # Handle error without async operations
+                error_count = self.state_layout.increment_error_count(seed_idx)
+
+                if error_count >= 3:
+                    logger.error(
+                        f"Seed {seed_idx} moved to error recovery after {error_count} failures"
+                    )
+
+        return output
+
+    async def _execute_with_kernels(
         self, x: torch.Tensor, active_seeds: torch.Tensor
     ) -> torch.Tensor:
         """
@@ -160,10 +242,10 @@ class KasminaLayer(nn.Module):
                 continue
 
             try:
-                # Execute kernel for this seed
-                kernel_output = self._execute_kernel_placeholder(x, seed_idx)
+                # Execute kernel for this seed using real kernel execution
+                kernel_output = await self._execute_kernel_real(x, seed_idx)
 
-                # Accumulate output (in production, this would be more sophisticated)
+                # Accumulate output (the blending is now handled in kernel executor)
                 alpha = self.state_layout.alpha_blend[seed_idx].item()
                 output += alpha * kernel_output
 
@@ -186,13 +268,130 @@ class KasminaLayer(nn.Module):
 
         return output
 
+    async def _execute_kernel_real(
+        self, x: torch.Tensor, seed_idx: int
+    ) -> torch.Tensor:
+        """
+        Real kernel execution using compiled artifacts with metadata validation.
+
+        Args:
+            x: Input tensor
+            seed_idx: Index of the seed
+
+        Returns:
+            Kernel output tensor
+            
+        Raises:
+            KernelExecutionError: If kernel execution fails
+        """
+        # Get kernel artifact ID from state
+        kernel_id = int(self.state_layout.active_kernel_id[seed_idx].item())
+        if kernel_id == 0:
+            # No kernel loaded, fallback to default
+            return self.default_transform(x)
+        
+        try:
+            # Load kernel with validation using enhanced cache
+            kernel_data = await self.kernel_cache.load_kernel_with_validation(
+                artifact_id=str(kernel_id),
+                target_shape=x.shape,
+                device=x.device,
+                batch_size=x.size(0)
+            )
+            
+            if kernel_data is None:
+                logger.warning(f"Kernel {kernel_id} not compatible or not found for seed {seed_idx}")
+                # Fallback to default transformation
+                return self.default_transform(x)
+            
+            kernel_tensor, metadata = kernel_data
+            
+            # Get kernel bytes for execution
+            kernel_artifact = await self.kernel_cache.get_kernel_bytes(str(kernel_id))
+            if kernel_artifact is None:
+                logger.warning(f"Kernel bytes {kernel_id} not found for seed {seed_idx}")
+                return self.default_transform(x)
+            
+            # Get alpha blending factor
+            alpha = self.state_layout.alpha_blend[seed_idx].item()
+            
+            # Execute kernel with real executor
+            result = await self.kernel_executor.execute_kernel(
+                kernel_artifact=kernel_artifact,
+                input_tensor=x,
+                original_shape=x.shape,
+                blend_alpha=alpha,
+                kernel_id=str(kernel_id)
+            )
+            
+            # Update success metrics in state layout
+            self.state_layout.update_execution_success(seed_idx)
+            
+            # Log performance info
+            logger.debug(
+                f"Executed kernel {kernel_id} for seed {seed_idx}: "
+                f"{metadata.parameter_count} params, {metadata.memory_footprint_mb:.1f}MB"
+            )
+            
+            return result
+            
+        except KernelExecutionError as e:
+            # Create error context for recovery system
+            error_context = create_error_context(
+                error_type=ErrorType.KERNEL_EXECUTION,
+                component="kasmina_layer",
+                layer_name=self.layer_name,
+                exception=e,
+                seed_idx=seed_idx,
+                kernel_id=str(kernel_id)
+            )
+            
+            # Handle error through recovery system
+            recovery_success = await self.error_recovery.handle_error(
+                error_context,
+                fallback_action=lambda: self.default_transform(x)
+            )
+            
+            # Increment error count and handle circuit breaker
+            error_count = self.state_layout.increment_error_count(seed_idx)
+            
+            if error_count >= 3:
+                logger.warning(f"Seed {seed_idx} exceeded error threshold, unloading kernel")
+                # Unload problematic kernel
+                await self.unload_kernel(seed_idx)
+            
+            # Fallback to default transformation
+            return self.default_transform(x)
+        
+        except Exception as e:
+            # Classify and handle unexpected errors
+            error_type = classify_kernel_error(e)
+            error_context = create_error_context(
+                error_type=error_type,
+                component="kasmina_layer",
+                layer_name=self.layer_name,
+                exception=e,
+                seed_idx=seed_idx,
+                kernel_id=str(kernel_id) if kernel_id else None
+            )
+            
+            # Handle through recovery system
+            await self.error_recovery.handle_error(
+                error_context,
+                fallback_action=lambda: self.default_transform(x)
+            )
+            
+            # Fallback to default transformation
+            return self.default_transform(x)
+    
     def _execute_kernel_placeholder(
         self, x: torch.Tensor, seed_idx: int
     ) -> torch.Tensor:
         """
-        Placeholder kernel execution for MVP.
+        Placeholder kernel execution for backward compatibility.
 
-        In production, this would load and execute actual compiled kernels.
+        This method is kept for backward compatibility but should not be used
+        in production. Use _execute_kernel_real instead.
 
         Args:
             x: Input tensor
@@ -201,6 +400,7 @@ class KasminaLayer(nn.Module):
         Returns:
             Kernel output tensor
         """
+        logger.warning("Using placeholder kernel execution - update to use real execution")
         # Placeholder: Apply a simple transformation that differs from default
         # This simulates morphogenetic behavior
         weight_scale = 0.5 + (seed_idx * 0.1)  # Different scale per seed
@@ -333,38 +533,80 @@ class KasminaLayer(nn.Module):
                 seed_idx, SeedLifecycleState.LOADING
             )
 
-            # Load kernel from cache with circuit breaker protection
-            kernel_tensor = await self.kernel_cache.load_kernel(artifact_id)
+            # Load kernel with enhanced validation
+            # First, try to get a dummy tensor to determine current shape requirements
+            dummy_input = torch.zeros(1, self.input_size, device=self.state_layout.device)
+            
+            kernel_data = await self.kernel_cache.load_kernel_with_validation(
+                artifact_id=artifact_id,
+                target_shape=dummy_input.shape,
+                device=self.state_layout.device,
+                batch_size=32  # Default batch size for estimation
+            )
 
-            if kernel_tensor is not None:
+            if kernel_data is not None:
+                kernel_tensor, metadata = kernel_data
+                
                 # Transition to active state
                 kernel_id = hash(artifact_id)
                 self.state_layout.transition_seed_state(
                     seed_idx, SeedLifecycleState.ACTIVE, kernel_id
                 )
 
-                # Set blend factor (could be configured)
-                self.state_layout.alpha_blend[seed_idx] = 0.3  # 30% kernel, 70% default
+                # Set blend factor based on kernel confidence (could be configured)
+                # Use metadata to determine optimal blending
+                confidence_factor = metadata.performance_profile.get("confidence", 0.5)
+                self.state_layout.alpha_blend[seed_idx] = min(confidence_factor * 0.6, 0.5)
 
-                logger.info(f"Loaded kernel {artifact_id} for seed {seed_idx}")
+                logger.info(
+                    f"Loaded kernel {artifact_id} for seed {seed_idx}: "
+                    f"{metadata.parameter_count} params, alpha={self.state_layout.alpha_blend[seed_idx].item():.2f}"
+                )
                 await self._publish_success_telemetry(error_context)
                 return True
             else:
-                # Failed to load, apply recovery strategy
+                # Failed to load or incompatible, apply recovery strategy
                 await self._handle_kernel_load_failure(
-                    error_context, "kernel_not_found", None
+                    error_context, "kernel_incompatible", None
                 )
                 return False
 
-        except CircuitBreakerOpenError:
-            # Circuit breaker open - apply specific recovery strategy
+        except CircuitBreakerOpenError as e:
+            # Create error context for circuit breaker
+            recovery_error_context = create_error_context(
+                error_type=ErrorType.CIRCUIT_BREAKER,
+                component="kernel_cache",
+                layer_name=self.layer_name,
+                exception=e,
+                seed_idx=seed_idx,
+                kernel_id=artifact_id
+            )
+            
+            # Handle through recovery system
+            await self.error_recovery.handle_error(recovery_error_context)
+            
+            # Apply specific recovery strategy
             await self._handle_kernel_load_failure(
                 error_context, "circuit_breaker_open", None
             )
             return False
 
         except Exception as e:
-            # Unexpected error - apply general recovery strategy
+            # Classify and handle unexpected errors
+            error_type = classify_kernel_error(e)
+            recovery_error_context = create_error_context(
+                error_type=error_type,
+                component="kasmina_layer",
+                layer_name=self.layer_name,
+                exception=e,
+                seed_idx=seed_idx,
+                kernel_id=artifact_id
+            )
+            
+            # Handle through recovery system
+            await self.error_recovery.handle_error(recovery_error_context)
+            
+            # Apply general recovery strategy
             await self._handle_kernel_load_failure(error_context, "unexpected_error", e)
             return False
 
@@ -399,6 +641,15 @@ class KasminaLayer(nn.Module):
             )
             logger.warning(
                 f"Kernel {artifact_id} not found, seed {seed_idx} remaining dormant"
+            )
+        
+        elif failure_reason == "kernel_incompatible":
+            # Kernel incompatible with current requirements - transition to dormant
+            self.state_layout.transition_seed_state(
+                seed_idx, SeedLifecycleState.DORMANT
+            )
+            logger.warning(
+                f"Kernel {artifact_id} incompatible with current requirements, seed {seed_idx} remaining dormant"
             )
 
         elif failure_reason == "unexpected_error":
@@ -513,7 +764,7 @@ class KasminaLayer(nn.Module):
             Dictionary containing layer statistics
         """
         state_stats = self.state_layout.get_stats()
-        cache_stats = self.kernel_cache.get_cache_stats()
+        cache_stats = self.kernel_cache.get_enhanced_stats()
 
         return {
             "layer_name": self.layer_name,
@@ -524,8 +775,28 @@ class KasminaLayer(nn.Module):
             ),
             "state_stats": state_stats,
             "cache_stats": cache_stats,
+            "error_recovery_stats": self.error_recovery.get_recovery_stats(),
             "telemetry_enabled": self.telemetry_enabled,
         }
+
+    def find_compatible_kernels(self, max_memory_mb: Optional[float] = None) -> List[Tuple[str, Any]]:
+        """
+        Find all kernels compatible with this layer's requirements.
+        
+        Args:
+            max_memory_mb: Maximum allowed memory usage per kernel
+            
+        Returns:
+            List of (artifact_id, metadata) tuples for compatible kernels
+        """
+        # Create dummy input to determine shape requirements
+        dummy_input = torch.zeros(1, self.input_size, device=self.state_layout.device)
+        
+        return self.kernel_cache.find_compatible_kernels(
+            target_shape=dummy_input.shape,
+            device=self.state_layout.device,
+            max_memory_mb=max_memory_mb
+        )
 
     def set_seed_alpha(self, seed_idx: int, alpha: float) -> None:
         """

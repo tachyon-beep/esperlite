@@ -277,6 +277,72 @@ class KernelCache:
 
         logger.info("Kernel cache cleared")
 
+    async def get_kernel_bytes(self, artifact_id: str) -> Optional[bytes]:
+        """
+        Get raw kernel bytes for execution.
+
+        Args:
+            artifact_id: ID of the kernel artifact
+
+        Returns:
+            Raw kernel bytes, or None if not found
+        """
+        try:
+            # Use circuit breaker for Urza calls
+            return await self._circuit_breaker.call(
+                self._get_kernel_bytes_impl, artifact_id
+            )
+
+        except CircuitBreakerOpenError:
+            self._circuit_breaker_failures += 1
+            logger.warning(
+                f"Circuit breaker open for Urza, cannot fetch kernel bytes {artifact_id}"
+            )
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to fetch kernel bytes {artifact_id}: {e}")
+            return None
+
+    async def _get_kernel_bytes_impl(self, artifact_id: str) -> Optional[bytes]:
+        """
+        Implementation of kernel bytes fetching from Urza (called through circuit breaker).
+
+        Args:
+            artifact_id: ID of the kernel artifact
+
+        Returns:
+            Raw kernel bytes, or None if not found
+        """
+        from esper.utils.http_client import AsyncHttpClient
+
+        # Use configured Urza URL
+        urza_url = self.config.get_urza_api_url()
+
+        async with AsyncHttpClient(
+            timeout=self.config.http_timeout, max_retries=self.config.retry_attempts
+        ) as client:
+            # Fetch kernel metadata from Urza API
+            response = await client.get(f"{urza_url}/kernels/{artifact_id}")
+            if response.status == 404:
+                logger.warning(f"Kernel {artifact_id} not found in Urza")
+                return None
+
+            kernel_metadata = await response.json()
+
+            # Extract S3 binary reference
+            binary_ref = kernel_metadata.get("kernel_binary_ref")
+            if not binary_ref:
+                logger.error(f"No binary reference found for kernel {artifact_id}")
+                return None
+
+            # Download actual kernel binary from S3
+            s3_response = await client.get(binary_ref)
+            kernel_bytes = await s3_response.read()
+
+            logger.debug(f"Successfully fetched kernel bytes {artifact_id} from Urza")
+            return kernel_bytes
+
     def remove_kernel(self, artifact_id: str) -> bool:
         """
         Remove a specific kernel from cache.

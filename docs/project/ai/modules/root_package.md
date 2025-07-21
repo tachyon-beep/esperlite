@@ -11,17 +11,18 @@ The root package serves as the main entry point for the Esper Morphogenetic Trai
 **Purpose:** Defines the public API surface and exports core functionality for end users.
 
 **Key Exports:**
-- `wrap` - Primary function to transform PyTorch models
+- `wrap` - Primary function to transform PyTorch models into morphogenetic models
+- `unwrap` - Function to extract original model from MorphableModel
 - `MorphableModel` - Enhanced model class with morphogenetic capabilities  
-- `unwrap` - Function to extract original model
-- `KasminaLayer` - Core execution layer
-- `SeedLifecycleState` - State enumeration for seed management
+- `KasminaLayer` - Core execution layer for kernel loading
+- `SeedLifecycleState` - State enumeration for seed lifecycle management
 - `EsperConfig` - Configuration management class
 
 **Metadata:**
 - **Version:** 0.2.0
-- **Author:** John Morrissey
 - **API Version:** v1
+
+**Implementation Status:** Fully functional with working model wrapping, kernel execution (placeholder), and service integration.
 
 **Dependencies:**
 ```python

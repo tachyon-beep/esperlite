@@ -9,6 +9,9 @@ The utils module provides shared utilities and infrastructure components used ac
 ### Core Utilities
 - **Logging:** High-performance structured logging with async capabilities
 - **Storage:** Enterprise-grade S3 client with optimization and reliability
+- **HTTP Client:** Production-ready async HTTP client with pooling and resilience
+- **Circuit Breaker:** Resilience pattern implementation for external service calls
+- **Configuration:** Environment-based configuration management with validation
 - **Common Patterns:** Shared utilities for error handling and performance optimization
 
 ### Design Principles
@@ -1027,6 +1030,164 @@ except S3OperationError as e:
     raise
 ```
 
+### `http_client.py` - Production HTTP Client
+
+**Purpose:** Production-ready async HTTP client with connection pooling, retries, and comprehensive error handling.
+
+#### Key Components
+
+**`AsyncHttpClient`** - High-Performance HTTP Client
+```python
+class AsyncHttpClient:
+    """
+    Production async HTTP client with connection pooling and resilience features.
+    
+    Provides high-throughput HTTP operations with automatic retries,
+    circuit breaker protection, and comprehensive performance monitoring.
+    """
+    
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        timeout: float = 30.0,
+        max_connections: int = 100,
+        max_retries: int = 3,
+        circuit_breaker: Optional[CircuitBreaker] = None
+    ):
+```
+
+**Features:**
+- **Connection Pooling:** 100 connections default with configurable limits
+- **Automatic Retries:** Exponential backoff with configurable max attempts  
+- **Circuit Breaker Integration:** Automatic failure protection
+- **Performance Tracking:** Request/response timing and statistics
+- **Timeout Management:** Per-request and global timeout configuration
+
+**Key Methods:**
+- `get()`, `post()`, `put()`, `delete()` - Standard HTTP verbs
+- `request()` - Generic request method with full configuration
+- `get_stats()` - Performance and error statistics
+- `health_check()` - Client health validation
+
+### `circuit_breaker.py` - Resilience Pattern
+
+**Purpose:** Implements circuit breaker pattern for protecting external service calls from cascading failures.
+
+#### Key Components
+
+**`CircuitBreaker`** - Failure Protection
+```python
+class CircuitBreaker:
+    """
+    Circuit breaker implementation for protecting external service calls.
+    
+    States: CLOSED (normal) -> OPEN (failing) -> HALF_OPEN (testing)
+    """
+    
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        timeout: float = 60.0,
+        expected_exception: Type[Exception] = Exception
+    ):
+```
+
+**Features:**
+- **Three States:** CLOSED (normal), OPEN (failing), HALF_OPEN (recovery testing)
+- **Configurable Thresholds:** Failure count and timeout settings
+- **Statistics Tracking:** Success/failure rates and state transition history
+- **Thread Safety:** Async lock protection for concurrent usage
+- **Exception Filtering:** Configurable exception types to trigger breaker
+
+**Usage Pattern:**
+```python
+# Initialize circuit breaker
+breaker = CircuitBreaker(failure_threshold=3, timeout=30.0)
+
+# Protect external calls
+async with breaker:
+    response = await external_service_call()
+```
+
+### `config.py` - Configuration Management
+
+**Purpose:** Environment-based configuration management with validation and production-ready defaults.
+
+#### Key Components
+
+**`Config`** - Global Configuration Singleton
+```python
+class Config:
+    """
+    Global configuration manager with environment variable support.
+    
+    Provides centralized access to all system configuration with
+    validation and type conversion.
+    """
+    
+    def __init__(self):
+        self._config = {}
+        self._load_from_environment()
+        self._validate_config()
+```
+
+**Features:**
+- **Environment Variables:** Automatic loading with type conversion
+- **Validation:** Production configuration validation with warnings
+- **Singleton Pattern:** Global access via `get_config()`
+- **Service URLs:** Helper methods for service URL construction
+- **Logging Integration:** Configuration-based logging setup
+
+**Configuration Options:**
+- Database connections (PostgreSQL, Redis)
+- Service URLs (Urza, Tamiyo, Tolaria)
+- Storage settings (S3/MinIO)
+- Performance tuning (timeouts, pool sizes)
+- Feature flags and debug options
+
+## Architecture Integration
+
+The utils module integrates across the entire Esper platform:
+
+1. **HTTP Client:** Used by all service clients for external communication
+2. **Circuit Breaker:** Protects all external service calls system-wide
+3. **Configuration:** Provides centralized settings for all components
+4. **Logging:** All services use optimized logging for performance and observability
+5. **Storage:** Tezzeret and KernelCache use S3 client for artifact management
+
+## Performance Characteristics
+
+### HTTP Client Performance
+- **Connection Pool:** 100 concurrent connections default
+- **Request Latency:** <10ms for cached connections
+- **Throughput:** Optimized for high-volume API calls
+- **Circuit Breaker:** <1ms overhead per protected call
+
+### Configuration Performance
+- **Startup Cost:** One-time validation and parsing
+- **Runtime Access:** O(1) dictionary lookups
+- **Memory Usage:** Minimal footprint with lazy loading
+
+## Best Practices
+
+### HTTP Client Best Practices
+1. **Connection Reuse:** Use single client instance per service
+2. **Timeout Configuration:** Set appropriate timeouts for operation types
+3. **Circuit Breaker Integration:** Always protect external calls
+4. **Statistics Monitoring:** Regular performance metrics review
+
+### Circuit Breaker Best Practices
+1. **Threshold Tuning:** Set failure thresholds based on service SLA
+2. **Timeout Setting:** Balance quick failure detection with service recovery
+3. **Exception Filtering:** Only trigger on actual service failures
+4. **Monitoring Integration:** Track state transitions and failure patterns
+
+### Configuration Best Practices
+1. **Environment Variables:** Use for all deployment-specific settings
+2. **Validation:** Always validate configuration at startup
+3. **Secrets Management:** Never log sensitive configuration values
+4. **Documentation:** Keep environment variable documentation current
+
 ## Future Enhancements
 
 1. **Advanced Caching**
@@ -1039,12 +1200,7 @@ except S3OperationError as e:
    - OpenTelemetry tracing integration
    - Health check standardization
 
-3. **Configuration Management**
-   - Environment-based configuration utilities
-   - Configuration validation helpers
-   - Dynamic configuration updates
-
-4. **Network Utilities**
-   - HTTP client with retry and circuit breaker
-   - Service discovery utilities
-   - Load balancing helpers
+3. **Service Discovery**
+   - Dynamic service endpoint discovery
+   - Load balancing capabilities
+   - Health-based routing

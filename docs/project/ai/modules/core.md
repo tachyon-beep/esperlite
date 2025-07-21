@@ -259,34 +259,55 @@ def wrap(
 
 **Supported Layer Types:**
 
+The core module supports multiple PyTorch layer types with specialized KasminaLayer implementations:
+
 **Linear Layers (Full Support):**
 ```python
 if isinstance(original_layer, nn.Linear):
-    input_size = original_layer.in_features
-    output_size = original_layer.out_features
-    # ... create KasminaLayer
-    # Copy weights exactly
-    with torch.no_grad():
-        kasmina_layer.default_transform.weight.copy_(original_layer.weight)
-        if original_layer.bias is not None:
-            kasmina_layer.default_transform.bias.copy_(original_layer.bias)
+    return KasminaLayer(
+        input_size=original_layer.in_features,
+        output_size=original_layer.out_features,
+        **kwargs
+    )
 ```
 
-**Conv2d Layers (Simplified Support):**
+**Convolutional Layers (Specialized Support):**
 ```python
 elif isinstance(original_layer, nn.Conv2d):
-    input_size = original_layer.in_channels
-    output_size = original_layer.out_channels
-    # Simplified approach - flatten conv weights to work with linear layer
-    with torch.no_grad():
-        original_weights = original_layer.weight.view(original_layer.out_channels, -1)
-        # Adapt dimensions if needed
+    return KasminaConv2dLayer(
+        in_channels=original_layer.in_channels,
+        out_channels=original_layer.out_channels,
+        kernel_size=original_layer.kernel_size,
+        **kwargs
+    )
+```
+
+**Attention Layers (Advanced Support):**
+```python
+elif isinstance(original_layer, nn.MultiheadAttention):
+    return KasminaAttentionLayer(
+        embed_dim=original_layer.embed_dim,
+        num_heads=original_layer.num_heads,
+        **kwargs
+    )
+```
+
+**Normalization Layers (Specialized Support):**
+```python
+elif isinstance(original_layer, nn.LayerNorm):
+    return KasminaLayerNormLayer(
+        normalized_shape=original_layer.normalized_shape,
+        **kwargs
+    )
+elif isinstance(original_layer, (nn.BatchNorm1d, nn.BatchNorm2d)):
+    # Appropriate BatchNorm variant
 ```
 
 **Error Handling:**
 ```python
 else:
-    raise NotImplementedError(f"Layer type {type(original_layer)} not yet supported")
+    logger.warning(f"Layer type {type(original_layer)} not supported, skipping")
+    return original_layer  # Graceful fallback
 ```
 
 **`_create_kasmina_layer()` - Layer Factory Function**

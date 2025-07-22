@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 class RewardComponent(Enum):
     """Components that contribute to the overall reward signal."""
+
     ACCURACY = "accuracy"
     SPEED = "speed"
     MEMORY = "memory"
@@ -93,14 +94,14 @@ class RewardConfig:
     innovation_weight: float = 0.05
 
     # Temporal discounting
-    immediate_discount: float = 1.0    # No discount for immediate effects
-    short_term_discount: float = 0.9   # 10% discount for short-term
+    immediate_discount: float = 1.0  # No discount for immediate effects
+    short_term_discount: float = 0.9  # 10% discount for short-term
     medium_term_discount: float = 0.8  # 20% discount for medium-term
-    long_term_discount: float = 0.7    # 30% discount for long-term
+    long_term_discount: float = 0.7  # 30% discount for long-term
 
     # Thresholds
     min_improvement_threshold: float = 0.01  # Minimum improvement to consider positive
-    safety_failure_penalty: float = -2.0    # Large penalty for safety violations
+    safety_failure_penalty: float = -2.0  # Large penalty for safety violations
     stability_failure_penalty: float = -1.0  # Penalty for instability
 
     # Correlation analysis
@@ -128,10 +129,7 @@ class PerformanceTracker:
         if timestamp is None:
             timestamp = time.time()
 
-        self.metrics_history.append({
-            'timestamp': timestamp,
-            'metrics': metrics.copy()
-        })
+        self.metrics_history.append({"timestamp": timestamp, "metrics": metrics.copy()})
 
         # Update baseline if we have enough history
         if len(self.metrics_history) >= 50:
@@ -144,9 +142,9 @@ class PerformanceTracker:
         # Compute baseline as median of recent measurements
         baseline = {}
         if recent_metrics:
-            metric_keys = recent_metrics[0]['metrics'].keys()
+            metric_keys = recent_metrics[0]["metrics"].keys()
             for key in metric_keys:
-                values = [m['metrics'].get(key, 0.0) for m in recent_metrics]
+                values = [m["metrics"].get(key, 0.0) for m in recent_metrics]
                 baseline[key] = np.median(values)
 
         self.baseline_metrics = baseline
@@ -170,7 +168,7 @@ class PerformanceTracker:
             return 0.0
 
         recent_data = list(self.metrics_history)[-window_size:]
-        values = [d['metrics'].get(metric_name, 0.0) for d in recent_data]
+        values = [d["metrics"].get(metric_name, 0.0) for d in recent_data]
 
         return self.trend_analyzer.compute_trend(values)
 
@@ -217,36 +215,42 @@ class CorrelationAnalyzer:
         self,
         decision: AdaptationDecision,
         outcome_metrics: RewardMetrics,
-        delay_minutes: float = 0.0
+        delay_minutes: float = 0.0,
     ):
         """Record a decision-outcome pair for correlation analysis."""
         decision_features = self._extract_decision_features(decision)
         outcome_features = self._extract_outcome_features(outcome_metrics)
 
-        self.decision_outcome_pairs.append({
-            'decision': decision_features,
-            'outcome': outcome_features,
-            'delay': delay_minutes,
-            'timestamp': time.time()
-        })
+        self.decision_outcome_pairs.append(
+            {
+                "decision": decision_features,
+                "outcome": outcome_features,
+                "delay": delay_minutes,
+                "timestamp": time.time(),
+            }
+        )
 
-    def _extract_decision_features(self, decision: AdaptationDecision) -> Dict[str, float]:
+    def _extract_decision_features(
+        self, decision: AdaptationDecision
+    ) -> Dict[str, float]:
         """Extract numerical features from adaptation decision."""
         return {
-            'confidence': decision.confidence,
-            'urgency': decision.urgency,
-            'layer_depth': hash(decision.layer_name) % 100 / 100.0,  # Crude layer encoding
-            'adaptation_type': hash(str(decision.blueprint_request)) % 100 / 100.0
+            "confidence": decision.confidence,
+            "urgency": decision.urgency,
+            "layer_depth": hash(decision.layer_name)
+            % 100
+            / 100.0,  # Crude layer encoding
+            "adaptation_type": hash(str(decision.blueprint_request)) % 100 / 100.0,
         }
 
     def _extract_outcome_features(self, metrics: RewardMetrics) -> Dict[str, float]:
         """Extract numerical features from reward metrics."""
         return {
-            'accuracy': metrics.accuracy_improvement,
-            'speed': metrics.speed_improvement,
-            'memory': metrics.memory_efficiency,
-            'stability': metrics.stability_score,
-            'safety': metrics.safety_score
+            "accuracy": metrics.accuracy_improvement,
+            "speed": metrics.speed_improvement,
+            "memory": metrics.memory_efficiency,
+            "stability": metrics.stability_score,
+            "safety": metrics.safety_score,
         }
 
     def compute_correlations(self) -> Dict[str, Dict[str, float]]:
@@ -261,10 +265,10 @@ class CorrelationAnalyzer:
         outcome_data = defaultdict(list)
 
         for pair in self.decision_outcome_pairs:
-            for key, value in pair['decision'].items():
+            for key, value in pair["decision"].items():
                 decision_data[key].append(value)
 
-            for key, value in pair['outcome'].items():
+            for key, value in pair["outcome"].items():
                 outcome_data[key].append(value)
 
         # Compute correlations between each decision feature and outcome feature
@@ -274,8 +278,7 @@ class CorrelationAnalyzer:
             for outcome_feature in outcome_data:
                 try:
                     correlation, p_value = stats.pearsonr(
-                        decision_data[decision_feature],
-                        outcome_data[outcome_feature]
+                        decision_data[decision_feature], outcome_data[outcome_feature]
                     )
 
                     # Only record significant correlations
@@ -299,14 +302,14 @@ class CorrelationAnalyzer:
         successes = []
 
         for pair in self.decision_outcome_pairs:
-            confidences.append(pair['decision']['confidence'])
+            confidences.append(pair["decision"]["confidence"])
 
             # Define success as positive overall outcome
-            outcome = pair['outcome']
+            outcome = pair["outcome"]
             success = (
-                outcome['accuracy'] > 0 or
-                outcome['speed'] > 0 or
-                outcome['stability'] > 0.7
+                outcome["accuracy"] > 0
+                or outcome["speed"] > 0
+                or outcome["stability"] > 0.7
             )
             successes.append(1 if success else 0)
 
@@ -316,46 +319,46 @@ class CorrelationAnalyzer:
         try:
             # Simple mutual information approximation
             mi_score = self._compute_mutual_information(confidence_bins, successes)
-            mutual_info['confidence_success'] = mi_score
+            mutual_info["confidence_success"] = mi_score
         except Exception:
             pass
 
         return mutual_info
-    
+
     def _compute_mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
         """Simple mutual information computation."""
         try:
             # Convert to discrete values
             x_unique = np.unique(x)
             y_unique = np.unique(y)
-            
+
             if len(x_unique) < 2 or len(y_unique) < 2:
                 return 0.0
-            
+
             # Compute joint and marginal distributions
             xy_counts = {}
             x_counts = {}
             y_counts = {}
             n = len(x)
-            
+
             for i in range(n):
                 xi, yi = x[i], y[i]
                 xy_counts[(xi, yi)] = xy_counts.get((xi, yi), 0) + 1
                 x_counts[xi] = x_counts.get(xi, 0) + 1
                 y_counts[yi] = y_counts.get(yi, 0) + 1
-            
+
             # Compute mutual information
             mi = 0.0
             for (xi, yi), count in xy_counts.items():
                 pxy = count / n
                 px = x_counts[xi] / n
                 py = y_counts[yi] / n
-                
+
                 if pxy > 0 and px > 0 and py > 0:
                     mi += pxy * np.log(pxy / (px * py))
-            
+
             return float(mi)
-            
+
         except Exception:
             return 0.0
 
@@ -387,11 +390,11 @@ class MultiMetricRewardSystem:
 
         # Statistics
         self.stats = {
-            'total_rewards_computed': 0,
-            'positive_rewards': 0,
-            'negative_rewards': 0,
-            'safety_violations': 0,
-            'correlation_updates': 0
+            "total_rewards_computed": 0,
+            "positive_rewards": 0,
+            "negative_rewards": 0,
+            "safety_violations": 0,
+            "correlation_updates": 0,
         }
 
         logger.info("MultiMetricRewardSystem initialized")
@@ -401,7 +404,7 @@ class MultiMetricRewardSystem:
         decision: AdaptationDecision,
         graph_state: ModelGraphState,
         execution_metrics: Optional[Dict[str, Any]] = None,
-        health_signals: Optional[List[HealthSignal]] = None
+        health_signals: Optional[List[HealthSignal]] = None,
     ) -> Tuple[float, RewardMetrics]:
         """
         Compute comprehensive reward for an adaptation decision.
@@ -428,9 +431,9 @@ class MultiMetricRewardSystem:
         # Compute reward components
         reward_metrics = RewardMetrics(
             decision_context={
-                'layer_name': decision.layer_name,
-                'confidence': decision.confidence,
-                'urgency': decision.urgency
+                "layer_name": decision.layer_name,
+                "confidence": decision.confidence,
+                "urgency": decision.urgency,
             }
         )
 
@@ -447,9 +450,7 @@ class MultiMetricRewardSystem:
         reward_metrics.stability_score = self._compute_stability_reward(
             current_metrics, graph_state, decision
         )
-        reward_metrics.safety_score = self._compute_safety_reward(
-            decision, graph_state
-        )
+        reward_metrics.safety_score = self._compute_safety_reward(decision, graph_state)
 
         # Secondary metrics
         reward_metrics.innovation_score = self._compute_innovation_reward(decision)
@@ -457,14 +458,14 @@ class MultiMetricRewardSystem:
 
         # Temporal impact (estimated based on decision characteristics)
         temporal_impacts = self._estimate_temporal_impacts(decision, current_metrics)
-        reward_metrics.immediate_impact = temporal_impacts['immediate']
-        reward_metrics.short_term_impact = temporal_impacts['short_term']
-        reward_metrics.medium_term_impact = temporal_impacts['medium_term']
-        reward_metrics.long_term_impact = temporal_impacts['long_term']
+        reward_metrics.immediate_impact = temporal_impacts["immediate"]
+        reward_metrics.short_term_impact = temporal_impacts["short_term"]
+        reward_metrics.medium_term_impact = temporal_impacts["medium_term"]
+        reward_metrics.long_term_impact = temporal_impacts["long_term"]
 
         # Meta-metrics
         reward_metrics.confidence_level = decision.confidence
-        reward_metrics.uncertainty = decision.metadata.get('uncertainty', 0.0)
+        reward_metrics.uncertainty = decision.metadata.get("uncertainty", 0.0)
         reward_metrics.risk_assessment = self._assess_risk(decision, graph_state)
 
         # Combine components into final reward
@@ -478,26 +479,30 @@ class MultiMetricRewardSystem:
 
         # Store for history and learning
         self.reward_history.append(final_reward)
-        self.decision_history.append({
-            'decision': decision,
-            'reward': final_reward,
-            'metrics': reward_metrics,
-            'timestamp': time.time()
-        })
+        self.decision_history.append(
+            {
+                "decision": decision,
+                "reward": final_reward,
+                "metrics": reward_metrics,
+                "timestamp": time.time(),
+            }
+        )
 
         # Update adaptive weights
         if self.weight_optimizer:
-            await self.weight_optimizer.update_weights(decision, reward_metrics, final_reward)
+            await self.weight_optimizer.update_weights(
+                decision, reward_metrics, final_reward
+            )
 
         # Update statistics
-        self.stats['total_rewards_computed'] += 1
+        self.stats["total_rewards_computed"] += 1
         if final_reward > 0:
-            self.stats['positive_rewards'] += 1
+            self.stats["positive_rewards"] += 1
         else:
-            self.stats['negative_rewards'] += 1
+            self.stats["negative_rewards"] += 1
 
         if reward_metrics.safety_score < 0.5:
-            self.stats['safety_violations'] += 1
+            self.stats["safety_violations"] += 1
 
         logger.debug(
             f"Computed reward: {final_reward:.3f} "
@@ -512,27 +517,33 @@ class MultiMetricRewardSystem:
         self,
         graph_state: ModelGraphState,
         execution_metrics: Optional[Dict[str, Any]],
-        health_signals: Optional[List[HealthSignal]]
+        health_signals: Optional[List[HealthSignal]],
     ) -> Dict[str, float]:
         """Extract current performance metrics from available data."""
         metrics = {}
 
         # From graph state
         if graph_state.global_metrics:
-            metrics.update({
-                'model_health': graph_state.global_metrics.get('overall_health', 0.5),
-                'stability': graph_state.global_metrics.get('stability', 0.5),
-                'error_rate': graph_state.global_metrics.get('error_rate', 0.0)
-            })
+            metrics.update(
+                {
+                    "model_health": graph_state.global_metrics.get(
+                        "overall_health", 0.5
+                    ),
+                    "stability": graph_state.global_metrics.get("stability", 0.5),
+                    "error_rate": graph_state.global_metrics.get("error_rate", 0.0),
+                }
+            )
 
         # From execution metrics (Phase 1 integration)
         if execution_metrics:
-            metrics.update({
-                'execution_latency': execution_metrics.get('avg_latency_ms', 0.0),
-                'cache_hit_rate': execution_metrics.get('cache_hit_rate', 0.0),
-                'memory_usage_mb': execution_metrics.get('memory_usage_mb', 0.0),
-                'success_rate': execution_metrics.get('success_rate', 1.0)
-            })
+            metrics.update(
+                {
+                    "execution_latency": execution_metrics.get("avg_latency_ms", 0.0),
+                    "cache_hit_rate": execution_metrics.get("cache_hit_rate", 0.0),
+                    "memory_usage_mb": execution_metrics.get("memory_usage_mb", 0.0),
+                    "success_rate": execution_metrics.get("success_rate", 1.0),
+                }
+            )
 
         # From health signals
         if health_signals:
@@ -541,25 +552,26 @@ class MultiMetricRewardSystem:
                 avg_health = np.mean([s.health_score for s in recent_signals])
                 avg_errors = np.mean([s.error_count for s in recent_signals])
 
-                metrics.update({
-                    'avg_layer_health': avg_health,
-                    'avg_error_count': avg_errors
-                })
+                metrics.update(
+                    {"avg_layer_health": avg_health, "avg_error_count": avg_errors}
+                )
 
         return metrics
 
     def _compute_accuracy_reward(
-        self,
-        current_metrics: Dict[str, float],
-        decision: AdaptationDecision
+        self, current_metrics: Dict[str, float], decision: AdaptationDecision
     ) -> float:
         """Compute accuracy-based reward component."""
-        model_health = current_metrics.get('model_health', 0.5)
-        success_rate = current_metrics.get('success_rate', 1.0)
+        model_health = current_metrics.get("model_health", 0.5)
+        success_rate = current_metrics.get("success_rate", 1.0)
 
         # Reward improvement in model health and success rate
-        health_improvement = self.performance_tracker.get_improvement('model_health', model_health)
-        success_improvement = self.performance_tracker.get_improvement('success_rate', success_rate)
+        health_improvement = self.performance_tracker.get_improvement(
+            "model_health", model_health
+        )
+        success_improvement = self.performance_tracker.get_improvement(
+            "success_rate", success_rate
+        )
 
         accuracy_reward = (health_improvement + success_improvement) / 2.0
 
@@ -570,35 +582,37 @@ class MultiMetricRewardSystem:
         return float(np.clip(accuracy_reward, -1.0, 1.0))
 
     def _compute_speed_reward(
-        self,
-        current_metrics: Dict[str, float],
-        decision: AdaptationDecision
+        self, current_metrics: Dict[str, float], decision: AdaptationDecision
     ) -> float:
         """Compute speed-based reward component."""
-        latency = current_metrics.get('execution_latency', 0.0)
-        cache_hit_rate = current_metrics.get('cache_hit_rate', 0.0)
+        latency = current_metrics.get("execution_latency", 0.0)
+        cache_hit_rate = current_metrics.get("cache_hit_rate", 0.0)
 
         # Lower latency and higher cache hit rate are better
-        latency_improvement = -self.performance_tracker.get_improvement('execution_latency', latency)
-        cache_improvement = self.performance_tracker.get_improvement('cache_hit_rate', cache_hit_rate)
+        latency_improvement = -self.performance_tracker.get_improvement(
+            "execution_latency", latency
+        )
+        cache_improvement = self.performance_tracker.get_improvement(
+            "cache_hit_rate", cache_hit_rate
+        )
 
         speed_reward = (latency_improvement + cache_improvement) / 2.0
 
         return float(np.clip(speed_reward, -1.0, 1.0))
 
     def _compute_memory_reward(
-        self,
-        current_metrics: Dict[str, float],
-        decision: AdaptationDecision
+        self, current_metrics: Dict[str, float], decision: AdaptationDecision
     ) -> float:
         """Compute memory efficiency reward component."""
-        memory_usage = current_metrics.get('memory_usage_mb', 0.0)
+        memory_usage = current_metrics.get("memory_usage_mb", 0.0)
 
         if memory_usage == 0.0:
             return 0.0  # No memory information available
 
         # Lower memory usage is better
-        memory_improvement = -self.performance_tracker.get_improvement('memory_usage_mb', memory_usage)
+        memory_improvement = -self.performance_tracker.get_improvement(
+            "memory_usage_mb", memory_usage
+        )
 
         return float(np.clip(memory_improvement, -1.0, 1.0))
 
@@ -606,12 +620,12 @@ class MultiMetricRewardSystem:
         self,
         current_metrics: Dict[str, float],
         graph_state: ModelGraphState,
-        decision: AdaptationDecision
+        decision: AdaptationDecision,
     ) -> float:
         """Compute stability-based reward component."""
-        stability = current_metrics.get('stability', 0.5)
-        error_rate = current_metrics.get('error_rate', 0.0)
-        avg_errors = current_metrics.get('avg_error_count', 0.0)
+        stability = current_metrics.get("stability", 0.5)
+        error_rate = current_metrics.get("error_rate", 0.0)
+        avg_errors = current_metrics.get("avg_error_count", 0.0)
 
         # Higher stability and lower error rates are better
         stability_score = stability
@@ -620,17 +634,17 @@ class MultiMetricRewardSystem:
         stability_reward = stability_score - error_penalty
 
         # Penalty for decisions that target stable layers without strong justification
-        if (len(graph_state.problematic_layers) == 0 and
-            decision.layer_name not in graph_state.problematic_layers and
-            decision.confidence < 0.8):
+        if (
+            len(graph_state.problematic_layers) == 0
+            and decision.layer_name not in graph_state.problematic_layers
+            and decision.confidence < 0.8
+        ):
             stability_reward -= 0.2  # Unnecessary intervention penalty
 
         return float(np.clip(stability_reward, -1.0, 1.0))
 
     def _compute_safety_reward(
-        self,
-        decision: AdaptationDecision,
-        graph_state: ModelGraphState
+        self, decision: AdaptationDecision, graph_state: ModelGraphState
     ) -> float:
         """Compute safety-based reward component."""
         # Start with high safety score
@@ -644,8 +658,8 @@ class MultiMetricRewardSystem:
             safety_score -= 0.3  # Urgent but uncertain decisions are dangerous
 
         # Check for safety metadata
-        if 'safety_score' in decision.metadata:
-            metadata_safety = decision.metadata['safety_score']
+        if "safety_score" in decision.metadata:
+            metadata_safety = decision.metadata["safety_score"]
             safety_score = 0.7 * safety_score + 0.3 * metadata_safety
 
         # Penalty for acting on stable systems
@@ -665,11 +679,12 @@ class MultiMetricRewardSystem:
         # Count similar recent decisions
         similar_count = 0
         for past_decision_data in recent_decisions:
-            past_decision = past_decision_data['decision']
+            past_decision = past_decision_data["decision"]
 
             # Simple similarity check
-            if (past_decision.layer_name == decision.layer_name or
-                str(past_decision.blueprint_request) == str(decision.blueprint_request)):
+            if past_decision.layer_name == decision.layer_name or str(
+                past_decision.blueprint_request
+            ) == str(decision.blueprint_request):
                 similar_count += 1
 
         # Reward novel decisions, but not too much
@@ -688,7 +703,7 @@ class MultiMetricRewardSystem:
 
         similar_outcomes = []
         for past_data in recent_decisions:
-            past_decision = past_data['decision']
+            past_decision = past_data["decision"]
 
             # Check similarity
             similarity_score = 0.0
@@ -703,7 +718,7 @@ class MultiMetricRewardSystem:
 
             # If sufficiently similar, record the outcome
             if similarity_score >= 0.4:
-                similar_outcomes.append(past_data['reward'])
+                similar_outcomes.append(past_data["reward"])
 
         if not similar_outcomes:
             return 0.0
@@ -713,12 +728,12 @@ class MultiMetricRewardSystem:
         return float(np.clip(avg_outcome * 0.5, -0.5, 0.5))  # Scaled consistency reward
 
     def _estimate_temporal_impacts(
-        self,
-        decision: AdaptationDecision,
-        current_metrics: Dict[str, float]
+        self, decision: AdaptationDecision, current_metrics: Dict[str, float]
     ) -> Dict[str, float]:
         """Estimate temporal impacts of the decision."""
-        base_impact = decision.confidence * 0.5  # Base impact proportional to confidence
+        base_impact = (
+            decision.confidence * 0.5
+        )  # Base impact proportional to confidence
 
         # Immediate impact (usually highest)
         immediate = base_impact * (1.0 + decision.urgency * 0.3)
@@ -734,16 +749,14 @@ class MultiMetricRewardSystem:
         long_term = base_impact * (0.4 + complexity_factor * 0.4)
 
         return {
-            'immediate': float(np.clip(immediate, -1.0, 1.0)),
-            'short_term': float(np.clip(short_term, -1.0, 1.0)),
-            'medium_term': float(np.clip(medium_term, -1.0, 1.0)),
-            'long_term': float(np.clip(long_term, -1.0, 1.0))
+            "immediate": float(np.clip(immediate, -1.0, 1.0)),
+            "short_term": float(np.clip(short_term, -1.0, 1.0)),
+            "medium_term": float(np.clip(medium_term, -1.0, 1.0)),
+            "long_term": float(np.clip(long_term, -1.0, 1.0)),
         }
 
     def _assess_risk(
-        self,
-        decision: AdaptationDecision,
-        graph_state: ModelGraphState
+        self, decision: AdaptationDecision, graph_state: ModelGraphState
     ) -> float:
         """Assess risk level of the adaptation decision."""
         risk = 0.0
@@ -759,8 +772,10 @@ class MultiMetricRewardSystem:
             risk += 0.4
 
         # Acting on non-problematic layers is risky
-        if (len(graph_state.problematic_layers) > 0 and
-            decision.layer_name not in graph_state.problematic_layers):
+        if (
+            len(graph_state.problematic_layers) > 0
+            and decision.layer_name not in graph_state.problematic_layers
+        ):
             risk += 0.2
 
         # Complex adaptations are inherently riskier
@@ -776,20 +791,20 @@ class MultiMetricRewardSystem:
 
         # Primary components
         primary_reward = (
-            weights['accuracy'] * metrics.accuracy_improvement +
-            weights['speed'] * metrics.speed_improvement +
-            weights['memory'] * metrics.memory_efficiency +
-            weights['stability'] * metrics.stability_score +
-            weights['safety'] * (metrics.safety_score - 0.5) * 2.0 +  # Center around 0
-            weights['innovation'] * metrics.innovation_score
+            weights["accuracy"] * metrics.accuracy_improvement
+            + weights["speed"] * metrics.speed_improvement
+            + weights["memory"] * metrics.memory_efficiency
+            + weights["stability"] * metrics.stability_score
+            + weights["safety"] * (metrics.safety_score - 0.5) * 2.0  # Center around 0
+            + weights["innovation"] * metrics.innovation_score
         )
 
         # Temporal discounting
         temporal_reward = (
-            self.config.immediate_discount * metrics.immediate_impact +
-            self.config.short_term_discount * metrics.short_term_impact +
-            self.config.medium_term_discount * metrics.medium_term_impact +
-            self.config.long_term_discount * metrics.long_term_impact
+            self.config.immediate_discount * metrics.immediate_impact
+            + self.config.short_term_discount * metrics.short_term_impact
+            + self.config.medium_term_discount * metrics.medium_term_impact
+            + self.config.long_term_discount * metrics.long_term_impact
         )
 
         # Combine primary and temporal components
@@ -806,13 +821,17 @@ class MultiMetricRewardSystem:
 
         # Safety violation penalty
         if metrics.safety_score < 0.5:
-            safety_penalty = self.config.safety_failure_penalty * (0.5 - metrics.safety_score)
+            safety_penalty = self.config.safety_failure_penalty * (
+                0.5 - metrics.safety_score
+            )
             penalized_reward += safety_penalty
             logger.warning(f"Applied safety penalty: {safety_penalty:.3f}")
 
         # Stability penalty
         if metrics.stability_score < 0.3:
-            stability_penalty = self.config.stability_failure_penalty * (0.3 - metrics.stability_score)
+            stability_penalty = self.config.stability_failure_penalty * (
+                0.3 - metrics.stability_score
+            )
             penalized_reward += stability_penalty
             logger.warning(f"Applied stability penalty: {stability_penalty:.3f}")
 
@@ -824,12 +843,12 @@ class MultiMetricRewardSystem:
             return self.weight_optimizer.get_current_weights()
         else:
             return {
-                'accuracy': self.config.accuracy_weight,
-                'speed': self.config.speed_weight,
-                'memory': self.config.memory_weight,
-                'stability': self.config.stability_weight,
-                'safety': self.config.safety_weight,
-                'innovation': self.config.innovation_weight
+                "accuracy": self.config.accuracy_weight,
+                "speed": self.config.speed_weight,
+                "memory": self.config.memory_weight,
+                "stability": self.config.stability_weight,
+                "safety": self.config.safety_weight,
+                "innovation": self.config.innovation_weight,
             }
 
     def get_reward_statistics(self) -> Dict[str, Any]:
@@ -840,22 +859,30 @@ class MultiMetricRewardSystem:
         rewards = list(self.reward_history)
 
         return {
-            'total_rewards': len(rewards),
-            'average_reward': np.mean(rewards),
-            'reward_std': np.std(rewards),
-            'positive_reward_rate': self.stats['positive_rewards'] / max(self.stats['total_rewards_computed'], 1),
-            'safety_violation_rate': self.stats['safety_violations'] / max(self.stats['total_rewards_computed'], 1),
-            'recent_trend': self.performance_tracker.trend_analyzer.compute_trend(rewards[-20:]) if len(rewards) >= 20 else 0.0,
-            'correlation_samples': len(self.correlation_analyzer.decision_outcome_pairs),
-            'current_weights': self._get_current_weights()
+            "total_rewards": len(rewards),
+            "average_reward": np.mean(rewards),
+            "reward_std": np.std(rewards),
+            "positive_reward_rate": self.stats["positive_rewards"]
+            / max(self.stats["total_rewards_computed"], 1),
+            "safety_violation_rate": self.stats["safety_violations"]
+            / max(self.stats["total_rewards_computed"], 1),
+            "recent_trend": (
+                self.performance_tracker.trend_analyzer.compute_trend(rewards[-20:])
+                if len(rewards) >= 20
+                else 0.0
+            ),
+            "correlation_samples": len(
+                self.correlation_analyzer.decision_outcome_pairs
+            ),
+            "current_weights": self._get_current_weights(),
         }
 
     def get_correlations(self) -> Dict[str, Any]:
         """Get current correlation analysis results."""
         return {
-            'decision_outcome_correlations': self.correlation_analyzer.compute_correlations(),
-            'mutual_information': self.correlation_analyzer.get_mutual_information(),
-            'samples_analyzed': len(self.correlation_analyzer.decision_outcome_pairs)
+            "decision_outcome_correlations": self.correlation_analyzer.compute_correlations(),
+            "mutual_information": self.correlation_analyzer.get_mutual_information(),
+            "samples_analyzed": len(self.correlation_analyzer.decision_outcome_pairs),
         }
 
 
@@ -867,12 +894,12 @@ class AdaptiveWeightOptimizer:
 
         # Current weights (start with config defaults)
         self.weights = {
-            'accuracy': config.accuracy_weight,
-            'speed': config.speed_weight,
-            'memory': config.memory_weight,
-            'stability': config.stability_weight,
-            'safety': config.safety_weight,
-            'innovation': config.innovation_weight
+            "accuracy": config.accuracy_weight,
+            "speed": config.speed_weight,
+            "memory": config.memory_weight,
+            "stability": config.stability_weight,
+            "safety": config.safety_weight,
+            "innovation": config.innovation_weight,
         }
 
         # Weight momentum for stability
@@ -882,10 +909,7 @@ class AdaptiveWeightOptimizer:
         self.weight_performance = defaultdict(list)
 
     async def update_weights(
-        self,
-        decision: AdaptationDecision,
-        metrics: RewardMetrics,
-        final_reward: float
+        self, decision: AdaptationDecision, metrics: RewardMetrics, final_reward: float
     ):
         """Update component weights based on learning outcomes."""
         # This is a simplified adaptive weight system
@@ -893,12 +917,12 @@ class AdaptiveWeightOptimizer:
 
         # Record performance for each component
         component_contributions = {
-            'accuracy': metrics.accuracy_improvement,
-            'speed': metrics.speed_improvement,
-            'memory': metrics.memory_efficiency,
-            'stability': metrics.stability_score,
-            'safety': metrics.safety_score,
-            'innovation': metrics.innovation_score
+            "accuracy": metrics.accuracy_improvement,
+            "speed": metrics.speed_improvement,
+            "memory": metrics.memory_efficiency,
+            "stability": metrics.stability_score,
+            "safety": metrics.safety_score,
+            "innovation": metrics.innovation_score,
         }
 
         # Update weights based on component success
@@ -931,4 +955,3 @@ class AdaptiveWeightOptimizer:
     def get_current_weights(self) -> Dict[str, float]:
         """Get current optimized weights."""
         return self.weights.copy()
-

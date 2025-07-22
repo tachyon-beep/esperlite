@@ -45,10 +45,12 @@ class TestGNNAcceleration:
 
         # Forward pass should work regardless of acceleration - policy now returns dict
         outputs = policy(node_features, edge_index)
-        
+
         # Extract values from dictionary output
         adaptation_prob = outputs["adaptation_prob"]
-        layer_priorities = outputs.get("layer_priority", outputs["adaptation_prob"])  # fallback
+        layer_priorities = outputs.get(
+            "layer_priority", outputs["adaptation_prob"]
+        )  # fallback
         urgency_score = outputs["urgency_score"]
         value_estimate = outputs["value_estimate"]
 
@@ -160,7 +162,7 @@ class TestGNNAcceleration:
 
         with torch.no_grad():
             outputs = policy(node_features, edge_index)
-            
+
             # Extract values from dictionary output
             adaptation_prob = outputs["adaptation_prob"]
             layer_priorities = outputs.get("layer_priority", outputs["adaptation_prob"])
@@ -185,7 +187,9 @@ class TestGNNAcceleration:
         with torch.no_grad():
             outputs2 = policy(node_features, edge_index)
             adaptation_prob2 = outputs2["adaptation_prob"]
-            layer_priorities2 = outputs2.get("layer_priority", outputs2["adaptation_prob"])
+            layer_priorities2 = outputs2.get(
+                "layer_priority", outputs2["adaptation_prob"]
+            )
             urgency_score2 = outputs2["urgency_score"]
             value_estimate2 = outputs2["value_estimate"]
 

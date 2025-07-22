@@ -205,7 +205,7 @@ class TestTolariaTrainer:
                 "cache_stats": {
                     "hits": 80,
                     "misses": 20,
-                }
+                },
             }
         )
 

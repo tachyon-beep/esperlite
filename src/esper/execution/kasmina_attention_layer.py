@@ -78,7 +78,9 @@ class KasminaAttentionLayer(KasminaLayer):
         self.head_dim = embed_dim // num_heads
 
         if self.head_dim * num_heads != embed_dim:
-            raise ValueError(f"embed_dim {embed_dim} not divisible by num_heads {num_heads}")
+            raise ValueError(
+                f"embed_dim {embed_dim} not divisible by num_heads {num_heads}"
+            )
 
         self.kdim = kdim if kdim is not None else embed_dim
         self.vdim = vdim if vdim is not None else embed_dim
@@ -129,7 +131,9 @@ class KasminaAttentionLayer(KasminaLayer):
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
 
-    def copy_weights_from_attention(self, original_layer: nn.MultiheadAttention) -> None:
+    def copy_weights_from_attention(
+        self, original_layer: nn.MultiheadAttention
+    ) -> None:
         """
         Copy weights from original MultiheadAttention layer.
 
@@ -138,39 +142,49 @@ class KasminaAttentionLayer(KasminaLayer):
         """
         with torch.no_grad():
             # Copy Q, K, V projection weights
-            if hasattr(original_layer, 'in_proj_weight') and original_layer.in_proj_weight is not None:
+            if (
+                hasattr(original_layer, "in_proj_weight")
+                and original_layer.in_proj_weight is not None
+            ):
                 # Combined QKV projection
                 embed_dim = self.embed_dim
                 self.q_proj.weight.copy_(original_layer.in_proj_weight[:embed_dim])
-                self.k_proj.weight.copy_(original_layer.in_proj_weight[embed_dim:2*embed_dim])
-                self.v_proj.weight.copy_(original_layer.in_proj_weight[2*embed_dim:])
+                self.k_proj.weight.copy_(
+                    original_layer.in_proj_weight[embed_dim : 2 * embed_dim]
+                )
+                self.v_proj.weight.copy_(original_layer.in_proj_weight[2 * embed_dim :])
             else:
                 # Separate Q, K, V projections
-                if hasattr(original_layer, 'q_proj_weight'):
+                if hasattr(original_layer, "q_proj_weight"):
                     self.q_proj.weight.copy_(original_layer.q_proj_weight)
-                if hasattr(original_layer, 'k_proj_weight'):
+                if hasattr(original_layer, "k_proj_weight"):
                     self.k_proj.weight.copy_(original_layer.k_proj_weight)
-                if hasattr(original_layer, 'v_proj_weight'):
+                if hasattr(original_layer, "v_proj_weight"):
                     self.v_proj.weight.copy_(original_layer.v_proj_weight)
 
             # Copy biases if they exist
-            if hasattr(original_layer, 'in_proj_bias') and original_layer.in_proj_bias is not None:
+            if (
+                hasattr(original_layer, "in_proj_bias")
+                and original_layer.in_proj_bias is not None
+            ):
                 embed_dim = self.embed_dim
                 self.q_proj.bias.copy_(original_layer.in_proj_bias[:embed_dim])
-                self.k_proj.bias.copy_(original_layer.in_proj_bias[embed_dim:2*embed_dim])
-                self.v_proj.bias.copy_(original_layer.in_proj_bias[2*embed_dim:])
+                self.k_proj.bias.copy_(
+                    original_layer.in_proj_bias[embed_dim : 2 * embed_dim]
+                )
+                self.v_proj.bias.copy_(original_layer.in_proj_bias[2 * embed_dim :])
 
             # Copy output projection
-            if hasattr(original_layer, 'out_proj'):
+            if hasattr(original_layer, "out_proj"):
                 self.out_proj.weight.copy_(original_layer.out_proj.weight)
                 if original_layer.out_proj.bias is not None:
                     self.out_proj.bias.copy_(original_layer.out_proj.bias)
 
             # Copy bias_k and bias_v if they exist
-            if hasattr(original_layer, 'bias_k') and original_layer.bias_k is not None:
+            if hasattr(original_layer, "bias_k") and original_layer.bias_k is not None:
                 if self.bias_k is not None:
                     self.bias_k.copy_(original_layer.bias_k)
-            if hasattr(original_layer, 'bias_v') and original_layer.bias_v is not None:
+            if hasattr(original_layer, "bias_v") and original_layer.bias_v is not None:
                 if self.bias_v is not None:
                     self.bias_v.copy_(original_layer.bias_v)
 
@@ -230,8 +244,12 @@ class KasminaAttentionLayer(KasminaLayer):
         # Handle zero attention
         if self.add_zero_attn:
             zero_attn_shape = (1, bsz, embed_dim)
-            k = torch.cat([k, torch.zeros(zero_attn_shape, dtype=k.dtype, device=k.device)], dim=0)
-            v = torch.cat([v, torch.zeros(zero_attn_shape, dtype=v.dtype, device=v.device)], dim=0)
+            k = torch.cat(
+                [k, torch.zeros(zero_attn_shape, dtype=k.dtype, device=k.device)], dim=0
+            )
+            v = torch.cat(
+                [v, torch.zeros(zero_attn_shape, dtype=v.dtype, device=v.device)], dim=0
+            )
             if attn_mask is not None:
                 attn_mask = F.pad(attn_mask, (0, 1))
             if key_padding_mask is not None:
@@ -251,7 +269,9 @@ class KasminaAttentionLayer(KasminaLayer):
         )
 
         # Reshape back and apply output projection
-        attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        attn_output = (
+            attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        )
         attn_output = self.out_proj(attn_output)
 
         # Handle batch_first dimension ordering
@@ -295,27 +315,33 @@ class KasminaAttentionLayer(KasminaLayer):
         src_len = k.shape[1]
 
         # Compute attention scores
-        attn_weights = torch.bmm(q, k.transpose(1, 2)) / (head_dim ** 0.5)
+        attn_weights = torch.bmm(q, k.transpose(1, 2)) / (head_dim**0.5)
 
         # Apply attention mask
         if attn_mask is not None:
             if attn_mask.dim() == 2:
                 attn_mask = attn_mask.unsqueeze(0).expand(bsz, -1, -1)
             attn_mask = attn_mask.unsqueeze(1).expand(-1, self.num_heads, -1, -1)
-            attn_mask = attn_mask.contiguous().view(bsz * self.num_heads, tgt_len, src_len)
+            attn_mask = attn_mask.contiguous().view(
+                bsz * self.num_heads, tgt_len, src_len
+            )
             attn_weights += attn_mask
 
         # Apply key padding mask
         if key_padding_mask is not None:
             key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len)
             key_padding_mask = key_padding_mask.expand(-1, self.num_heads, tgt_len, -1)
-            key_padding_mask = key_padding_mask.contiguous().view(bsz * self.num_heads, tgt_len, src_len)
-            attn_weights = attn_weights.masked_fill(key_padding_mask, float('-inf'))
+            key_padding_mask = key_padding_mask.contiguous().view(
+                bsz * self.num_heads, tgt_len, src_len
+            )
+            attn_weights = attn_weights.masked_fill(key_padding_mask, float("-inf"))
 
         # Apply causal mask
         if is_causal:
-            causal_mask = torch.triu(torch.ones(tgt_len, src_len, device=q.device), diagonal=1).bool()
-            attn_weights = attn_weights.masked_fill(causal_mask, float('-inf'))
+            causal_mask = torch.triu(
+                torch.ones(tgt_len, src_len, device=q.device), diagonal=1
+            ).bool()
+            attn_weights = attn_weights.masked_fill(causal_mask, float("-inf"))
 
         # Apply softmax and dropout
         attn_weights = F.softmax(attn_weights, dim=-1)

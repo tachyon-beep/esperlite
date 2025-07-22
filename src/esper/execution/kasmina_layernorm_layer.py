@@ -52,7 +52,9 @@ class KasminaLayerNormLayer(KasminaLayer):
         # Input/output size is the same as normalized_shape
         super().__init__(
             input_size=normalized_shape,
-            output_size=normalized_shape * 2 if elementwise_affine else normalized_shape,  # Scale + bias
+            output_size=(
+                normalized_shape * 2 if elementwise_affine else normalized_shape
+            ),  # Scale + bias
             num_seeds=num_seeds,
             cache_size_mb=cache_size_mb,
             telemetry_enabled=telemetry_enabled,
@@ -68,8 +70,8 @@ class KasminaLayerNormLayer(KasminaLayer):
             self.weight = nn.Parameter(torch.ones(normalized_shape))
             self.bias = nn.Parameter(torch.zeros(normalized_shape)) if bias else None
         else:
-            self.register_parameter('weight', None)
-            self.register_parameter('bias', None)
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
 
         logger.info(
             f"Created KasminaLayerNormLayer: normalized_shape={normalized_shape}, "
@@ -129,9 +131,7 @@ class KasminaLayerNormLayer(KasminaLayer):
         return self.state_layout.get_active_seeds().any()
 
     def _apply_morphogenetic_adaptation(
-        self,
-        input_tensor: torch.Tensor,
-        normalized: torch.Tensor
+        self, input_tensor: torch.Tensor, normalized: torch.Tensor
     ) -> torch.Tensor:
         """
         Apply morphogenetic adaptations to the normalized output.
@@ -156,7 +156,9 @@ class KasminaLayerNormLayer(KasminaLayer):
         for seed_idx, alpha in zip(active_seeds.nonzero().squeeze(-1), alpha_factors):
             if alpha > 0:
                 # Apply morphogenetic kernel adaptation
-                seed_adaptation = self._compute_seed_adaptation(input_tensor, seed_idx.item())
+                seed_adaptation = self._compute_seed_adaptation(
+                    input_tensor, seed_idx.item()
+                )
 
                 # Blend with existing output
                 adapted_output = (1 - alpha) * adapted_output + alpha * seed_adaptation
@@ -179,14 +181,17 @@ class KasminaLayerNormLayer(KasminaLayer):
         if self.elementwise_affine:
             # Apply adaptive scale and bias
             adaptive_scale = torch.ones_like(self.weight) * (1.0 + 0.1 * seed_idx)
-            adaptive_bias = torch.zeros_like(self.bias) if self.bias is not None else None
+            adaptive_bias = (
+                torch.zeros_like(self.bias) if self.bias is not None else None
+            )
 
             # Normalize with adaptive parameters
             adapted = F.layer_norm(
-                x, self.normalized_shape,
+                x,
+                self.normalized_shape,
                 self.weight * adaptive_scale,
                 self.bias + adaptive_bias if adaptive_bias is not None else self.bias,
-                self.eps
+                self.eps,
             )
         else:
             # If no elementwise affine, just return normalized input
@@ -194,7 +199,9 @@ class KasminaLayerNormLayer(KasminaLayer):
 
         return adapted
 
-    def _update_telemetry(self, input_tensor: torch.Tensor, output_tensor: torch.Tensor) -> None:
+    def _update_telemetry(
+        self, input_tensor: torch.Tensor, output_tensor: torch.Tensor
+    ) -> None:
         """
         Update telemetry data for this layer.
 
@@ -215,10 +222,12 @@ class KasminaLayerNormLayer(KasminaLayer):
             self.state_layout.update_telemetry(
                 seed_idx.item(),
                 latency_us=0,  # Would be measured in real implementation
-                health_score=health_score
+                health_score=health_score,
             )
 
-    def _compute_health_score(self, input_tensor: torch.Tensor, output_tensor: torch.Tensor) -> float:
+    def _compute_health_score(
+        self, input_tensor: torch.Tensor, output_tensor: torch.Tensor
+    ) -> float:
         """
         Compute health score based on normalization quality.
 
@@ -256,7 +265,11 @@ class KasminaLayerNormLayer(KasminaLayer):
         return {
             "active_adaptations": active_seeds.sum().item(),
             "total_seeds": len(active_seeds),
-            "adaptation_strength": self.state_layout.alpha_blend[active_seeds].mean().item() if active_seeds.any() else 0.0,
+            "adaptation_strength": (
+                self.state_layout.alpha_blend[active_seeds].mean().item()
+                if active_seeds.any()
+                else 0.0
+            ),
             "normalized_shape": self.normalized_shape,
             "eps": self.eps,
             "elementwise_affine": self.elementwise_affine,

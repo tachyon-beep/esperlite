@@ -2,7 +2,6 @@
 Unit tests for KasminaLayer.
 """
 
-from unittest.mock import AsyncMock
 from unittest.mock import patch
 
 import pytest
@@ -176,7 +175,7 @@ class TestKasminaLayer:
         # Initially seed should be dormant
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
         assert layer.state_layout.alpha_blend[0].item() == 0.0
-        
+
         # Load kernel - this will use the HTTP mocked response from conftest.py
         success = await layer.load_kernel(0, "test-kernel-123")
 
@@ -184,7 +183,9 @@ class TestKasminaLayer:
         assert success == True, "Kernel loading should succeed with valid HTTP response"
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.ACTIVE
         assert layer.state_layout.active_kernel_id[0] == hash("test-kernel-123")
-        assert layer.state_layout.alpha_blend[0].item() > 0, "Alpha should be set for active kernel"
+        assert (
+            layer.state_layout.alpha_blend[0].item() > 0
+        ), "Alpha should be set for active kernel"
 
     @pytest.mark.asyncio
     async def test_load_kernel_not_found(self):
@@ -195,13 +196,15 @@ class TestKasminaLayer:
 
         # Initially seed should be dormant
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
-        
+
         # Try to load kernel with invalid ID (triggers 404 in mock)
         success = await layer.load_kernel(0, "invalid-kernel-id")
 
         assert success == False, "Kernel loading should fail when kernel not found"
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
-        assert layer.state_layout.alpha_blend[0].item() == 0.0, "Alpha should remain 0 for failed load"
+        assert (
+            layer.state_layout.alpha_blend[0].item() == 0.0
+        ), "Alpha should remain 0 for failed load"
 
     @pytest.mark.asyncio
     async def test_load_kernel_invalid_index(self):

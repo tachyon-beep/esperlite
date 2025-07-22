@@ -50,7 +50,7 @@ class PolicyConfig:
 
     # Enhanced GNN Architecture
     node_feature_dim: int = 16  # Matches ModelGraphBuilder default
-    edge_feature_dim: int = 8   # Matches ModelGraphBuilder default
+    edge_feature_dim: int = 8  # Matches ModelGraphBuilder default
     hidden_dim: int = 128
     num_gnn_layers: int = 4
     num_attention_heads: int = 4
@@ -84,7 +84,9 @@ class PolicyConfig:
 class MultiHeadGraphAttention(nn.Module):
     """Multi-head attention mechanism for graph neural networks."""
 
-    def __init__(self, in_dim: int, out_dim: int, num_heads: int = 4, dropout: float = 0.1):
+    def __init__(
+        self, in_dim: int, out_dim: int, num_heads: int = 4, dropout: float = 0.1
+    ):
         super().__init__()
         self.num_heads = num_heads
         self.out_dim = out_dim
@@ -92,10 +94,9 @@ class MultiHeadGraphAttention(nn.Module):
 
         assert out_dim % num_heads == 0, "out_dim must be divisible by num_heads"
 
-        self.attention_layers = nn.ModuleList([
-            GATConv(in_dim, self.head_dim, dropout=dropout)
-            for _ in range(num_heads)
-        ])
+        self.attention_layers = nn.ModuleList(
+            [GATConv(in_dim, self.head_dim, dropout=dropout) for _ in range(num_heads)]
+        )
 
         self.output_projection = nn.Linear(out_dim, out_dim)
         self.layer_norm = nn.LayerNorm(out_dim)
@@ -128,10 +129,12 @@ class UncertaintyQuantification(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5),  # High dropout for uncertainty estimation
             nn.Linear(hidden_dim // 2, 1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
-    def forward(self, x: torch.Tensor, num_samples: int = 10) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, x: torch.Tensor, num_samples: int = 10
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Estimate epistemic uncertainty using MC dropout.
 
@@ -164,14 +167,16 @@ class SafetyRegularizer(nn.Module):
             nn.Linear(feature_dim, feature_dim // 2),
             nn.ReLU(),
             nn.Linear(feature_dim // 2, 1),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, graph_repr: torch.Tensor) -> torch.Tensor:
         """Compute safety score for proposed adaptation."""
         return self.safety_classifier(graph_repr)
 
-    def safety_penalty(self, safety_score: torch.Tensor, threshold: float = 0.8) -> torch.Tensor:
+    def safety_penalty(
+        self, safety_score: torch.Tensor, threshold: float = 0.8
+    ) -> torch.Tensor:
         """Compute penalty for unsafe adaptations."""
         # Higher penalty for lower safety scores
         penalty = torch.clamp(threshold - safety_score, min=0.0)
@@ -192,9 +197,9 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
     def __init__(self, config: PolicyConfig):
         super().__init__()
         self.config = config
-        
+
         # Device handling - use CPU for testing, CUDA for production
-        self.device = torch.device('cpu')  # Default to CPU for compatibility
+        self.device = torch.device("cpu")  # Default to CPU for compatibility
 
         # Enhanced node encoder with residual connections
         self.node_encoder = nn.Sequential(
@@ -202,25 +207,29 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(config.hidden_dim, config.hidden_dim),
-            nn.LayerNorm(config.hidden_dim)
+            nn.LayerNorm(config.hidden_dim),
         )
 
         # Multi-head attention layers for complex topology analysis
-        self.attention_layers = nn.ModuleList([
-            MultiHeadGraphAttention(
-                config.hidden_dim,
-                config.hidden_dim,
-                config.num_attention_heads,
-                config.attention_dropout
-            )
-            for _ in range(config.num_gnn_layers)
-        ])
+        self.attention_layers = nn.ModuleList(
+            [
+                MultiHeadGraphAttention(
+                    config.hidden_dim,
+                    config.hidden_dim,
+                    config.num_attention_heads,
+                    config.attention_dropout,
+                )
+                for _ in range(config.num_gnn_layers)
+            ]
+        )
 
         # Traditional GNN layers for comparison and ensemble
-        self.gnn_layers = nn.ModuleList([
-            GCNConv(config.hidden_dim, config.hidden_dim)
-            for _ in range(config.num_gnn_layers)
-        ])
+        self.gnn_layers = nn.ModuleList(
+            [
+                GCNConv(config.hidden_dim, config.hidden_dim)
+                for _ in range(config.num_gnn_layers)
+            ]
+        )
 
         # Enhanced decision head with multiple outputs
         graph_repr_dim = config.hidden_dim * 2  # mean + max pooling
@@ -230,7 +239,9 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             nn.Dropout(0.2),
             nn.Linear(config.hidden_dim, config.hidden_dim // 2),
             nn.ReLU(),
-            nn.Linear(config.hidden_dim // 2, 4),  # [adapt_prob, layer_priority, urgency, risk_assessment]
+            nn.Linear(
+                config.hidden_dim // 2, 4
+            ),  # [adapt_prob, layer_priority, urgency, risk_assessment]
         )
 
         # Value head for RL training with temporal consideration
@@ -247,12 +258,16 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         self.temporal_head = nn.Sequential(
             nn.Linear(graph_repr_dim, config.hidden_dim // 2),
             nn.ReLU(),
-            nn.Linear(config.hidden_dim // 2, 3),  # [health_trend, stability_trend, urgency_trend]
+            nn.Linear(
+                config.hidden_dim // 2, 3
+            ),  # [health_trend, stability_trend, urgency_trend]
         )
 
         # Advanced components
         if config.enable_uncertainty:
-            self.uncertainty_module = UncertaintyQuantification(graph_repr_dim, config.hidden_dim)
+            self.uncertainty_module = UncertaintyQuantification(
+                graph_repr_dim, config.hidden_dim
+            )
 
         self.safety_regularizer = SafetyRegularizer(graph_repr_dim)
 
@@ -263,7 +278,7 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             logger.info(
                 "Enhanced TamiyoPolicyGNN: Using fallback pooling (install torch-scatter for 2-10x speedup)"
             )
-        
+
         # Move model to specified device
         self.to(self.device)
 
@@ -272,7 +287,7 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         node_features: torch.Tensor,
         edge_index: torch.Tensor,
         batch: Optional[torch.Tensor] = None,
-        return_uncertainty: bool = False
+        return_uncertainty: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """
         Enhanced forward pass with uncertainty quantification and safety analysis.
@@ -299,7 +314,7 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         edge_index = edge_index.to(self.device)
         if batch is not None:
             batch = batch.to(self.device)
-        
+
         # Encode node features
         x = self.node_encoder(node_features)
 
@@ -310,14 +325,20 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         # Multi-head attention pathway
         for attention_layer in self.attention_layers:
             attention_new = attention_layer(attention_features, edge_index)
-            attention_features = attention_features + attention_new  # Residual connection
+            attention_features = (
+                attention_features + attention_new
+            )  # Residual connection
             attention_features = F.dropout(attention_features, training=self.training)
 
         # Traditional GNN pathway
         for gnn_layer in self.gnn_layers:
             traditional_new = F.relu(gnn_layer(traditional_features, edge_index))
-            traditional_features = traditional_features + traditional_new  # Residual connection
-            traditional_features = F.dropout(traditional_features, training=self.training)
+            traditional_features = (
+                traditional_features + traditional_new
+            )  # Residual connection
+            traditional_features = F.dropout(
+                traditional_features, training=self.training
+            )
 
         # Ensemble combination
         x = 0.6 * attention_features + 0.4 * traditional_features
@@ -343,9 +364,9 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         # Temporal analysis
         temporal_logits = self.temporal_head(graph_repr)
         temporal_analysis = {
-            'health_trend': torch.tanh(temporal_logits[:, 0]),
-            'stability_trend': torch.tanh(temporal_logits[:, 1]),
-            'urgency_trend': torch.tanh(temporal_logits[:, 2])
+            "health_trend": torch.tanh(temporal_logits[:, 0]),
+            "stability_trend": torch.tanh(temporal_logits[:, 1]),
+            "urgency_trend": torch.tanh(temporal_logits[:, 2]),
         }
 
         # Safety assessment
@@ -353,22 +374,22 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
 
         # Prepare outputs
         outputs = {
-            'adaptation_prob': adaptation_prob,
-            'layer_priority': layer_priority,
-            'urgency_score': urgency_score,
-            'risk_assessment': risk_assessment,
-            'value_estimate': value_estimate,
-            'temporal_analysis': temporal_analysis,
-            'safety_score': safety_score
+            "adaptation_prob": adaptation_prob,
+            "layer_priority": layer_priority,
+            "urgency_score": urgency_score,
+            "risk_assessment": risk_assessment,
+            "value_estimate": value_estimate,
+            "temporal_analysis": temporal_analysis,
+            "safety_score": safety_score,
         }
 
         # Uncertainty quantification (optional)
-        if return_uncertainty and hasattr(self, 'uncertainty_module'):
+        if return_uncertainty and hasattr(self, "uncertainty_module"):
             mean_pred, uncertainty = self.uncertainty_module(
                 graph_repr, self.config.uncertainty_samples
             )
-            outputs['uncertainty'] = uncertainty
-            outputs['epistemic_confidence'] = 1.0 - uncertainty
+            outputs["uncertainty"] = uncertainty
+            outputs["epistemic_confidence"] = 1.0 - uncertainty
 
         return outputs
 
@@ -393,13 +414,13 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
                 node_features=graph_data.x,
                 edge_index=graph_data.edge_index,
                 batch=None,
-                return_uncertainty=self.config.enable_uncertainty
+                return_uncertainty=self.config.enable_uncertainty,
             )
 
-        adaptation_prob = outputs['adaptation_prob'].item()
-        safety_score = outputs['safety_score'].item()
-        urgency_score = outputs['urgency_score'].item()
-        risk_assessment = outputs['risk_assessment'].item()
+        adaptation_prob = outputs["adaptation_prob"].item()
+        safety_score = outputs["safety_score"].item()
+        urgency_score = outputs["urgency_score"].item()
+        risk_assessment = outputs["risk_assessment"].item()
 
         # Enhanced decision logic with multiple criteria
         confidence_met = adaptation_prob > self.config.adaptation_confidence_threshold
@@ -407,25 +428,25 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
 
         # Uncertainty check if available
         uncertainty_acceptable = True
-        if 'uncertainty' in outputs:
-            uncertainty = outputs['uncertainty'].item()
+        if "uncertainty" in outputs:
+            uncertainty = outputs["uncertainty"].item()
             uncertainty_acceptable = uncertainty < self.config.uncertainty_threshold
 
         # Risk assessment
         risk_acceptable = risk_assessment < 0.7  # High risk threshold
 
         # Temporal analysis consideration
-        temporal = outputs['temporal_analysis']
-        health_trend = temporal['health_trend'].item()
-        stability_trend = temporal['stability_trend'].item()
+        temporal = outputs["temporal_analysis"]
+        health_trend = temporal["health_trend"].item()
+        stability_trend = temporal["stability_trend"].item()
 
         # Decision with comprehensive criteria
         should_adapt = (
-            confidence_met and
-            safety_acceptable and
-            uncertainty_acceptable and
-            risk_acceptable and
-            health_trend < -0.2  # Declining health trend
+            confidence_met
+            and safety_acceptable
+            and uncertainty_acceptable
+            and risk_acceptable
+            and health_trend < -0.2  # Declining health trend
         )
 
         if not should_adapt:
@@ -437,8 +458,7 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
 
         # Select the most problematic layer based on health trends
         target_layer = self._select_target_layer(
-            model_graph_state.problematic_layers,
-            model_graph_state.health_trends
+            model_graph_state.problematic_layers, model_graph_state.health_trends
         )
 
         # Determine adaptation type based on analysis
@@ -455,24 +475,22 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             "health_trend": health_trend,
             "stability_trend": stability_trend,
             "temporal_analysis": temporal,
-            "problematic_layers_count": len(model_graph_state.problematic_layers)
+            "problematic_layers_count": len(model_graph_state.problematic_layers),
         }
 
-        if 'uncertainty' in outputs:
-            metadata["epistemic_uncertainty"] = outputs['uncertainty'].item()
+        if "uncertainty" in outputs:
+            metadata["epistemic_uncertainty"] = outputs["uncertainty"].item()
 
         return AdaptationDecision(
             layer_name=target_layer,
             adaptation_type=adaptation_type,
             confidence=adaptation_prob,
             urgency=urgency_score,
-            metadata=metadata
+            metadata=metadata,
         )
 
     def _select_target_layer(
-        self,
-        problematic_layers: List[str],
-        health_trends: Dict[str, List[float]]
+        self, problematic_layers: List[str], health_trends: Dict[str, List[float]]
     ) -> str:
         """Select the most critical layer for adaptation."""
         if len(problematic_layers) == 1:
@@ -485,7 +503,11 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             if len(trend) > 1:
                 # Calculate trend slope (more negative = worse)
                 recent_trend = sum(trend[-5:]) / len(trend[-5:])  # Last 5 signals
-                older_trend = sum(trend[-10:-5]) / len(trend[-10:-5]) if len(trend) >= 10 else recent_trend
+                older_trend = (
+                    sum(trend[-10:-5]) / len(trend[-10:-5])
+                    if len(trend) >= 10
+                    else recent_trend
+                )
                 trend_slope = recent_trend - older_trend
                 layer_scores[layer] = trend_slope
             else:
@@ -498,12 +520,12 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         self,
         target_layer: str,
         model_state: ModelGraphState,
-        outputs: Dict[str, torch.Tensor]
+        outputs: Dict[str, torch.Tensor],
     ) -> str:
         """Determine the most appropriate adaptation type."""
         # Default adaptation types based on analysis
-        urgency = outputs['urgency_score'].item()
-        risk = outputs['risk_assessment'].item()
+        urgency = outputs["urgency_score"].item()
+        risk = outputs["risk_assessment"].item()
 
         if urgency > 0.8:
             return "emergency_stabilization"
@@ -516,13 +538,15 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         """Get comprehensive policy model statistics."""
         return {
             "model_parameters": sum(p.numel() for p in self.parameters()),
-            "trainable_parameters": sum(p.numel() for p in self.parameters() if p.requires_grad),
+            "trainable_parameters": sum(
+                p.numel() for p in self.parameters() if p.requires_grad
+            ),
             "attention_heads": self.config.num_attention_heads,
             "gnn_layers": self.config.num_gnn_layers,
             "hidden_dim": self.config.hidden_dim,
             "uncertainty_enabled": self.config.enable_uncertainty,
             "safety_regularization": True,
-            "acceleration_available": SCATTER_AVAILABLE
+            "acceleration_available": SCATTER_AVAILABLE,
         }
 
     def compute_safety_penalty(self, graph_repr: torch.Tensor) -> torch.Tensor:
@@ -543,7 +567,7 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             "acceleration_enabled": SCATTER_AVAILABLE,
             "fallback_mode": not SCATTER_AVAILABLE,
             "attention_layers": len(self.attention_layers),
-            "uncertainty_quantification": hasattr(self, 'uncertainty_module')
+            "uncertainty_quantification": hasattr(self, "uncertainty_module"),
         }
 
 
@@ -555,7 +579,7 @@ class EnhancedPolicyTrainingState:
         self.experience_buffer: List[Dict[str, Any]] = []
         self.priority_weights: List[float] = []
         self.alpha = 0.6  # Prioritization exponent
-        self.beta = 0.4   # Importance sampling exponent
+        self.beta = 0.4  # Importance sampling exponent
         self.epsilon = 1e-6  # Small constant to avoid zero priorities
 
     def add_experience(
@@ -564,7 +588,7 @@ class EnhancedPolicyTrainingState:
         action: AdaptationDecision,
         reward: float,
         next_state: ModelGraphState,
-        td_error: Optional[float] = None
+        td_error: Optional[float] = None,
     ) -> None:
         """Add an experience tuple to the prioritized replay buffer."""
         experience = {
@@ -573,7 +597,7 @@ class EnhancedPolicyTrainingState:
             "reward": reward,
             "next_state": next_state,
             "timestamp": len(self.experience_buffer),
-            "td_error": td_error or 1.0  # Default high priority for new experiences
+            "td_error": td_error or 1.0,  # Default high priority for new experiences
         }
 
         # Calculate priority based on TD error
@@ -588,9 +612,7 @@ class EnhancedPolicyTrainingState:
             self.priority_weights.pop(0)
 
     def sample_batch(
-        self,
-        batch_size: Optional[int] = None,
-        use_prioritization: bool = True
+        self, batch_size: Optional[int] = None, use_prioritization: bool = True
     ) -> Tuple[List[Dict[str, Any]], torch.Tensor]:
         """Sample a batch of experiences with optional prioritization."""
         if batch_size is None:
@@ -609,7 +631,9 @@ class EnhancedPolicyTrainingState:
             indices = torch.multinomial(probabilities, batch_size, replacement=True)
 
             # Importance sampling weights
-            weights = (len(self.experience_buffer) * probabilities[indices]) ** (-self.beta)
+            weights = (len(self.experience_buffer) * probabilities[indices]) ** (
+                -self.beta
+            )
             weights = weights / weights.max()  # Normalize for stability
 
             experiences = [self.experience_buffer[i] for i in indices]
@@ -625,7 +649,9 @@ class EnhancedPolicyTrainingState:
         """Update priorities based on new TD errors."""
         for idx, td_error in zip(indices, td_errors):
             if idx < len(self.priority_weights):
-                self.priority_weights[idx] = (abs(td_error) + self.epsilon) ** self.alpha
+                self.priority_weights[idx] = (
+                    abs(td_error) + self.epsilon
+                ) ** self.alpha
 
 
 # Backward compatibility alias

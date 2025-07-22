@@ -287,7 +287,7 @@ def wrap(
             nn.MultiheadAttention,
             nn.LayerNorm,
             nn.BatchNorm1d,
-            nn.BatchNorm2d
+            nn.BatchNorm2d,
         ]  # Default to common transformable layers
 
     logger.info("Wrapping model with morphogenetic capabilities")
@@ -579,7 +579,9 @@ def _create_kasmina_layer_layernorm(
     """
     # Create LayerNorm-aware KasminaLayer
     kasmina_layer = KasminaLayerNormLayer(
-        normalized_shape=original_layer.normalized_shape[0],  # Assuming 1D normalized shape
+        normalized_shape=original_layer.normalized_shape[
+            0
+        ],  # Assuming 1D normalized shape
         eps=original_layer.eps,
         elementwise_affine=original_layer.elementwise_affine,
         bias=original_layer.bias is not None,

@@ -110,14 +110,14 @@ class Blueprint(BaseModel):
 
 class KernelMetadata(BaseModel):
     """Metadata for compiled kernel artifacts."""
-    
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         use_enum_values=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="forbid",
     )
-    
+
     kernel_id: str
     blueprint_id: str
     name: str = Field(min_length=1, max_length=255)
@@ -132,19 +132,19 @@ class KernelMetadata(BaseModel):
     compatibility_version: str = Field(default="1.0")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     checksum: Optional[str] = None  # SHA256 of kernel binary
-    
+
     def is_compatible_with_shape(self, input_shape: List[int]) -> bool:
         """Check if kernel is compatible with given input shape."""
         if len(input_shape) != len(self.input_shape):
             return False
-        
+
         # Check all dimensions (input_shape is already excluding batch)
         for i in range(len(input_shape)):
             if input_shape[i] != self.input_shape[i]:
                 return False
-        
+
         return True
-    
+
     def get_memory_estimate(self, batch_size: int) -> float:
         """Estimate memory usage in MB for given batch size."""
         base_memory = self.memory_footprint_mb
@@ -154,31 +154,30 @@ class KernelMetadata(BaseModel):
 
 class CompiledKernel(BaseModel):
     """A compiled kernel artifact ready for execution."""
-    
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         use_enum_values=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="forbid",
     )
-    
+
     kernel_id: str = Field(default_factory=lambda: str(uuid4()))
     blueprint_id: str
     binary_ref: str  # S3 reference to kernel binary
     metadata: KernelMetadata
     status: str = Field(
-        default="compiled",
-        pattern=r"^(compiled|validated|deployed|deprecated)$"
+        default="compiled", pattern=r"^(compiled|validated|deployed|deprecated)$"
     )
     validation_results: Dict[str, Any] = Field(default_factory=_empty_dict)
     deployment_stats: Dict[str, float] = Field(default_factory=_empty_float_dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     last_used_at: Optional[datetime] = None
-    
+
     def is_ready_for_deployment(self) -> bool:
         """Check if kernel is ready for deployment."""
         return self.status in {"validated", "deployed"}
-    
+
     def update_usage_stats(self):
         """Update usage statistics."""
         self.last_used_at = datetime.now(UTC)

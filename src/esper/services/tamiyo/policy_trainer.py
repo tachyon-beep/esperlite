@@ -142,7 +142,7 @@ class TrainingMetrics:
             "learning/value_grad_norm": self.value_gradient_norm,
             "learning/learning_rate": self.learning_rate,
             "uncertainty/average": self.average_uncertainty,
-            "uncertainty/epistemic_confidence": self.epistemic_confidence
+            "uncertainty/epistemic_confidence": self.epistemic_confidence,
         }
 
 
@@ -154,10 +154,7 @@ class AdvantageEstimator:
         self.lam = lam
 
     def compute_advantages(
-        self,
-        rewards: torch.Tensor,
-        values: torch.Tensor,
-        dones: torch.Tensor
+        self, rewards: torch.Tensor, values: torch.Tensor, dones: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute GAE advantages and returns.
@@ -183,8 +180,12 @@ class AdvantageEstimator:
                 next_non_terminal = 1.0 - dones[t]
                 next_values = values[t + 1]
 
-            delta = rewards[t] + self.gamma * next_values * next_non_terminal - values[t]
-            advantages[t] = last_advantage = delta + self.gamma * self.lam * next_non_terminal * last_advantage
+            delta = (
+                rewards[t] + self.gamma * next_values * next_non_terminal - values[t]
+            )
+            advantages[t] = last_advantage = (
+                delta + self.gamma * self.lam * next_non_terminal * last_advantage
+            )
 
         returns = advantages + values[:-1]
 
@@ -212,12 +213,14 @@ class ProductionPolicyTrainer:
         policy_config: PolicyConfig,
         training_config: ProductionTrainingConfig,
         device: Optional[torch.device] = None,
-        reward_config: Optional[RewardConfig] = None
+        reward_config: Optional[RewardConfig] = None,
     ):
         self.policy = policy
         self.policy_config = policy_config
         self.config = training_config
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
 
         # Move policy to device
         self.policy.to(self.device)
@@ -231,16 +234,16 @@ class ProductionPolicyTrainer:
             self.policy.parameters(),
             lr=training_config.learning_rate,
             weight_decay=1e-4,
-            eps=1e-5
+            eps=1e-5,
         )
 
         # Learning rate scheduler
         self.lr_scheduler = ReduceLROnPlateau(
             self.optimizer,
-            mode='min',
+            mode="min",
             factor=training_config.lr_scheduler_factor,
             patience=training_config.lr_scheduler_patience,
-            min_lr=training_config.min_learning_rate
+            min_lr=training_config.min_learning_rate,
         )
 
         # Training components
@@ -253,7 +256,7 @@ class ProductionPolicyTrainer:
         # Training state
         self.training_step = 0
         self.epoch = 0
-        self.best_validation_score = float('inf')
+        self.best_validation_score = float("inf")
         self.training_start_time = time.time()
 
         # Monitoring
@@ -273,7 +276,7 @@ class ProductionPolicyTrainer:
         self,
         health_collector: ProductionHealthCollector,
         graph_builder: ModelGraphBuilder,
-        num_episodes: int = 1000
+        num_episodes: int = 1000,
     ) -> Dict[str, Any]:
         """
         Train policy with real-time experience collection from Phase 1 system.
@@ -295,7 +298,9 @@ class ProductionPolicyTrainer:
             health_signals = await health_collector.get_recent_signals(count=500)
 
             if len(health_signals) < 10:
-                logger.warning(f"Episode {episode}: Insufficient health signals ({len(health_signals)})")
+                logger.warning(
+                    f"Episode {episode}: Insufficient health signals ({len(health_signals)})"
+                )
                 await asyncio.sleep(1.0)  # Wait for more signals
                 continue
 
@@ -310,7 +315,7 @@ class ProductionPolicyTrainer:
                 decision=decision,
                 graph_state=graph_state,
                 execution_metrics=None,  # Would be provided by Phase 1 in production
-                health_signals=health_signals
+                health_signals=health_signals,
             )
 
             # Store experience
@@ -320,7 +325,7 @@ class ProductionPolicyTrainer:
                     action=decision,
                     reward=reward,
                     next_state=graph_state,  # Simplified for now
-                    td_error=abs(reward)  # Simplified TD error
+                    td_error=abs(reward),  # Simplified TD error
                 )
             else:
                 # No decision made - store neutral experience
@@ -365,8 +370,7 @@ class ProductionPolicyTrainer:
 
         # Sample prioritized batch
         experiences, importance_weights = self.replay_buffer.sample_batch(
-            batch_size=self.config.batch_size,
-            use_prioritization=True
+            batch_size=self.config.batch_size, use_prioritization=True
         )
 
         if len(experiences) < self.config.batch_size // 2:
@@ -385,21 +389,24 @@ class ProductionPolicyTrainer:
         for ppo_epoch in range(self.config.ppo_epochs):
             # Backward pass
             self.optimizer.zero_grad()
-            loss_dict['total_loss'].backward()
+            loss_dict["total_loss"].backward()
 
             # Gradient clipping
             policy_grad_norm = torch.nn.utils.clip_grad_norm_(
-                self.policy.parameters(),
-                self.config.gradient_clip_norm
+                self.policy.parameters(), self.config.gradient_clip_norm
             )
 
             self.optimizer.step()
 
             # Accumulate metrics
-            total_metrics.policy_loss += loss_dict['policy_loss'].item()
-            total_metrics.value_loss += loss_dict['value_loss'].item()
-            total_metrics.safety_loss += loss_dict.get('safety_loss', torch.tensor(0.0)).item()
-            total_metrics.uncertainty_loss += loss_dict.get('uncertainty_loss', torch.tensor(0.0)).item()
+            total_metrics.policy_loss += loss_dict["policy_loss"].item()
+            total_metrics.value_loss += loss_dict["value_loss"].item()
+            total_metrics.safety_loss += loss_dict.get(
+                "safety_loss", torch.tensor(0.0)
+            ).item()
+            total_metrics.uncertainty_loss += loss_dict.get(
+                "uncertainty_loss", torch.tensor(0.0)
+            ).item()
             total_metrics.policy_gradient_norm = policy_grad_norm.item()
 
         # Average over PPO epochs
@@ -408,19 +415,19 @@ class ProductionPolicyTrainer:
         total_metrics.safety_loss /= self.config.ppo_epochs
         total_metrics.uncertainty_loss /= self.config.ppo_epochs
         total_metrics.total_loss = (
-            total_metrics.policy_loss +
-            total_metrics.value_loss +
-            total_metrics.safety_loss +
-            total_metrics.uncertainty_loss
+            total_metrics.policy_loss
+            + total_metrics.value_loss
+            + total_metrics.safety_loss
+            + total_metrics.uncertainty_loss
         )
 
         # Update training state
         self.training_step += 1
         total_metrics.step = self.training_step
-        total_metrics.learning_rate = self.optimizer.param_groups[0]['lr']
+        total_metrics.learning_rate = self.optimizer.param_groups[0]["lr"]
 
         # Performance metrics from experiences
-        rewards = [exp['reward'] for exp in experiences]
+        rewards = [exp["reward"] for exp in experiences]
         total_metrics.average_reward = np.mean(rewards)
         total_metrics.success_rate = sum(1 for r in rewards if r > 0) / len(rewards)
 
@@ -430,9 +437,7 @@ class ProductionPolicyTrainer:
         return total_metrics
 
     def _prepare_training_batch(
-        self,
-        experiences: List[Dict[str, Any]],
-        importance_weights: torch.Tensor
+        self, experiences: List[Dict[str, Any]], importance_weights: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
         """Convert experiences to training batch tensors."""
         # Extract graph data from experiences
@@ -441,7 +446,7 @@ class ProductionPolicyTrainer:
         batch_indices = []
 
         for i, exp in enumerate(experiences):
-            graph_state = exp['state']
+            graph_state = exp["state"]
             graph_data = graph_state.graph_data
 
             node_features_list.append(graph_data.x)
@@ -469,14 +474,14 @@ class ProductionPolicyTrainer:
         rewards = []
 
         for exp in experiences:
-            action_decision = exp.get('action')
+            action_decision = exp.get("action")
             if action_decision:
                 # Convert adaptation decision to action tensor
                 actions.append(1.0 if action_decision.confidence > 0.5 else 0.0)
             else:
                 actions.append(0.0)
 
-            rewards.append(exp.get('reward', 0.0))
+            rewards.append(exp.get("reward", 0.0))
 
         actions = torch.tensor(actions, dtype=torch.float32).to(self.device)
         rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
@@ -487,7 +492,7 @@ class ProductionPolicyTrainer:
             policy_outputs = self.policy.forward(
                 node_features, edge_indices, batch_tensor, return_uncertainty=False
             )
-            values = policy_outputs['value_estimate'].squeeze()
+            values = policy_outputs["value_estimate"].squeeze()
 
             # Pad values for GAE calculation
             values_padded = torch.cat([values, values[-1:]])  # Add final value
@@ -498,44 +503,47 @@ class ProductionPolicyTrainer:
             )
 
         return {
-            'node_features': node_features,
-            'edge_indices': edge_indices,
-            'batch': batch_tensor,
-            'actions': actions,
-            'rewards': rewards,
-            'advantages': advantages,
-            'returns': returns,
-            'importance_weights': importance_weights.to(self.device)
+            "node_features": node_features,
+            "edge_indices": edge_indices,
+            "batch": batch_tensor,
+            "actions": actions,
+            "rewards": rewards,
+            "advantages": advantages,
+            "returns": returns,
+            "importance_weights": importance_weights.to(self.device),
         }
 
-    def _compute_losses(self, batch_data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def _compute_losses(
+        self, batch_data: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
         """Compute all loss components for training."""
         # Forward pass
         policy_outputs = self.policy.forward(
-            batch_data['node_features'],
-            batch_data['edge_indices'],
-            batch_data['batch'],
-            return_uncertainty=self.policy_config.enable_uncertainty
+            batch_data["node_features"],
+            batch_data["edge_indices"],
+            batch_data["batch"],
+            return_uncertainty=self.policy_config.enable_uncertainty,
         )
 
-        adaptation_probs = policy_outputs['adaptation_prob']
-        value_estimates = policy_outputs['value_estimate'].squeeze()
-        safety_scores = policy_outputs['safety_score']
+        adaptation_probs = policy_outputs["adaptation_prob"]
+        value_estimates = policy_outputs["value_estimate"].squeeze()
+        safety_scores = policy_outputs["safety_score"]
 
         # PPO policy loss with clipping
-        actions = batch_data['actions']
-        advantages = batch_data['advantages']
-        importance_weights = batch_data['importance_weights']
+        actions = batch_data["actions"]
+        advantages = batch_data["advantages"]
+        importance_weights = batch_data["importance_weights"]
 
         # Compute log probabilities
-        action_log_probs = (
-            torch.log(adaptation_probs + 1e-8) * actions +
-            torch.log(1 - adaptation_probs + 1e-8) * (1 - actions)
-        )
+        action_log_probs = torch.log(adaptation_probs + 1e-8) * actions + torch.log(
+            1 - adaptation_probs + 1e-8
+        ) * (1 - actions)
 
         # PPO clipped objective
         ratio = torch.exp(action_log_probs)  # Simplified - should use old log probs
-        clipped_ratio = torch.clamp(ratio, 1.0 - self.config.clip_ratio, 1.0 + self.config.clip_ratio)
+        clipped_ratio = torch.clamp(
+            ratio, 1.0 - self.config.clip_ratio, 1.0 + self.config.clip_ratio
+        )
 
         policy_loss_1 = ratio * advantages
         policy_loss_2 = clipped_ratio * advantages
@@ -545,48 +553,52 @@ class ProductionPolicyTrainer:
         policy_loss = policy_loss * importance_weights.mean()
 
         # Value function loss
-        value_loss = nn.MSELoss()(value_estimates, batch_data['returns'])
+        value_loss = nn.MSELoss()(value_estimates, batch_data["returns"])
 
         # Safety regularization loss
         safety_targets = torch.ones_like(safety_scores)  # Want high safety scores
-        safety_loss = nn.BCELoss()(safety_scores, safety_targets) * self.config.safety_loss_weight
+        safety_loss = (
+            nn.BCELoss()(safety_scores, safety_targets) * self.config.safety_loss_weight
+        )
 
         # Uncertainty regularization (if enabled)
         uncertainty_loss = torch.tensor(0.0, device=self.device)
-        if 'uncertainty' in policy_outputs:
+        if "uncertainty" in policy_outputs:
             # Encourage lower uncertainty for confident decisions
-            uncertainty = policy_outputs['uncertainty']
-            confidence_mask = (adaptation_probs > self.policy_config.adaptation_confidence_threshold).float()
-            uncertainty_loss = (uncertainty * confidence_mask).mean() * self.config.uncertainty_regularization
+            uncertainty = policy_outputs["uncertainty"]
+            confidence_mask = (
+                adaptation_probs > self.policy_config.adaptation_confidence_threshold
+            ).float()
+            uncertainty_loss = (
+                uncertainty * confidence_mask
+            ).mean() * self.config.uncertainty_regularization
 
         # Entropy bonus for exploration
         entropy_bonus = -(
-            adaptation_probs * torch.log(adaptation_probs + 1e-8) +
-            (1 - adaptation_probs) * torch.log(1 - adaptation_probs + 1e-8)
+            adaptation_probs * torch.log(adaptation_probs + 1e-8)
+            + (1 - adaptation_probs) * torch.log(1 - adaptation_probs + 1e-8)
         ).mean()
 
         # Total loss
         total_loss = (
-            policy_loss +
-            self.config.value_loss_coeff * value_loss +
-            safety_loss +
-            uncertainty_loss -
-            self.config.entropy_bonus_coeff * entropy_bonus
+            policy_loss
+            + self.config.value_loss_coeff * value_loss
+            + safety_loss
+            + uncertainty_loss
+            - self.config.entropy_bonus_coeff * entropy_bonus
         )
 
         return {
-            'total_loss': total_loss,
-            'policy_loss': policy_loss,
-            'value_loss': value_loss,
-            'safety_loss': safety_loss,
-            'uncertainty_loss': uncertainty_loss,
-            'entropy_bonus': entropy_bonus
+            "total_loss": total_loss,
+            "policy_loss": policy_loss,
+            "value_loss": value_loss,
+            "safety_loss": safety_loss,
+            "uncertainty_loss": uncertainty_loss,
+            "entropy_bonus": entropy_bonus,
         }
 
     def _simulate_environment_feedback(
-        self,
-        decision: Optional[AdaptationDecision],
-        graph_state: ModelGraphState
+        self, decision: Optional[AdaptationDecision], graph_state: ModelGraphState
     ) -> Tuple[float, bool]:
         """
         Simulate environment feedback for training.
@@ -604,11 +616,14 @@ class ProductionPolicyTrainer:
 
         # Penalty for low safety score (simulated)
         safety_penalty = 0.0
-        if decision.metadata.get('safety_score', 1.0) < 0.7:
+        if decision.metadata.get("safety_score", 1.0) < 0.7:
             safety_penalty = -0.3
 
         # Reward for addressing problematic layers
-        if len(graph_state.problematic_layers) > 0 and decision.layer_name in graph_state.problematic_layers:
+        if (
+            len(graph_state.problematic_layers) > 0
+            and decision.layer_name in graph_state.problematic_layers
+        ):
             problem_solving_bonus = 0.3
         else:
             problem_solving_bonus = 0.0
@@ -616,7 +631,13 @@ class ProductionPolicyTrainer:
         # Simulate some randomness for realistic training
         noise = np.random.normal(0, 0.1)
 
-        reward = base_reward + confidence_bonus + problem_solving_bonus - safety_penalty + noise
+        reward = (
+            base_reward
+            + confidence_bonus
+            + problem_solving_bonus
+            - safety_penalty
+            + noise
+        )
         reward = np.clip(reward, -1.0, 1.0)  # Clip to reasonable range
 
         done = False  # Episodes don't terminate in continuous training
@@ -631,20 +652,23 @@ class ProductionPolicyTrainer:
     async def _save_checkpoint(self, episode: int):
         """Save comprehensive training checkpoint."""
         checkpoint = {
-            'episode': episode,
-            'training_step': self.training_step,
-            'epoch': self.epoch,
-            'policy_state_dict': self.policy.state_dict(),
-            'target_policy_state_dict': self.target_policy.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'lr_scheduler_state_dict': self.lr_scheduler.state_dict(),
-            'best_validation_score': self.best_validation_score,
-            'training_config': self.config,
-            'policy_config': self.policy_config,
-            'training_time': time.time() - self.training_start_time
+            "episode": episode,
+            "training_step": self.training_step,
+            "epoch": self.epoch,
+            "policy_state_dict": self.policy.state_dict(),
+            "target_policy_state_dict": self.target_policy.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "lr_scheduler_state_dict": self.lr_scheduler.state_dict(),
+            "best_validation_score": self.best_validation_score,
+            "training_config": self.config,
+            "policy_config": self.policy_config,
+            "training_time": time.time() - self.training_start_time,
         }
 
-        checkpoint_path = Path(self.config.model_save_dir) / f"checkpoint_step_{self.training_step}.pt"
+        checkpoint_path = (
+            Path(self.config.model_save_dir)
+            / f"checkpoint_step_{self.training_step}.pt"
+        )
         torch.save(checkpoint, checkpoint_path)
 
         # Also save as latest checkpoint
@@ -666,7 +690,9 @@ class ProductionPolicyTrainer:
 
         return False
 
-    def _compute_training_summary(self, episode_metrics: List[TrainingMetrics]) -> Dict[str, Any]:
+    def _compute_training_summary(
+        self, episode_metrics: List[TrainingMetrics]
+    ) -> Dict[str, Any]:
         """Compute comprehensive training summary."""
         if not episode_metrics:
             return {}
@@ -674,40 +700,41 @@ class ProductionPolicyTrainer:
         recent_metrics = episode_metrics[-10:]  # Last 10 episodes
 
         return {
-            'total_episodes': len(episode_metrics),
-            'total_training_steps': self.training_step,
-            'training_time_hours': (time.time() - self.training_start_time) / 3600,
-            'final_average_reward': np.mean([m.average_reward for m in recent_metrics]),
-            'final_success_rate': np.mean([m.success_rate for m in recent_metrics]),
-            'final_policy_loss': np.mean([m.policy_loss for m in recent_metrics]),
-            'final_value_loss': np.mean([m.value_loss for m in recent_metrics]),
-            'final_safety_loss': np.mean([m.safety_loss for m in recent_metrics]),
-            'best_validation_score': self.best_validation_score,
-            'convergence_achieved': len(self.convergence_window) >= self.config.early_stopping_patience,
-            'model_parameters': sum(p.numel() for p in self.policy.parameters()),
-            'device': str(self.device)
+            "total_episodes": len(episode_metrics),
+            "total_training_steps": self.training_step,
+            "training_time_hours": (time.time() - self.training_start_time) / 3600,
+            "final_average_reward": np.mean([m.average_reward for m in recent_metrics]),
+            "final_success_rate": np.mean([m.success_rate for m in recent_metrics]),
+            "final_policy_loss": np.mean([m.policy_loss for m in recent_metrics]),
+            "final_value_loss": np.mean([m.value_loss for m in recent_metrics]),
+            "final_safety_loss": np.mean([m.safety_loss for m in recent_metrics]),
+            "best_validation_score": self.best_validation_score,
+            "convergence_achieved": len(self.convergence_window)
+            >= self.config.early_stopping_patience,
+            "model_parameters": sum(p.numel() for p in self.policy.parameters()),
+            "device": str(self.device),
         }
 
     def load_checkpoint(self, checkpoint_path: str) -> Dict[str, Any]:
         """Load training checkpoint and resume training."""
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
 
-        self.policy.load_state_dict(checkpoint['policy_state_dict'])
-        self.target_policy.load_state_dict(checkpoint['target_policy_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        self.policy.load_state_dict(checkpoint["policy_state_dict"])
+        self.target_policy.load_state_dict(checkpoint["target_policy_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
 
-        self.training_step = checkpoint['training_step']
-        self.epoch = checkpoint['epoch']
-        self.best_validation_score = checkpoint['best_validation_score']
+        self.training_step = checkpoint["training_step"]
+        self.epoch = checkpoint["epoch"]
+        self.best_validation_score = checkpoint["best_validation_score"]
 
         logger.info(f"Loaded checkpoint from step {self.training_step}")
 
         return {
-            'episode': checkpoint['episode'],
-            'training_step': self.training_step,
-            'training_time': checkpoint.get('training_time', 0),
-            'best_validation_score': self.best_validation_score
+            "episode": checkpoint["episode"],
+            "training_step": self.training_step,
+            "training_time": checkpoint.get("training_time", 0),
+            "best_validation_score": self.best_validation_score,
         }
 
     def get_training_statistics(self) -> Dict[str, Any]:
@@ -718,27 +745,28 @@ class ProductionPolicyTrainer:
         recent_metrics = list(self.training_metrics_history)[-100:]  # Last 100 steps
 
         base_stats = {
-            'training_step': self.training_step,
-            'epoch': self.epoch,
-            'training_time_minutes': (time.time() - self.training_start_time) / 60,
-            'recent_average_reward': np.mean([m.average_reward for m in recent_metrics]),
-            'recent_success_rate': np.mean([m.success_rate for m in recent_metrics]),
-            'recent_policy_loss': np.mean([m.policy_loss for m in recent_metrics]),
-            'recent_value_loss': np.mean([m.value_loss for m in recent_metrics]),
-            'recent_safety_loss': np.mean([m.safety_loss for m in recent_metrics]),
-            'learning_rate': self.optimizer.param_groups[0]['lr'],
-            'replay_buffer_size': len(self.replay_buffer.experience_buffer),
-            'best_validation_score': self.best_validation_score,
-            'device': str(self.device)
+            "training_step": self.training_step,
+            "epoch": self.epoch,
+            "training_time_minutes": (time.time() - self.training_start_time) / 60,
+            "recent_average_reward": np.mean(
+                [m.average_reward for m in recent_metrics]
+            ),
+            "recent_success_rate": np.mean([m.success_rate for m in recent_metrics]),
+            "recent_policy_loss": np.mean([m.policy_loss for m in recent_metrics]),
+            "recent_value_loss": np.mean([m.value_loss for m in recent_metrics]),
+            "recent_safety_loss": np.mean([m.safety_loss for m in recent_metrics]),
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "replay_buffer_size": len(self.replay_buffer.experience_buffer),
+            "best_validation_score": self.best_validation_score,
+            "device": str(self.device),
         }
 
         # Add reward system statistics
         reward_stats = self.reward_system.get_reward_statistics()
-        base_stats['reward_system'] = reward_stats
+        base_stats["reward_system"] = reward_stats
 
         return base_stats
 
     def get_reward_correlations(self) -> Dict[str, Any]:
         """Get reward system correlation analysis."""
         return self.reward_system.get_correlations()
-

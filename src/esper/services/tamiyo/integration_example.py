@@ -28,8 +28,7 @@ from .reward_system import RewardConfig
 
 # Configure logging for production
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ logger = logging.getLogger(__name__)
 class ProductionTamiyoDeployment:
     """
     Production deployment wrapper for the Autonomous Tamiyo Service.
-    
+
     This class provides a complete production-ready deployment with:
     - Configuration management
     - Service lifecycle management
@@ -60,7 +59,7 @@ class ProductionTamiyoDeployment:
             safety_cooldown_seconds=60.0,  # 1 minute cooldown between adaptations
             enable_real_time_learning=True,
             enable_safety_validation=True,
-            enable_correlation_analysis=True
+            enable_correlation_analysis=True,
         )
 
         # Enhanced policy configuration for production
@@ -70,18 +69,16 @@ class ProductionTamiyoDeployment:
             num_gnn_layers=4,
             num_attention_heads=4,
             attention_dropout=0.1,
-
             # Enhanced uncertainty quantification
             enable_uncertainty=True,
             uncertainty_samples=10,
             epistemic_weight=0.1,
-
             # Conservative safety thresholds
             health_threshold=0.4,
             adaptation_confidence_threshold=0.75,
             uncertainty_threshold=0.15,
             max_adaptations_per_epoch=2,
-            safety_margin=0.15
+            safety_margin=0.15,
         )
 
         # Production training configuration
@@ -91,28 +88,24 @@ class ProductionTamiyoDeployment:
             batch_size=64,
             num_training_steps=200000,
             gradient_clip_norm=0.5,
-
             # PPO parameters optimized for safety
             ppo_epochs=4,
             clip_ratio=0.15,  # Conservative clipping
             value_loss_coeff=0.5,
             entropy_bonus_coeff=0.01,
             gae_lambda=0.95,
-
             # Enhanced safety regularization
             safety_loss_weight=2.0,  # Strong safety penalty
             uncertainty_regularization=0.15,
             safety_penalty_weight=3.0,
-
             # Production stability
             min_buffer_size=1000,
             warmup_steps=10000,
             early_stopping_patience=15,
-
             # Checkpointing and monitoring
             checkpoint_interval=3600,  # Hourly checkpoints
             log_interval=100,
-            tensorboard_logging=True
+            tensorboard_logging=True,
         )
 
         # Multi-metric reward configuration
@@ -122,24 +115,21 @@ class ProductionTamiyoDeployment:
             speed_weight=0.20,
             memory_weight=0.15,
             stability_weight=0.25,  # Higher stability weight
-            safety_weight=0.20,     # Higher safety weight
+            safety_weight=0.20,  # Higher safety weight
             innovation_weight=0.05,
-
             # Conservative temporal discounting
             immediate_discount=1.0,
             short_term_discount=0.95,
             medium_term_discount=0.85,
             long_term_discount=0.75,
-
             # Strict safety thresholds
             safety_failure_penalty=-3.0,  # Harsh safety penalty
             stability_failure_penalty=-2.0,
-
             # Advanced correlation analysis
             correlation_window_size=200,
             enable_adaptive_weights=True,
             weight_adaptation_rate=0.005,  # Slow adaptation
-            weight_momentum=0.95
+            weight_momentum=0.95,
         )
 
         # Initialize the autonomous service
@@ -148,7 +138,7 @@ class ProductionTamiyoDeployment:
             service_config=self.service_config,
             policy_config=self.policy_config,
             training_config=self.training_config,
-            reward_config=self.reward_config
+            reward_config=self.reward_config,
         )
 
         logger.info("🏭 Production Tamiyo deployment initialized")
@@ -197,11 +187,11 @@ class ProductionTamiyoDeployment:
 
         monitoring_interval = 30  # 30 seconds
         alert_thresholds = {
-            'max_decision_latency_ms': 500,
-            'min_health_processing_rate': 500,
-            'max_safety_rejection_rate': 0.7,
-            'min_success_rate': 0.6,
-            'min_average_health': 0.4
+            "max_decision_latency_ms": 500,
+            "min_health_processing_rate": 500,
+            "max_safety_rejection_rate": 0.7,
+            "min_success_rate": 0.6,
+            "min_average_health": 0.4,
         }
 
         while True:
@@ -217,9 +207,9 @@ class ProductionTamiyoDeployment:
                         logger.warning(f"🚨 PRODUCTION ALERT: {alert}")
 
                 # Log key metrics
-                stats = status.get('statistics', {})
-                decisions = stats.get('decisions', {})
-                performance = status.get('performance_metrics', {})
+                stats = status.get("statistics", {})
+                decisions = stats.get("decisions", {})
+                performance = status.get("performance_metrics", {})
 
                 logger.info(
                     f"📈 Production Metrics - "
@@ -236,45 +226,45 @@ class ProductionTamiyoDeployment:
                 await asyncio.sleep(monitoring_interval)
 
     def _check_alert_conditions(
-        self,
-        status: Dict[str, Any],
-        thresholds: Dict[str, float]
+        self, status: Dict[str, Any], thresholds: Dict[str, float]
     ) -> list[str]:
         """Check for alert conditions in service status."""
         alerts = []
 
         try:
-            performance = status.get('performance_metrics', {})
-            statistics = status.get('statistics', {})
-            decisions = statistics.get('decisions', {})
-            health = statistics.get('health_monitoring', {})
+            performance = status.get("performance_metrics", {})
+            statistics = status.get("statistics", {})
+            decisions = statistics.get("decisions", {})
+            health = statistics.get("health_monitoring", {})
 
             # Decision latency alert
-            decision_latency = performance.get('decision_latency_ms', 0.0)
-            if decision_latency > thresholds['max_decision_latency_ms']:
+            decision_latency = performance.get("decision_latency_ms", 0.0)
+            if decision_latency > thresholds["max_decision_latency_ms"]:
                 alerts.append(f"High decision latency: {decision_latency:.1f}ms")
 
             # Health processing rate alert
-            processing_rate = performance.get('health_processing_rate', 0.0)
-            if processing_rate < thresholds['min_health_processing_rate']:
+            processing_rate = performance.get("health_processing_rate", 0.0)
+            if processing_rate < thresholds["min_health_processing_rate"]:
                 alerts.append(f"Low health processing rate: {processing_rate:.0f} Hz")
 
             # Safety rejection rate alert
-            total_decisions = decisions.get('total', 1)
-            safety_rejections = decisions.get('safety_rejections', 0)
+            total_decisions = decisions.get("total", 1)
+            safety_rejections = decisions.get("safety_rejections", 0)
             safety_rejection_rate = safety_rejections / max(total_decisions, 1)
 
-            if safety_rejection_rate > thresholds['max_safety_rejection_rate']:
-                alerts.append(f"High safety rejection rate: {safety_rejection_rate:.1%}")
+            if safety_rejection_rate > thresholds["max_safety_rejection_rate"]:
+                alerts.append(
+                    f"High safety rejection rate: {safety_rejection_rate:.1%}"
+                )
 
             # Success rate alert
-            success_rate = decisions.get('success_rate', 0.0)
-            if success_rate < thresholds['min_success_rate'] and total_decisions > 10:
+            success_rate = decisions.get("success_rate", 0.0)
+            if success_rate < thresholds["min_success_rate"] and total_decisions > 10:
                 alerts.append(f"Low adaptation success rate: {success_rate:.1%}")
 
             # Average health alert
-            avg_health = health.get('average_health', 1.0)
-            if avg_health < thresholds['min_average_health']:
+            avg_health = health.get("average_health", 1.0)
+            if avg_health < thresholds["min_average_health"]:
                 alerts.append(f"Low system health: {avg_health:.3f}")
 
         except Exception as e:
@@ -288,24 +278,24 @@ class ProductionTamiyoDeployment:
             service_status = self.tamiyo_service.get_comprehensive_status()
 
             return {
-                'deployment': {
-                    'mode': 'production',
-                    'configuration': {
-                        'decision_interval_ms': self.service_config.decision_interval_ms,
-                        'max_adaptations_per_minute': self.service_config.max_decisions_per_minute,
-                        'confidence_threshold': self.service_config.min_confidence_threshold,
-                        'safety_enabled': self.service_config.enable_safety_validation,
-                        'learning_enabled': self.service_config.enable_real_time_learning
-                    }
+                "deployment": {
+                    "mode": "production",
+                    "configuration": {
+                        "decision_interval_ms": self.service_config.decision_interval_ms,
+                        "max_adaptations_per_minute": self.service_config.max_decisions_per_minute,
+                        "confidence_threshold": self.service_config.min_confidence_threshold,
+                        "safety_enabled": self.service_config.enable_safety_validation,
+                        "learning_enabled": self.service_config.enable_real_time_learning,
+                    },
                 },
-                'service_status': service_status,
-                'health_trends': self.tamiyo_service.get_health_trends(),
-                'reward_analysis': self.tamiyo_service.get_reward_analysis(),
-                'training_progress': self.tamiyo_service.get_training_progress()
+                "service_status": service_status,
+                "health_trends": self.tamiyo_service.get_health_trends(),
+                "reward_analysis": self.tamiyo_service.get_reward_analysis(),
+                "training_progress": self.tamiyo_service.get_training_progress(),
             }
 
         except Exception as e:
-            return {'error': f'Failed to get deployment status: {e}'}
+            return {"error": f"Failed to get deployment status: {e}"}
 
 
 async def main():
@@ -313,9 +303,7 @@ async def main():
     logger.info("🏭 Starting Autonomous Tamiyo Production Deployment")
 
     # Initialize production deployment
-    deployment = ProductionTamiyoDeployment(
-        redis_url="redis://localhost:6379"
-    )
+    deployment = ProductionTamiyoDeployment(redis_url="redis://localhost:6379")
 
     try:
         # Deploy and run the service
@@ -331,6 +319,7 @@ async def main():
 
 # Integration examples for different deployment scenarios
 
+
 async def basic_autonomous_example():
     """Basic autonomous service example with minimal configuration."""
     logger.info("🔧 Basic Autonomous Tamiyo Example")
@@ -343,8 +332,8 @@ async def basic_autonomous_example():
         service_config=AutonomousServiceConfig(
             decision_interval_ms=200,  # Slower for demo
             max_decisions_per_minute=2,
-            min_confidence_threshold=0.8
-        )
+            min_confidence_threshold=0.8,
+        ),
     )
 
     try:
@@ -391,10 +380,7 @@ async def monitoring_integration_example():
 
     try:
         # Run service with monitoring
-        await asyncio.gather(
-            tamiyo_service.start(),
-            external_monitoring()
-        )
+        await asyncio.gather(tamiyo_service.start(), external_monitoring())
     finally:
         await tamiyo_service.stop()
 

@@ -106,33 +106,34 @@ class ServiceStatistics:
     def to_dict(self) -> Dict[str, Any]:
         """Convert statistics to dictionary for logging/monitoring."""
         return {
-            'service': {
-                'runtime_hours': self.total_runtime_hours,
-                'start_time': self.start_time
+            "service": {
+                "runtime_hours": self.total_runtime_hours,
+                "start_time": self.start_time,
             },
-            'decisions': {
-                'total': self.total_decisions_made,
-                'successful': self.successful_adaptations,
-                'safety_rejections': self.safety_rejections,
-                'confidence_rejections': self.confidence_rejections,
-                'cooldown_rejections': self.cooldown_rejections,
-                'success_rate': self.successful_adaptations / max(self.total_decisions_made, 1)
+            "decisions": {
+                "total": self.total_decisions_made,
+                "successful": self.successful_adaptations,
+                "safety_rejections": self.safety_rejections,
+                "confidence_rejections": self.confidence_rejections,
+                "cooldown_rejections": self.cooldown_rejections,
+                "success_rate": self.successful_adaptations
+                / max(self.total_decisions_made, 1),
             },
-            'health_monitoring': {
-                'signals_processed': self.total_health_signals_processed,
-                'average_health': self.average_health_score,
-                'problematic_layers': self.problematic_layers_detected,
-                'processing_rate_hz': self.health_processing_rate
+            "health_monitoring": {
+                "signals_processed": self.total_health_signals_processed,
+                "average_health": self.average_health_score,
+                "problematic_layers": self.problematic_layers_detected,
+                "processing_rate_hz": self.health_processing_rate,
             },
-            'training': {
-                'episodes': self.policy_training_episodes,
-                'average_reward': self.average_reward,
-                'convergence_rate': self.training_convergence_rate
+            "training": {
+                "episodes": self.policy_training_episodes,
+                "average_reward": self.average_reward,
+                "convergence_rate": self.training_convergence_rate,
             },
-            'performance': {
-                'decision_latency_ms': self.decision_latency_ms,
-                'memory_usage_mb': self.memory_usage_mb
-            }
+            "performance": {
+                "decision_latency_ms": self.decision_latency_ms,
+                "memory_usage_mb": self.memory_usage_mb,
+            },
         }
 
 
@@ -151,7 +152,7 @@ class AutonomousTamiyoService:
         service_config: Optional[AutonomousServiceConfig] = None,
         policy_config: Optional[PolicyConfig] = None,
         training_config: Optional[ProductionTrainingConfig] = None,
-        reward_config: Optional[RewardConfig] = None
+        reward_config: Optional[RewardConfig] = None,
     ):
         # Configuration
         self.config = service_config or AutonomousServiceConfig()
@@ -161,21 +162,17 @@ class AutonomousTamiyoService:
 
         # Core Phase 2 components
         self.health_collector = ProductionHealthCollector(
-            oona_client=oona_client,
-            buffer_size=self.config.health_signal_buffer_size
+            oona_client=oona_client, buffer_size=self.config.health_signal_buffer_size
         )
 
-        self.graph_builder = ModelGraphBuilder(
-            node_feature_dim=16,
-            edge_feature_dim=8
-        )
+        self.graph_builder = ModelGraphBuilder(node_feature_dim=16, edge_feature_dim=8)
 
         # Enhanced policy with advanced features
         policy_config = policy_config or PolicyConfig(
             num_attention_heads=4,
             enable_uncertainty=True,
             safety_margin=0.1,
-            adaptation_confidence_threshold=self.config.min_confidence_threshold
+            adaptation_confidence_threshold=self.config.min_confidence_threshold,
         )
         self.policy = EnhancedTamiyoPolicyGNN(policy_config)
 
@@ -184,15 +181,13 @@ class AutonomousTamiyoService:
 
         # Production policy trainer
         training_config = training_config or ProductionTrainingConfig(
-            learning_rate=3e-4,
-            batch_size=64,
-            safety_loss_weight=1.0
+            learning_rate=3e-4, batch_size=64, safety_loss_weight=1.0
         )
         self.policy_trainer = ProductionPolicyTrainer(
             policy=self.policy,
             policy_config=policy_config,
             training_config=training_config,
-            reward_config=reward_config
+            reward_config=reward_config,
         )
 
         # Service state
@@ -203,10 +198,14 @@ class AutonomousTamiyoService:
         # Decision and adaptation tracking
         self.decision_history: deque = deque(maxlen=self.config.decision_history_size)
         self.layer_cooldowns: Dict[str, float] = {}
-        self.recent_adaptations: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10))
+        self.recent_adaptations: Dict[str, deque] = defaultdict(
+            lambda: deque(maxlen=10)
+        )
 
         # Performance monitoring
-        self.performance_metrics: deque = deque(maxlen=self.config.performance_history_size)
+        self.performance_metrics: deque = deque(
+            maxlen=self.config.performance_history_size
+        )
         self.health_trend_tracker = defaultdict(lambda: deque(maxlen=100))
 
         # Async task handles
@@ -229,7 +228,7 @@ class AutonomousTamiyoService:
                 asyncio.create_task(self._continuous_learning_loop()),
                 asyncio.create_task(self._statistics_monitoring_loop()),
                 asyncio.create_task(self._performance_monitoring_loop()),
-                asyncio.create_task(self._safety_monitoring_loop())
+                asyncio.create_task(self._safety_monitoring_loop()),
             ]
 
             # Start health collection
@@ -273,7 +272,9 @@ class AutonomousTamiyoService:
 
             try:
                 # Collect recent health signals
-                health_signals = await self.health_collector.get_recent_signals(count=500)
+                health_signals = await self.health_collector.get_recent_signals(
+                    count=500
+                )
 
                 if len(health_signals) < 10:
                     await asyncio.sleep(self.config.decision_interval_ms / 1000.0)
@@ -281,8 +282,7 @@ class AutonomousTamiyoService:
 
                 # Build current graph state
                 graph_state = self.graph_builder.build_model_graph(
-                    health_signals=health_signals,
-                    window_size=100
+                    health_signals=health_signals, window_size=100
                 )
 
                 # Make policy decision with safety validation
@@ -290,7 +290,9 @@ class AutonomousTamiyoService:
 
                 if decision:
                     # Execute the adaptation decision
-                    await self._execute_autonomous_adaptation(decision, graph_state, health_signals)
+                    await self._execute_autonomous_adaptation(
+                        decision, graph_state, health_signals
+                    )
 
                 # Update performance metrics
                 decision_latency = (time.time() - decision_start_time) * 1000  # ms
@@ -307,9 +309,7 @@ class AutonomousTamiyoService:
                 await asyncio.sleep(self.config.decision_interval_ms / 1000.0)
 
     async def _make_safe_decision(
-        self,
-        graph_state: ModelGraphState,
-        health_signals: List[Any]
+        self, graph_state: ModelGraphState, health_signals: List[Any]
     ) -> Optional[AdaptationDecision]:
         """Make a policy decision with comprehensive safety validation."""
         try:
@@ -325,24 +325,28 @@ class AutonomousTamiyoService:
                 self._validate_cooldown_period(decision),
                 self._validate_adaptation_rate(decision),
                 self._validate_system_stability(decision, graph_state),
-                self._validate_safety_score(decision)
+                self._validate_safety_score(decision),
             ]
 
             # Run all safety checks
             for check_name, check_result in safety_checks:
                 if not check_result:
                     self._record_rejection(check_name, decision)
-                    logger.debug(f"🛡️ Decision rejected by {check_name}: {decision.layer_name}")
+                    logger.debug(
+                        f"🛡️ Decision rejected by {check_name}: {decision.layer_name}"
+                    )
                     return None
 
             # All safety checks passed
             self.statistics.total_decisions_made += 1
-            self.decision_history.append({
-                'decision': decision,
-                'timestamp': time.time(),
-                'graph_state': graph_state,
-                'safety_validated': True
-            })
+            self.decision_history.append(
+                {
+                    "decision": decision,
+                    "timestamp": time.time(),
+                    "graph_state": graph_state,
+                    "safety_validated": True,
+                }
+            )
 
             logger.debug(
                 f"✅ Safe decision approved: {decision.layer_name} "
@@ -355,14 +359,18 @@ class AutonomousTamiyoService:
             logger.error(f"❌ Error in decision making: {e}")
             return None
 
-    def _validate_confidence_threshold(self, decision: AdaptationDecision) -> Tuple[str, bool]:
+    def _validate_confidence_threshold(
+        self, decision: AdaptationDecision
+    ) -> Tuple[str, bool]:
         """Validate decision meets minimum confidence threshold."""
         if decision.confidence < self.config.min_confidence_threshold:
             self.statistics.confidence_rejections += 1
             return ("confidence_threshold", False)
         return ("confidence_threshold", True)
 
-    def _validate_cooldown_period(self, decision: AdaptationDecision) -> Tuple[str, bool]:
+    def _validate_cooldown_period(
+        self, decision: AdaptationDecision
+    ) -> Tuple[str, bool]:
         """Validate layer is not in cooldown period."""
         current_time = time.time()
         last_adaptation = self.layer_cooldowns.get(decision.layer_name, 0)
@@ -373,15 +381,17 @@ class AutonomousTamiyoService:
 
         return ("cooldown_period", True)
 
-    def _validate_adaptation_rate(self, decision: AdaptationDecision) -> Tuple[str, bool]:
+    def _validate_adaptation_rate(
+        self, decision: AdaptationDecision
+    ) -> Tuple[str, bool]:
         """Validate system-wide adaptation rate is within safe limits."""
         current_time = time.time()
         recent_window = current_time - 60.0  # Last minute
 
         recent_adaptations = sum(
-            1 for entry in self.decision_history
-            if entry['timestamp'] > recent_window and
-               entry.get('executed', False)
+            1
+            for entry in self.decision_history
+            if entry["timestamp"] > recent_window and entry.get("executed", False)
         )
 
         if recent_adaptations >= self.config.max_decisions_per_minute:
@@ -390,9 +400,7 @@ class AutonomousTamiyoService:
         return ("adaptation_rate", True)
 
     def _validate_system_stability(
-        self,
-        decision: AdaptationDecision,
-        graph_state: ModelGraphState
+        self, decision: AdaptationDecision, graph_state: ModelGraphState
     ) -> Tuple[str, bool]:
         """Validate system is stable enough for adaptation."""
         # Check if there are problematic layers that justify adaptation
@@ -401,7 +409,7 @@ class AutonomousTamiyoService:
 
         # Check overall system health
         if graph_state.global_metrics:
-            overall_health = graph_state.global_metrics.get('overall_health', 0.5)
+            overall_health = graph_state.global_metrics.get("overall_health", 0.5)
             if overall_health < 0.3:  # System too unstable
                 return ("system_stability", False)
 
@@ -409,8 +417,8 @@ class AutonomousTamiyoService:
 
     def _validate_safety_score(self, decision: AdaptationDecision) -> Tuple[str, bool]:
         """Validate decision has acceptable safety characteristics."""
-        if 'safety_score' in decision.metadata:
-            safety_score = decision.metadata['safety_score']
+        if "safety_score" in decision.metadata:
+            safety_score = decision.metadata["safety_score"]
             if safety_score < 0.7:
                 self.statistics.safety_rejections += 1
                 return ("safety_score", False)
@@ -432,7 +440,7 @@ class AutonomousTamiyoService:
         self,
         decision: AdaptationDecision,
         graph_state: ModelGraphState,
-        health_signals: List[Any]
+        health_signals: List[Any],
     ) -> None:
         """Execute an adaptation decision with full feedback loop."""
         execution_start_time = time.time()
@@ -461,7 +469,7 @@ class AutonomousTamiyoService:
                     decision=decision,
                     graph_state=graph_state,
                     execution_metrics=None,  # Would be provided by Phase 1
-                    health_signals=health_signals
+                    health_signals=health_signals,
                 )
 
                 # Phase 3: Store experience for continuous learning
@@ -482,7 +490,9 @@ class AutonomousTamiyoService:
         except Exception as e:
             logger.error(f"❌ Error executing adaptation {decision.layer_name}: {e}")
 
-    async def _integrate_with_phase1_execution(self, decision: AdaptationDecision) -> bool:
+    async def _integrate_with_phase1_execution(
+        self, decision: AdaptationDecision
+    ) -> bool:
         """Integrate with Phase 1 kernel execution system."""
         try:
             # This is where the autonomous system would integrate with Phase 1
@@ -490,7 +500,9 @@ class AutonomousTamiyoService:
 
             # 1. Send blueprint request to Tezzeret (compilation forge)
             # (This would be implemented in production)
-            logger.debug(f"Blueprint request for {decision.layer_name}: {decision.blueprint_request.adaptation_type}")
+            logger.debug(
+                f"Blueprint request for {decision.layer_name}: {decision.blueprint_request.adaptation_type}"
+            )
 
             # 2. Wait for kernel compilation (simulated)
             await asyncio.sleep(0.01)  # Simulate compilation time
@@ -511,7 +523,7 @@ class AutonomousTamiyoService:
         decision: AdaptationDecision,
         graph_state: ModelGraphState,
         reward: float,
-        reward_metrics: Any
+        reward_metrics: Any,
     ) -> None:
         """Store experience for continuous policy learning."""
         try:
@@ -534,19 +546,27 @@ class AutonomousTamiyoService:
         while self.is_running:
             try:
                 # Update health statistics
-                recent_signals = await self.health_collector.get_recent_signals(count=100)
+                recent_signals = await self.health_collector.get_recent_signals(
+                    count=100
+                )
 
                 if recent_signals:
-                    avg_health = sum(s.health_score for s in recent_signals) / len(recent_signals)
+                    avg_health = sum(s.health_score for s in recent_signals) / len(
+                        recent_signals
+                    )
                     self.statistics.average_health_score = avg_health
-                    self.statistics.total_health_signals_processed += len(recent_signals)
+                    self.statistics.total_health_signals_processed += len(
+                        recent_signals
+                    )
 
                     # Update processing rate
-                    self.statistics.health_processing_rate = len(recent_signals) * (1000 / self.config.health_collection_interval_ms)
+                    self.statistics.health_processing_rate = len(recent_signals) * (
+                        1000 / self.config.health_collection_interval_ms
+                    )
 
                     # Track health trends
                     for signal in recent_signals:
-                        layer_id = getattr(signal, 'layer_id', 'unknown')
+                        layer_id = getattr(signal, "layer_id", "unknown")
                         self.health_trend_tracker[layer_id].append(signal.health_score)
 
                 await asyncio.sleep(self.config.health_collection_interval_ms / 1000.0)
@@ -567,11 +587,13 @@ class AutonomousTamiyoService:
             try:
                 # Check if we have enough experience for training
                 training_stats = self.policy_trainer.get_training_statistics()
-                buffer_size = training_stats.get('replay_buffer_size', 0)
+                buffer_size = training_stats.get("replay_buffer_size", 0)
 
                 if buffer_size >= 50:  # Minimum batch size for meaningful training
                     # Perform training episode
-                    health_signals = await self.health_collector.get_recent_signals(count=500)
+                    health_signals = await self.health_collector.get_recent_signals(
+                        count=500
+                    )
 
                     if len(health_signals) >= 10:
                         # This integrates with our production policy trainer
@@ -584,9 +606,11 @@ class AutonomousTamiyoService:
                         self.statistics.policy_training_episodes += 1
 
                         # Update training statistics
-                        if training_stats.get('reward_system'):
-                            reward_stats = training_stats['reward_system']
-                            self.statistics.average_reward = reward_stats.get('average_reward', 0.0)
+                        if training_stats.get("reward_system"):
+                            reward_stats = training_stats["reward_system"]
+                            self.statistics.average_reward = reward_stats.get(
+                                "average_reward", 0.0
+                            )
 
                 await asyncio.sleep(self.config.training_episode_interval_s)
 
@@ -602,7 +626,9 @@ class AutonomousTamiyoService:
             try:
                 # Update runtime statistics
                 current_time = time.time()
-                self.statistics.total_runtime_hours = (current_time - self.start_time) / 3600
+                self.statistics.total_runtime_hours = (
+                    current_time - self.start_time
+                ) / 3600
 
                 # Log comprehensive statistics
                 stats_dict = self.statistics.to_dict()
@@ -627,16 +653,20 @@ class AutonomousTamiyoService:
         while self.is_running:
             try:
                 # Monitor decision latency
-                if hasattr(self, 'statistics'):
+                if hasattr(self, "statistics"):
                     current_latency = self.statistics.decision_latency_ms
                     if current_latency > 200:  # >200ms is concerning
-                        logger.warning(f"⚠️ High decision latency: {current_latency:.1f}ms")
+                        logger.warning(
+                            f"⚠️ High decision latency: {current_latency:.1f}ms"
+                        )
 
                 # Monitor health processing rate
-                if hasattr(self, 'statistics'):
+                if hasattr(self, "statistics"):
                     processing_rate = self.statistics.health_processing_rate
                     if processing_rate < 1000:  # <1000 signals/sec is concerning
-                        logger.warning(f"⚠️ Low health processing rate: {processing_rate:.1f} Hz")
+                        logger.warning(
+                            f"⚠️ Low health processing rate: {processing_rate:.1f} Hz"
+                        )
 
                 # Performance metrics could include:
                 # - Memory usage per component
@@ -658,7 +688,9 @@ class AutonomousTamiyoService:
             try:
                 # Monitor safety rejection rates
                 total_decisions = max(self.statistics.total_decisions_made, 1)
-                safety_rejection_rate = self.statistics.safety_rejections / total_decisions
+                safety_rejection_rate = (
+                    self.statistics.safety_rejections / total_decisions
+                )
 
                 if safety_rejection_rate > 0.5:  # >50% rejections is concerning
                     logger.warning(
@@ -667,7 +699,10 @@ class AutonomousTamiyoService:
                     )
 
                 # Monitor system stability
-                if hasattr(self, 'statistics') and self.statistics.average_health_score < 0.5:
+                if (
+                    hasattr(self, "statistics")
+                    and self.statistics.average_health_score < 0.5
+                ):
                     logger.warning(
                         f"🚨 Low system health: {self.statistics.average_health_score:.3f}"
                     )
@@ -688,11 +723,11 @@ class AutonomousTamiyoService:
         """Save comprehensive service checkpoint."""
         try:
             checkpoint_data = {
-                'timestamp': time.time(),
-                'service_statistics': self.statistics.to_dict(),
-                'decision_history_size': len(self.decision_history),
-                'layer_cooldowns': self.layer_cooldowns.copy(),
-                'total_runtime_hours': self.statistics.total_runtime_hours
+                "timestamp": time.time(),
+                "service_statistics": self.statistics.to_dict(),
+                "decision_history_size": len(self.decision_history),
+                "layer_cooldowns": self.layer_cooldowns.copy(),
+                "total_runtime_hours": self.statistics.total_runtime_hours,
             }
 
             # In production, this would save to persistent storage
@@ -706,25 +741,27 @@ class AutonomousTamiyoService:
     def get_comprehensive_status(self) -> Dict[str, Any]:
         """Get comprehensive service status for monitoring."""
         return {
-            'service_state': {
-                'is_running': self.is_running,
-                'uptime_hours': (time.time() - self.start_time) / 3600,
-                'components_active': len([t for t in self.running_tasks if not t.done()])
+            "service_state": {
+                "is_running": self.is_running,
+                "uptime_hours": (time.time() - self.start_time) / 3600,
+                "components_active": len(
+                    [t for t in self.running_tasks if not t.done()]
+                ),
             },
-            'statistics': self.statistics.to_dict(),
-            'recent_decisions': [
+            "statistics": self.statistics.to_dict(),
+            "recent_decisions": [
                 {
-                    'layer_name': entry['decision'].layer_name,
-                    'confidence': entry['decision'].confidence,
-                    'timestamp': entry['timestamp']
+                    "layer_name": entry["decision"].layer_name,
+                    "confidence": entry["decision"].confidence,
+                    "timestamp": entry["timestamp"],
                 }
                 for entry in list(self.decision_history)[-5:]
             ],
-            'performance_metrics': {
-                'decision_latency_ms': self.statistics.decision_latency_ms,
-                'health_processing_rate': self.statistics.health_processing_rate,
-                'memory_usage_mb': self.statistics.memory_usage_mb
-            }
+            "performance_metrics": {
+                "decision_latency_ms": self.statistics.decision_latency_ms,
+                "health_processing_rate": self.statistics.health_processing_rate,
+                "memory_usage_mb": self.statistics.memory_usage_mb,
+            },
         }
 
     def get_health_trends(self) -> Dict[str, List[float]]:
@@ -737,8 +774,8 @@ class AutonomousTamiyoService:
     def get_reward_analysis(self) -> Dict[str, Any]:
         """Get reward system analysis and correlations."""
         return {
-            'reward_statistics': self.reward_system.get_reward_statistics(),
-            'correlations': self.reward_system.get_correlations()
+            "reward_statistics": self.reward_system.get_reward_statistics(),
+            "correlations": self.reward_system.get_correlations(),
         }
 
     def get_training_progress(self) -> Dict[str, Any]:
@@ -751,27 +788,38 @@ class AutonomousTamiyoService:
             health_signals = await self.health_collector.get_recent_signals(count=500)
 
             if len(health_signals) < 10:
-                return {'error': 'Insufficient health signals for analysis'}
+                return {"error": "Insufficient health signals for analysis"}
 
             graph_state = self.graph_builder.build_model_graph(health_signals)
             decision = await self._make_safe_decision(graph_state, health_signals)
 
             return {
-                'health_signals_count': len(health_signals),
-                'graph_state_summary': {
-                    'nodes': len(graph_state.topology.layer_names) if graph_state.topology else 0,
-                    'problematic_layers': list(graph_state.problematic_layers),
-                    'global_health': graph_state.global_metrics.get('overall_health', 0.0) if graph_state.global_metrics else 0.0
+                "health_signals_count": len(health_signals),
+                "graph_state_summary": {
+                    "nodes": (
+                        len(graph_state.topology.layer_names)
+                        if graph_state.topology
+                        else 0
+                    ),
+                    "problematic_layers": list(graph_state.problematic_layers),
+                    "global_health": (
+                        graph_state.global_metrics.get("overall_health", 0.0)
+                        if graph_state.global_metrics
+                        else 0.0
+                    ),
                 },
-                'decision_made': decision is not None,
-                'decision_summary': {
-                    'layer_name': decision.layer_name,
-                    'confidence': decision.confidence,
-                    'urgency': decision.urgency
-                } if decision else None
+                "decision_made": decision is not None,
+                "decision_summary": (
+                    {
+                        "layer_name": decision.layer_name,
+                        "confidence": decision.confidence,
+                        "urgency": decision.urgency,
+                    }
+                    if decision
+                    else None
+                ),
             }
 
         except Exception as e:
             logger.error(f"Error in manual analysis: {e}")
-            return {'error': str(e)}
-
+            return {"error": str(e)}

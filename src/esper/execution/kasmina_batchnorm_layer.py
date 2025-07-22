@@ -66,17 +66,19 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
             self.weight = nn.Parameter(torch.ones(num_features))
             self.bias = nn.Parameter(torch.zeros(num_features))
         else:
-            self.register_parameter('weight', None)
-            self.register_parameter('bias', None)
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
 
         if self.track_running_stats:
-            self.register_buffer('running_mean', torch.zeros(num_features))
-            self.register_buffer('running_var', torch.ones(num_features))
-            self.register_buffer('num_batches_tracked', torch.tensor(0, dtype=torch.long))
+            self.register_buffer("running_mean", torch.zeros(num_features))
+            self.register_buffer("running_var", torch.ones(num_features))
+            self.register_buffer(
+                "num_batches_tracked", torch.tensor(0, dtype=torch.long)
+            )
         else:
-            self.register_parameter('running_mean', None)
-            self.register_parameter('running_var', None)
-            self.register_parameter('num_batches_tracked', None)
+            self.register_parameter("running_mean", None)
+            self.register_parameter("running_var", None)
+            self.register_parameter("num_batches_tracked", None)
 
         logger.info(f"Created KasminaBatchNorm1dLayer: num_features={num_features}")
 
@@ -90,11 +92,20 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
                     self.bias.copy_(original_layer.bias)
 
             if self.track_running_stats and original_layer.track_running_stats:
-                if self.running_mean is not None and original_layer.running_mean is not None:
+                if (
+                    self.running_mean is not None
+                    and original_layer.running_mean is not None
+                ):
                     self.running_mean.copy_(original_layer.running_mean)
-                if self.running_var is not None and original_layer.running_var is not None:
+                if (
+                    self.running_var is not None
+                    and original_layer.running_var is not None
+                ):
                     self.running_var.copy_(original_layer.running_var)
-                if self.num_batches_tracked is not None and original_layer.num_batches_tracked is not None:
+                if (
+                    self.num_batches_tracked is not None
+                    and original_layer.num_batches_tracked is not None
+                ):
                     self.num_batches_tracked.copy_(original_layer.num_batches_tracked)
 
         logger.info(f"Copied weights from BatchNorm1d to {self.layer_name}")
@@ -106,8 +117,14 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
 
         # Apply batch normalization
         normalized = F.batch_norm(
-            x, self.running_mean, self.running_var, self.weight, self.bias,
-            self.training or not self.track_running_stats, self.momentum, self.eps
+            x,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            self.training or not self.track_running_stats,
+            self.momentum,
+            self.eps,
         )
 
         # Apply morphogenetic adaptation if any seeds are active
@@ -120,7 +137,9 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
         """Check if any morphogenetic seeds are active."""
         return self.state_layout.get_active_seeds().any()
 
-    def _apply_morphogenetic_adaptation(self, input_tensor: torch.Tensor, normalized: torch.Tensor) -> torch.Tensor:
+    def _apply_morphogenetic_adaptation(
+        self, input_tensor: torch.Tensor, normalized: torch.Tensor
+    ) -> torch.Tensor:
         """Apply morphogenetic adaptations to the normalized output."""
         active_seeds = self.state_layout.get_active_seeds()
         alpha_factors = self.state_layout.alpha_blend[active_seeds]
@@ -129,7 +148,9 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
 
         for seed_idx, alpha in zip(active_seeds.nonzero().squeeze(-1), alpha_factors):
             if alpha > 0:
-                seed_adaptation = self._compute_seed_adaptation(input_tensor, seed_idx.item())
+                seed_adaptation = self._compute_seed_adaptation(
+                    input_tensor, seed_idx.item()
+                )
                 adapted_output = (1 - alpha) * adapted_output + alpha * seed_adaptation
 
         return adapted_output
@@ -142,14 +163,25 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
             adaptive_bias = torch.zeros_like(self.bias) * (0.01 * seed_idx)
 
             adapted = F.batch_norm(
-                x, self.running_mean, self.running_var,
-                self.weight * adaptive_scale, self.bias + adaptive_bias,
-                self.training or not self.track_running_stats, self.momentum, self.eps
+                x,
+                self.running_mean,
+                self.running_var,
+                self.weight * adaptive_scale,
+                self.bias + adaptive_bias,
+                self.training or not self.track_running_stats,
+                self.momentum,
+                self.eps,
             )
         else:
             adapted = F.batch_norm(
-                x, self.running_mean, self.running_var, None, None,
-                self.training or not self.track_running_stats, self.momentum, self.eps
+                x,
+                self.running_mean,
+                self.running_var,
+                None,
+                None,
+                self.training or not self.track_running_stats,
+                self.momentum,
+                self.eps,
             )
 
         return adapted
@@ -205,17 +237,19 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
             self.weight = nn.Parameter(torch.ones(num_features))
             self.bias = nn.Parameter(torch.zeros(num_features))
         else:
-            self.register_parameter('weight', None)
-            self.register_parameter('bias', None)
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
 
         if self.track_running_stats:
-            self.register_buffer('running_mean', torch.zeros(num_features))
-            self.register_buffer('running_var', torch.ones(num_features))
-            self.register_buffer('num_batches_tracked', torch.tensor(0, dtype=torch.long))
+            self.register_buffer("running_mean", torch.zeros(num_features))
+            self.register_buffer("running_var", torch.ones(num_features))
+            self.register_buffer(
+                "num_batches_tracked", torch.tensor(0, dtype=torch.long)
+            )
         else:
-            self.register_parameter('running_mean', None)
-            self.register_parameter('running_var', None)
-            self.register_parameter('num_batches_tracked', None)
+            self.register_parameter("running_mean", None)
+            self.register_parameter("running_var", None)
+            self.register_parameter("num_batches_tracked", None)
 
         logger.info(f"Created KasminaBatchNorm2dLayer: num_features={num_features}")
 
@@ -229,11 +263,20 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
                     self.bias.copy_(original_layer.bias)
 
             if self.track_running_stats and original_layer.track_running_stats:
-                if self.running_mean is not None and original_layer.running_mean is not None:
+                if (
+                    self.running_mean is not None
+                    and original_layer.running_mean is not None
+                ):
                     self.running_mean.copy_(original_layer.running_mean)
-                if self.running_var is not None and original_layer.running_var is not None:
+                if (
+                    self.running_var is not None
+                    and original_layer.running_var is not None
+                ):
                     self.running_var.copy_(original_layer.running_var)
-                if self.num_batches_tracked is not None and original_layer.num_batches_tracked is not None:
+                if (
+                    self.num_batches_tracked is not None
+                    and original_layer.num_batches_tracked is not None
+                ):
                     self.num_batches_tracked.copy_(original_layer.num_batches_tracked)
 
         logger.info(f"Copied weights from BatchNorm2d to {self.layer_name}")
@@ -250,8 +293,14 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
 
         # Apply batch normalization
         normalized = F.batch_norm(
-            x, self.running_mean, self.running_var, self.weight, self.bias,
-            self.training or not self.track_running_stats, self.momentum, self.eps
+            x,
+            self.running_mean,
+            self.running_var,
+            self.weight,
+            self.bias,
+            self.training or not self.track_running_stats,
+            self.momentum,
+            self.eps,
         )
 
         # Apply morphogenetic adaptation if any seeds are active
@@ -268,7 +317,9 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
         """Check if any morphogenetic seeds are active."""
         return self.state_layout.get_active_seeds().any()
 
-    def _apply_morphogenetic_adaptation(self, input_tensor: torch.Tensor, normalized: torch.Tensor) -> torch.Tensor:
+    def _apply_morphogenetic_adaptation(
+        self, input_tensor: torch.Tensor, normalized: torch.Tensor
+    ) -> torch.Tensor:
         """Apply morphogenetic adaptations to the normalized output."""
         active_seeds = self.state_layout.get_active_seeds()
         alpha_factors = self.state_layout.alpha_blend[active_seeds]
@@ -277,7 +328,9 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
 
         for seed_idx, alpha in zip(active_seeds.nonzero().squeeze(-1), alpha_factors):
             if alpha > 0:
-                seed_adaptation = self._compute_seed_adaptation(input_tensor, seed_idx.item())
+                seed_adaptation = self._compute_seed_adaptation(
+                    input_tensor, seed_idx.item()
+                )
                 adapted_output = (1 - alpha) * adapted_output + alpha * seed_adaptation
 
         return adapted_output
@@ -290,23 +343,36 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
             adaptive_bias = torch.zeros_like(self.bias) + (0.005 * seed_idx)
 
             adapted = F.batch_norm(
-                x, self.running_mean, self.running_var,
-                self.weight * adaptive_scale, self.bias + adaptive_bias,
-                self.training or not self.track_running_stats, self.momentum, self.eps
+                x,
+                self.running_mean,
+                self.running_var,
+                self.weight * adaptive_scale,
+                self.bias + adaptive_bias,
+                self.training or not self.track_running_stats,
+                self.momentum,
+                self.eps,
             )
         else:
             adapted = F.batch_norm(
-                x, self.running_mean, self.running_var, None, None,
-                self.training or not self.track_running_stats, self.momentum, self.eps
+                x,
+                self.running_mean,
+                self.running_var,
+                None,
+                None,
+                self.training or not self.track_running_stats,
+                self.momentum,
+                self.eps,
             )
 
         return adapted
 
-    def _update_telemetry(self, input_tensor: torch.Tensor, output_tensor: torch.Tensor) -> None:
+    def _update_telemetry(
+        self, input_tensor: torch.Tensor, output_tensor: torch.Tensor
+    ) -> None:
         """Update telemetry data for this layer."""
         # Compute statistics for telemetry
         input_tensor.mean(dim=(0, 2, 3))  # Mean across batch, height, width
-        input_tensor.std(dim=(0, 2, 3))    # Std across batch, height, width
+        input_tensor.std(dim=(0, 2, 3))  # Std across batch, height, width
 
         # Update state layout telemetry for active seeds
         active_seeds = self.state_layout.get_active_seeds()
@@ -315,10 +381,12 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
             self.state_layout.update_telemetry(
                 seed_idx.item(),
                 latency_us=0,  # Would be measured in real implementation
-                health_score=health_score
+                health_score=health_score,
             )
 
-    def _compute_health_score(self, input_tensor: torch.Tensor, output_tensor: torch.Tensor) -> float:
+    def _compute_health_score(
+        self, input_tensor: torch.Tensor, output_tensor: torch.Tensor
+    ) -> float:
         """Compute health score based on normalization quality."""
         # Check if output channels are properly normalized
         channel_means = output_tensor.mean(dim=(0, 2, 3))
@@ -343,7 +411,11 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
         return {
             "active_adaptations": active_seeds.sum().item(),
             "total_seeds": len(active_seeds),
-            "adaptation_strength": self.state_layout.alpha_blend[active_seeds].mean().item() if active_seeds.any() else 0.0,
+            "adaptation_strength": (
+                self.state_layout.alpha_blend[active_seeds].mean().item()
+                if active_seeds.any()
+                else 0.0
+            ),
             "num_features": self.num_features,
             "eps": self.eps,
             "momentum": self.momentum,

@@ -12,7 +12,10 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+
+# Force CPU-only mode for tests to avoid CUDA device mismatches
 import torch
+torch.cuda.is_available = lambda: False
 
 # Suppress torch_geometric warnings for cleaner test output
 warnings.filterwarnings("ignore", category=UserWarning, module="torch_geometric")

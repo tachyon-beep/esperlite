@@ -246,10 +246,10 @@ class TamiyoTrainer:
 
         # Placeholder implementation - in a real system this would
         # convert ModelGraphState to proper graph tensors
-        # Use the same node feature dimension as PolicyConfig default (16)
+        # Use the same node feature dimension as PolicyConfig default (20 with gradient features)
         node_features = torch.randn(
-            batch_size * 4, 16, device=self.device
-        )  # 4 nodes per graph, 16 features
+            batch_size * 4, 20, device=self.device
+        )  # 4 nodes per graph, 20 features (includes gradient features)
 
         # Create edge indices for batch of graphs
         edge_indices = []

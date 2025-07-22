@@ -49,7 +49,7 @@ class PolicyConfig:
     """Enhanced configuration for production Tamiyo policy model."""
 
     # Enhanced GNN Architecture
-    node_feature_dim: int = 16  # Matches ModelGraphBuilder default
+    node_feature_dim: int = 20  # Matches ModelGraphBuilder with gradient features
     edge_feature_dim: int = 8  # Matches ModelGraphBuilder default
     hidden_dim: int = 128
     num_gnn_layers: int = 4
@@ -518,16 +518,34 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
 
     def _determine_adaptation_type(
         self,
-        _target_layer: str,
-        _model_state: ModelGraphState,
+        target_layer: str,
+        model_state: ModelGraphState,
         outputs: Dict[str, torch.Tensor],
     ) -> str:
-        """Determine the most appropriate adaptation type."""
+        """Determine the most appropriate adaptation type based on gradient analysis."""
         # Default adaptation types based on analysis
         urgency = outputs["urgency_score"].item()
         risk = outputs["risk_assessment"].item()
-
-        if urgency > 0.8:
+        
+        # Extract gradient information from global metrics
+        gradient_health = model_state.global_metrics.get("gradient_health", 0.5)
+        training_stability = model_state.global_metrics.get("training_stability", 0.5)
+        avg_gradient_norm = model_state.global_metrics.get("avg_gradient_norm", 1.0)
+        
+        # Gradient-informed adaptation decisions
+        if avg_gradient_norm > 10.0:
+            # Exploding gradients - need immediate stabilization
+            return "add_gradient_clipping"
+        elif avg_gradient_norm < 0.01:
+            # Vanishing gradients - need activation changes
+            return "add_residual_connection"
+        elif training_stability < 0.3:
+            # Unstable training - add normalization
+            return "add_batch_normalization"
+        elif gradient_health < 0.3 and urgency > 0.6:
+            # Poor gradient flow with urgency
+            return "add_skip_connection"
+        elif urgency > 0.8:
             return "emergency_stabilization"
         elif risk > 0.6:
             return "conservative_optimization"

@@ -27,6 +27,8 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+import torch
+
 from esper.contracts.operational import AdaptationDecision
 from esper.services.oona_client import OonaClient
 
@@ -165,7 +167,7 @@ class AutonomousTamiyoService:
             oona_client=oona_client, buffer_size=self.config.health_signal_buffer_size
         )
 
-        self.graph_builder = ModelGraphBuilder(node_feature_dim=16, edge_feature_dim=8)
+        self.graph_builder = ModelGraphBuilder(node_feature_dim=20, edge_feature_dim=8)
 
         # Enhanced policy with advanced features
         policy_config = policy_config or PolicyConfig(
@@ -184,10 +186,13 @@ class AutonomousTamiyoService:
             learning_rate=3e-4, batch_size=64, safety_loss_weight=1.0
         )
         self.policy_trainer = ProductionPolicyTrainer(
-            policy=self.policy,
-            policy_config=policy_config,
-            training_config=training_config,
-            reward_config=reward_config,
+            policy_network=self.policy,
+            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            learning_rate=training_config.learning_rate,
+            experience_buffer_size=100000,
+            batch_size=training_config.batch_size,
+            min_batch_size=training_config.min_buffer_size,
+            max_allowed_loss=10.0
         )
 
         # Service state

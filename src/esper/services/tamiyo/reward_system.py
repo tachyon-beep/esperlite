@@ -531,6 +531,10 @@ class MultiMetricRewardSystem:
                     ),
                     "stability": graph_state.global_metrics.get("stability", 0.5),
                     "error_rate": graph_state.global_metrics.get("error_rate", 0.0),
+                    "gradient_health": graph_state.global_metrics.get("gradient_health", 0.5),
+                    "training_stability": graph_state.global_metrics.get("training_stability", 0.5),
+                    "gradient_norm": graph_state.global_metrics.get("avg_gradient_norm", 1.0),
+                    "system_efficiency": graph_state.global_metrics.get("system_efficiency", 0.5),
                 }
             )
 
@@ -547,14 +551,22 @@ class MultiMetricRewardSystem:
 
         # From health signals
         if health_signals:
-            recent_signals = health_signals[-10:]  # Last 10 signals
+            recent_signals = list(health_signals)[-100:]  # Last 100 signals
             if recent_signals:
-                avg_health = np.mean([s.health_score for s in recent_signals])
-                avg_errors = np.mean([s.error_count for s in recent_signals])
-
-                metrics.update(
-                    {"avg_layer_health": avg_health, "avg_error_count": avg_errors}
-                )
+                metrics["avg_health_score"] = np.mean([s.health_score for s in recent_signals])
+                metrics["avg_error_count"] = np.mean([s.error_count for s in recent_signals])
+                metrics["avg_latency"] = np.mean([s.execution_latency for s in recent_signals])
+                
+                # Gradient metrics from health signals
+                metrics["avg_gradient_norm"] = np.mean([s.gradient_norm for s in recent_signals])
+                metrics["avg_gradient_variance"] = np.mean([s.gradient_variance for s in recent_signals])
+                metrics["avg_gradient_stability"] = np.mean([s.gradient_sign_stability for s in recent_signals])
+                metrics["avg_param_norm_ratio"] = np.mean([s.param_norm_ratio for s in recent_signals])
+                
+                # Performance metrics
+                metrics["avg_cache_hit_rate"] = np.mean([s.cache_hit_rate for s in recent_signals])
+                total_exec = sum(s.total_executions for s in recent_signals)
+                metrics["total_executions"] = total_exec
 
         return metrics
 
@@ -622,16 +634,36 @@ class MultiMetricRewardSystem:
         graph_state: ModelGraphState,
         decision: AdaptationDecision,
     ) -> float:
-        """Compute stability-based reward component."""
+        """Compute stability-based reward component with gradient awareness."""
         stability = current_metrics.get("stability", 0.5)
         error_rate = current_metrics.get("error_rate", 0.0)
         avg_errors = current_metrics.get("avg_error_count", 0.0)
+        
+        # Extract gradient metrics from graph state
+        gradient_health = graph_state.global_metrics.get("gradient_health", 0.5)
+        training_stability = graph_state.global_metrics.get("training_stability", 0.5)
+        avg_gradient_stability = graph_state.global_metrics.get("avg_gradient_stability", 0.5)
 
+        # Combine traditional stability with gradient stability
+        overall_stability = (stability + training_stability + avg_gradient_stability) / 3.0
+        
         # Higher stability and lower error rates are better
-        stability_score = stability
+        stability_score = overall_stability
         error_penalty = min(error_rate + avg_errors, 1.0)  # Cap penalty at 1.0
+        
+        # Additional penalty for poor gradient health
+        gradient_penalty = 0.0
+        if gradient_health < 0.3:
+            gradient_penalty = 0.3  # Significant penalty for unhealthy gradients
+        elif gradient_health < 0.5:
+            gradient_penalty = 0.1  # Moderate penalty
 
-        stability_reward = stability_score - error_penalty
+        stability_reward = stability_score - error_penalty - gradient_penalty
+        
+        # Bonus for improving gradient stability
+        if decision.adaptation_type in ["add_gradient_clipping", "add_batch_normalization", "add_residual_connection"]:
+            if gradient_health < 0.5 or training_stability < 0.5:
+                stability_reward += 0.2  # Bonus for addressing gradient issues
 
         # Penalty for decisions that target stable layers without strong justification
         if (

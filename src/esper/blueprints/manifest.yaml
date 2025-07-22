@@ -1,0 +1,106 @@
+# Esper Blueprint Library Manifest
+# Version: 1.0.0
+# Generated: 2025-01-22
+# Purpose: Production-ready blueprint templates for Tamiyo morphogenetic adaptation
+
+version: "1.0.0"
+description: "Phase 2 blueprint library for 1-3B parameter MoE models"
+
+# Blueprint categories with descriptions
+categories:
+  transformer:
+    description: "Attention and feed-forward components for transformer architectures"
+    count: 5
+  moe:
+    description: "Mixture-of-Experts routing and expert components"
+    count: 5
+  efficiency:
+    description: "Parameter-efficient adaptation methods"
+    count: 3
+  routing:
+    description: "Distributed computing and load balancing"
+    count: 2
+  diagnostics:
+    description: "Monitoring and safety mechanisms"
+    count: 2
+
+# Global configuration for Tamiyo integration
+tamiyo_config:
+  # Default weights for reward computation
+  reward_weights:
+    accuracy_improvement: 1.0
+    speed_improvement: 0.6
+    memory_efficiency: 0.4
+    stability_improvement: 0.8
+    adaptation_cost: -0.3
+    risk_penalty: -0.5
+  
+  # Safety thresholds
+  safety:
+    max_risk_score: 0.5
+    min_confidence: 0.7
+    cooldown_steps: 100
+  
+  # Resource constraints
+  constraints:
+    max_memory_overhead_mb: 1024
+    max_latency_overhead_ms: 10.0
+    max_param_increase_ratio: 0.2
+
+# Blueprint metadata summary
+blueprints_summary:
+  - category: transformer
+    ids:
+      - BP-ATTN-STD        # Standard multi-head attention
+      - BP-ATTN-SPLIT-QK   # Split Q/KV attention
+      - BP-MLP-GELU-2048   # FFN with GELU
+      - BP-MLP-SWIGLU-4096 # SwiGLU FFN
+      - BP-LN-RMS          # RMSNorm layer
+    
+  - category: moe
+    ids:
+      - BP-ROUTER-TOP2          # Top-2 router
+      - BP-EXPERT-MLP-1D        # Plain expert MLP
+      - BP-EXPERT-MLP-SWIGLU    # SwiGLU expert
+      - BP-CAP-FUSE-HFFN        # Capacity fusion
+      - BP-ROUTER-MOE-AUXLOSS   # Router with aux loss
+    
+  - category: efficiency
+    ids:
+      - BP-PROJ-LoRA-64    # Low-rank adapter
+      - BP-PROJ-IA3        # IA³ gain vector
+      - BP-KV-CACHE-8BIT   # 8-bit KV cache
+    
+  - category: routing
+    ids:
+      - BP-ALL-REDUCE-SHARD  # All-reduce kernel
+      - BP-LOAD-BAL-EMA      # EMA load balancer
+    
+  - category: diagnostics
+    ids:
+      - BP-MON-ACT-STATS     # Activation monitor
+      - BP-CLAMP-GRAD-NORM   # Gradient clamping
+
+# Version compatibility matrix
+compatibility:
+  esper_version: ">=0.2.0"
+  pytorch_version: ">=2.2.0"
+  python_version: ">=3.12"
+  
+# Hardware requirements
+hardware_requirements:
+  minimum:
+    gpu_memory_gb: 16
+    compute_capability: "7.0"  # Volta or newer
+  recommended:
+    gpu_memory_gb: 40
+    compute_capability: "8.0"  # Ampere or newer
+    multi_gpu: true
+
+# Notes for Tamiyo integration
+integration_notes:
+  - "All blueprints include metadata for GNN feature extraction"
+  - "Risk scores calibrated for production safety"
+  - "Temporal characteristics based on empirical observations"
+  - "Compatible layer lists validated against current Kasmina implementation"
+  - "Memory footprints include both parameter and activation memory"

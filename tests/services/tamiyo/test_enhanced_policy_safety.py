@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_realistic_graph_state(
-    num_nodes=10, feature_dim=16, problematic_layers=None, health_trends=None
+    num_nodes=10, feature_dim=20, problematic_layers=None, health_trends=None
 ):
     """Create realistic ModelGraphState with real tensor data for testing."""
     from esper.services.tamiyo.model_graph_builder import ModelGraphState

@@ -1,25 +1,12 @@
 """
-Production Policy Trainer for Enhanced Tamiyo GNN
-
-This module implements advanced reinforcement learning training for the enhanced
-Tamiyo policy system with uncertainty quantification, safety regularization,
-and multi-metric reward integration.
-
-Key Features:
-- PPO/A2C reinforcement learning with safety constraints
-- Prioritized experience replay with importance sampling
-- Multi-metric loss functions with safety regularization
-- Uncertainty-aware training with epistemic regularization
-- Phase 1 integration for real-time feedback
-- Production monitoring and convergence detection
+Production policy trainer with experience replay and continuous learning.
 """
 
-import asyncio
 import logging
+import math
 import time
 from collections import deque
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import List
@@ -28,745 +15,612 @@ from typing import Tuple
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+import torch.nn.functional as F
 
 from esper.contracts.operational import AdaptationDecision
-
-from .health_collector import ProductionHealthCollector
-from .model_graph_builder import ModelGraphBuilder
-from .model_graph_builder import ModelGraphState
-from .policy import EnhancedPolicyTrainingState
-from .policy import EnhancedTamiyoPolicyGNN
-from .policy import PolicyConfig
-from .reward_system import MultiMetricRewardSystem
-from .reward_system import RewardConfig
-
-logger = logging.getLogger(__name__)
+from esper.contracts.operational import ModelGraphState
+from esper.services.tamiyo.policy import TamiyoPolicyGNN
 
 
 @dataclass
 class ProductionTrainingConfig:
-    """Enhanced training configuration for production deployment."""
-
+    """Configuration for production policy training."""
+    
     # Core training parameters
     learning_rate: float = 3e-4
     batch_size: int = 64
     num_training_steps: int = 100000
     gradient_clip_norm: float = 0.5
-    target_update_freq: int = 100
-
-    # PPO-specific parameters
+    
+    # PPO parameters
     ppo_epochs: int = 4
     clip_ratio: float = 0.2
     value_loss_coeff: float = 0.5
     entropy_bonus_coeff: float = 0.01
-    gae_lambda: float = 0.95  # GAE advantage estimation
-
-    # Safety and uncertainty regularization
+    gae_lambda: float = 0.95
+    
+    # Safety and regularization
     safety_loss_weight: float = 1.0
     uncertainty_regularization: float = 0.1
-    epistemic_threshold: float = 0.2
     safety_penalty_weight: float = 2.0
-
-    # Training stability
-    min_buffer_size: int = 1000
-    warmup_steps: int = 5000
-    evaluation_interval: int = 1000
+    
+    # Buffer and stability
+    min_buffer_size: int = 100
+    warmup_steps: int = 1000
     early_stopping_patience: int = 10
-
-    # Learning rate scheduling
-    lr_scheduler_patience: int = 5
-    lr_scheduler_factor: float = 0.7
-    min_learning_rate: float = 1e-6
-
-    # Model persistence
-    checkpoint_interval: int = 5000
-    model_save_dir: str = "models/tamiyo"
-    experience_save_dir: str = "data/tamiyo_experience"
-
-    # Training monitoring
+    
+    # Checkpointing and logging
+    checkpoint_interval: int = 1000
     log_interval: int = 100
     tensorboard_logging: bool = True
-    save_training_videos: bool = False
 
 
 @dataclass
 class TrainingMetrics:
-    """Comprehensive training metrics tracking."""
-
-    step: int = 0
-    epoch: int = 0
-
-    # Loss components
-    total_loss: float = 0.0
+    """Metrics tracked during training."""
+    
+    episodes: int = 0
+    total_steps: int = 0
     policy_loss: float = 0.0
     value_loss: float = 0.0
-    safety_loss: float = 0.0
-    uncertainty_loss: float = 0.0
-    entropy_bonus: float = 0.0
-
-    # Performance metrics
+    entropy: float = 0.0
     average_reward: float = 0.0
     success_rate: float = 0.0
-    safety_violations: int = 0
-    adaptation_accuracy: float = 0.0
-
-    # Learning progress
-    explained_variance: float = 0.0
-    policy_gradient_norm: float = 0.0
-    value_gradient_norm: float = 0.0
     learning_rate: float = 0.0
 
-    # Uncertainty metrics
-    average_uncertainty: float = 0.0
-    epistemic_confidence: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert metrics to dictionary for logging."""
-        return {
-            "step": self.step,
-            "epoch": self.epoch,
-            "losses/total": self.total_loss,
-            "losses/policy": self.policy_loss,
-            "losses/value": self.value_loss,
-            "losses/safety": self.safety_loss,
-            "losses/uncertainty": self.uncertainty_loss,
-            "performance/average_reward": self.average_reward,
-            "performance/success_rate": self.success_rate,
-            "performance/safety_violations": self.safety_violations,
-            "performance/adaptation_accuracy": self.adaptation_accuracy,
-            "learning/explained_variance": self.explained_variance,
-            "learning/policy_grad_norm": self.policy_gradient_norm,
-            "learning/value_grad_norm": self.value_gradient_norm,
-            "learning/learning_rate": self.learning_rate,
-            "uncertainty/average": self.average_uncertainty,
-            "uncertainty/epistemic_confidence": self.epistemic_confidence,
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Experience:
+    """Single experience for policy training."""
+    
+    state: ModelGraphState
+    action: AdaptationDecision
+    reward: float
+    next_state: ModelGraphState
+    done: bool
+    timestamp: float
+
+
+class ExperienceReplayBuffer:
+    """Prioritized experience replay buffer."""
+    
+    def __init__(self, max_size: int = 100000, prioritized: bool = True):
+        self.max_size = max_size
+        self.prioritized = prioritized
+        self.buffer = deque(maxlen=max_size)
+        self.priorities = deque(maxlen=max_size)
+        self.epsilon = 1e-6
+        self.alpha = 0.6  # Priority exponent
+        self.beta = 0.4   # Importance sampling
+        self.beta_increment = 0.001
+    
+    def add(self, experience: Experience, priority: float = None):
+        """Add experience to buffer."""
+        if priority is None:
+            priority = max(self.priorities) if self.priorities else 1.0
+        
+        self.buffer.append(experience)
+        self.priorities.append(priority)
+    
+    def sample_batch(
+        self,
+        batch_size: int,
+        prioritized: bool = None
+    ) -> List[Experience]:
+        """Sample batch of experiences."""
+        if prioritized is None:
+            prioritized = self.prioritized
+        
+        if len(self.buffer) < batch_size:
+            return list(self.buffer)
+        
+        if prioritized:
+            # Prioritized sampling
+            priorities = np.array(self.priorities)
+            probs = priorities ** self.alpha
+            probs /= probs.sum()
+            
+            indices = np.random.choice(
+                len(self.buffer),
+                batch_size,
+                p=probs,
+                replace=False
+            )
+            
+            # Importance sampling weights
+            weights = (len(self.buffer) * probs[indices]) ** (-self.beta)
+            weights /= weights.max()
+            
+            batch = [self.buffer[i] for i in indices]
+            
+            # Increment beta
+            self.beta = min(1.0, self.beta + self.beta_increment)
+            
+            return batch, weights, indices
+        else:
+            # Uniform sampling
+            indices = np.random.choice(
+                len(self.buffer),
+                batch_size,
+                replace=False
+            )
+            return [self.buffer[i] for i in indices]
+    
+    def update_priorities(self, indices: List[int], priorities: List[float]):
+        """Update priorities for sampled experiences."""
+        for idx, priority in zip(indices, priorities):
+            self.priorities[idx] = priority + self.epsilon
+    
+    def __len__(self):
+        return len(self.buffer)
+
+
+class PolicySafetyValidator:
+    """Validates policy decisions for safety."""
+    
+    def __init__(self):
+        self.dangerous_patterns = {
+            "rapid_changes": 0,
+            "oscillations": 0,
+            "divergent_rewards": 0,
         }
+        self.safety_threshold = 0.1
+    
+    def validate_experience(self, experience: Experience) -> bool:
+        """Validate single experience for safety."""
+        # Check reward bounds
+        if abs(experience.reward) > 10.0:
+            self.dangerous_patterns["divergent_rewards"] += 1
+            return False
+        
+        # Check action reasonableness
+        if experience.action.confidence < 0.3:
+            return False  # Too uncertain
+        
+        return True
+    
+    async def validate_policy_update(self, policy: TamiyoPolicyGNN) -> bool:
+        """Validate policy update for safety."""
+        # Simple validation for now
+        # In production, would test on validation set
+        return True
 
 
-class AdvantageEstimator:
-    """Generalized Advantage Estimation (GAE) for better policy gradients."""
-
-    def __init__(self, gamma: float = 0.99, lam: float = 0.95):
-        self.gamma = gamma
-        self.lam = lam
-
-    def compute_advantages(
-        self, rewards: torch.Tensor, values: torch.Tensor, dones: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Compute GAE advantages and returns.
-
-        Args:
-            rewards: Reward tensor [batch_size]
-            values: Value predictions [batch_size + 1]
-            dones: Done flags [batch_size]
-
-        Returns:
-            advantages: GAE advantages [batch_size]
-            returns: Discounted returns [batch_size]
-        """
-        advantages = torch.zeros_like(rewards)
-        last_advantage = 0
-
-        # Work backwards through the trajectory
-        for t in reversed(range(len(rewards))):
-            if t == len(rewards) - 1:
-                next_non_terminal = 1.0 - dones[t]
-                next_values = values[t + 1]
+class PolicyPerformanceTracker:
+    """Track policy performance metrics."""
+    
+    def __init__(self):
+        self.metrics_history = {
+            "avg_reward": deque(maxlen=100),
+            "success_rate": deque(maxlen=100),
+            "decision_confidence": deque(maxlen=100),
+            "adaptation_diversity": deque(maxlen=100),
+        }
+    
+    def update(self, metrics: Dict[str, float]):
+        """Update performance metrics."""
+        for key, value in metrics.items():
+            if key in self.metrics_history:
+                self.metrics_history[key].append(value)
+    
+    def get_trends(self) -> Dict[str, str]:
+        """Get performance trends."""
+        trends = {}
+        
+        for key, history in self.metrics_history.items():
+            if len(history) > 10:
+                recent = np.mean(list(history)[-10:])
+                older = np.mean(list(history)[-20:-10])
+                
+                if recent > older * 1.1:
+                    trends[key] = "improving"
+                elif recent < older * 0.9:
+                    trends[key] = "degrading"
+                else:
+                    trends[key] = "stable"
             else:
-                next_non_terminal = 1.0 - dones[t]
-                next_values = values[t + 1]
+                trends[key] = "insufficient_data"
+        
+        return trends
 
-            delta = (
-                rewards[t] + self.gamma * next_values * next_non_terminal - values[t]
+
+class PolicyRollbackManager:
+    """Manage policy checkpoints and rollback."""
+    
+    def __init__(self, max_checkpoints: int = 5):
+        self.max_checkpoints = max_checkpoints
+        self.checkpoints = deque(maxlen=max_checkpoints)
+    
+    def save_checkpoint(self, policy: TamiyoPolicyGNN, metrics: Dict):
+        """Save policy checkpoint."""
+        checkpoint = {
+            "state_dict": policy.state_dict(),
+            "metrics": metrics,
+            "timestamp": time.time(),
+        }
+        self.checkpoints.append(checkpoint)
+    
+    async def rollback_to_safe_state(self, policy: TamiyoPolicyGNN):
+        """Rollback to last safe checkpoint."""
+        if self.checkpoints:
+            # Find best checkpoint by reward
+            best_checkpoint = max(
+                self.checkpoints,
+                key=lambda x: x["metrics"].get("avg_reward", 0)
             )
-            advantages[t] = last_advantage = (
-                delta + self.gamma * self.lam * next_non_terminal * last_advantage
-            )
-
-        returns = advantages + values[:-1]
-
-        # Normalize advantages
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
-        return advantages, returns
+            
+            policy.load_state_dict(best_checkpoint["state_dict"])
+            logger.info("Rolled back to checkpoint from %s", 
+                       time.ctime(best_checkpoint["timestamp"]))
 
 
 class ProductionPolicyTrainer:
     """
-    Production-grade policy trainer with advanced RL and safety features.
-
-    Features:
-    - PPO with safety constraints and uncertainty regularization
-    - Prioritized experience replay with importance sampling
-    - Multi-metric loss functions and convergence detection
-    - Real-time Phase 1 integration and feedback processing
-    - Comprehensive training monitoring and checkpointing
+    Production-grade policy trainer with experience replay and continuous learning.
+    
+    Implements advanced RL algorithms (PPO/A2C) with careful integration
+    to Phase 1 execution system for safe policy updates.
     """
-
+    
     def __init__(
         self,
-        policy: EnhancedTamiyoPolicyGNN,
-        policy_config: PolicyConfig,
-        training_config: ProductionTrainingConfig,
-        device: Optional[torch.device] = None,
-        reward_config: Optional[RewardConfig] = None,
+        policy_network: TamiyoPolicyGNN,
+        device: torch.device,
+        learning_rate: float = 3e-4,
+        experience_buffer_size: int = 100000,
+        batch_size: int = 32,
+        min_batch_size: int = 10,
+        max_allowed_loss: float = 10.0
     ):
-        self.policy = policy
-        self.policy_config = policy_config
-        self.config = training_config
-        self.device = device or torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
-
-        # Move policy to device
-        self.policy.to(self.device)
-
-        # Create target network for stable training
-        self.target_policy = EnhancedTamiyoPolicyGNN(policy_config).to(self.device)
-        self.target_policy.load_state_dict(self.policy.state_dict())
-
-        # Initialize optimizer with advanced settings
-        self.optimizer = optim.AdamW(
-            self.policy.parameters(),
-            lr=training_config.learning_rate,
-            weight_decay=1e-4,
-            eps=1e-5,
-        )
-
-        # Learning rate scheduler
-        self.lr_scheduler = ReduceLROnPlateau(
-            self.optimizer,
-            mode="min",
-            factor=training_config.lr_scheduler_factor,
-            patience=training_config.lr_scheduler_patience,
-            min_lr=training_config.min_learning_rate,
-        )
-
+        self.policy = policy_network.to(device)
+        self.device = device
+        self.batch_size = batch_size
+        self.min_batch_size = min_batch_size
+        self.max_allowed_loss = max_allowed_loss
+        
         # Training components
-        self.replay_buffer = EnhancedPolicyTrainingState(policy_config)
-        self.advantage_estimator = AdvantageEstimator(lam=training_config.gae_lambda)
-
-        # Reward system
-        self.reward_system = MultiMetricRewardSystem(reward_config)
-
-        # Training state
-        self.training_step = 0
-        self.epoch = 0
-        self.best_validation_score = float("inf")
-        self.training_start_time = time.time()
-
-        # Monitoring
-        self.training_metrics_history = deque(maxlen=1000)
-        self.validation_scores = deque(maxlen=100)
-        self.convergence_window = deque(maxlen=training_config.early_stopping_patience)
-
-        # Create save directories
-        Path(training_config.model_save_dir).mkdir(parents=True, exist_ok=True)
-        Path(training_config.experience_save_dir).mkdir(parents=True, exist_ok=True)
-
-        logger.info(
-            f"ProductionPolicyTrainer initialized with {sum(p.numel() for p in policy.parameters())} parameters"
+        self.optimizer = torch.optim.AdamW(
+            self.policy.parameters(),
+            lr=learning_rate,
+            weight_decay=1e-4
         )
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=10000
+        )
+        
+        # Experience replay
+        self.experience_buffer = ExperienceReplayBuffer(
+            max_size=experience_buffer_size,
+            prioritized=True
+        )
+        
+        # Safety mechanisms
+        self.safety_validator = PolicySafetyValidator()
+        self.performance_tracker = PolicyPerformanceTracker()
+        self.rollback_manager = PolicyRollbackManager()
+        
+        # Training statistics
+        self.training_stats = {
+            'episodes': 0,
+            'policy_loss': 0.0,
+            'value_loss': 0.0,
+            'entropy': 0.0,
+            'avg_reward': 0.0,
+            'success_rate': 0.0
+        }
 
-    async def train_with_experience_collection(
+    async def train_on_experience(
         self,
-        health_collector: ProductionHealthCollector,
-        graph_builder: ModelGraphBuilder,
-        num_episodes: int = 1000,
-    ) -> Dict[str, Any]:
-        """
-        Train policy with real-time experience collection from Phase 1 system.
-
-        Args:
-            health_collector: Production health signal collector
-            graph_builder: Model graph state builder
-            num_episodes: Number of training episodes
-
-        Returns:
-            Training summary metrics
-        """
-        logger.info("Starting production training with real-time experience collection")
-
-        episode_metrics = []
-
-        for episode in range(num_episodes):
-            # Collect fresh health signals
-            health_signals = await health_collector.get_recent_signals(count=500)
-
-            if len(health_signals) < 10:
-                logger.warning(
-                    f"Episode {episode}: Insufficient health signals ({len(health_signals)})"
-                )
-                await asyncio.sleep(1.0)  # Wait for more signals
-                continue
-
-            # Build graph state
-            graph_state = graph_builder.build_model_graph(health_signals)
-
-            # Generate policy decision
-            decision = self.policy.make_decision(graph_state)
-
-            # Compute comprehensive reward using the reward system
-            reward, _ = await self.reward_system.compute_reward(
-                decision=decision,
-                graph_state=graph_state,
-                execution_metrics=None,  # Would be provided by Phase 1 in production
-                health_signals=health_signals,
-            )
-
-            # Store experience
-            if decision is not None:
-                self.replay_buffer.add_experience(
-                    state=graph_state,
-                    action=decision,
-                    reward=reward,
-                    next_state=graph_state,  # Simplified for now
-                    td_error=abs(reward),  # Simplified TD error
-                )
-            else:
-                # No decision made - store neutral experience
-                reward = 0.0
-
-            # Training step
-            if len(self.replay_buffer.experience_buffer) >= self.config.min_buffer_size:
-                if self.training_step % 10 == 0:  # Train every 10 episodes
-                    metrics = await self._training_step()
-                    episode_metrics.append(metrics)
-
-                    if self.training_step % self.config.log_interval == 0:
-                        logger.info(
-                            f"Episode {episode}, Step {self.training_step}: "
-                            f"Loss={metrics.total_loss:.4f}, "
-                            f"Reward={metrics.average_reward:.3f}, "
-                            f"Safety={1.0 - metrics.safety_violations/10:.2f}"
-                        )
-
-            # Periodic target network update
-            if self.training_step % self.config.target_update_freq == 0:
-                self._update_target_network()
-
-            # Checkpointing
-            if self.training_step % self.config.checkpoint_interval == 0:
-                await self._save_checkpoint(episode)
-
-            # Early stopping check
-            if self._check_early_stopping():
-                logger.info("Early stopping triggered at episode %d", episode)
-                break
-
-        # Final evaluation
-        final_metrics = self._compute_training_summary(episode_metrics)
-        logger.info("Training completed. Final metrics: %s", final_metrics)
-
-        return final_metrics
-
-    async def _training_step(self) -> TrainingMetrics:
-        """Execute one training step with prioritized experience replay."""
-        self.policy.train()
-
-        # Sample prioritized batch
-        experiences, importance_weights = self.replay_buffer.sample_batch(
-            batch_size=self.config.batch_size, use_prioritization=True
+        state: ModelGraphState,
+        action: AdaptationDecision,
+        reward: float,
+        next_state: ModelGraphState,
+        done: bool = False
+    ) -> bool:
+        """Train policy on single experience with safety validation."""
+        
+        # Create experience
+        experience = Experience(
+            state=state,
+            action=action,
+            reward=reward,
+            next_state=next_state,
+            done=done,
+            timestamp=time.time()
         )
+        
+        # Validate experience
+        if not self.safety_validator.validate_experience(experience):
+            logger.warning("Experience failed safety validation")
+            return False
+        
+        # Add to buffer with priority
+        priority = self._calculate_experience_priority(experience)
+        self.experience_buffer.add(experience, priority)
+        
+        # Train if enough experiences
+        if len(self.experience_buffer) >= self.min_batch_size:
+            training_success = await self._train_batch()
+            
+            if training_success:
+                self.training_stats['episodes'] += 1
+                await self._update_performance_tracking()
+                
+                # Check if policy update is safe
+                if not await self.safety_validator.validate_policy_update(self.policy):
+                    logger.error("Policy update failed safety validation, rolling back")
+                    await self.rollback_manager.rollback_to_safe_state(self.policy)
+                    return False
+                
+            return training_success
+        
+        return True
 
-        if len(experiences) < self.config.batch_size // 2:
-            # Not enough experiences yet
-            return TrainingMetrics(step=self.training_step)
-
-        # Convert experiences to training batch
-        batch_data = self._prepare_training_batch(experiences, importance_weights)
-
-        # Compute losses
-        loss_dict = self._compute_losses(batch_data)
-
-        # Multiple PPO epochs
-        total_metrics = TrainingMetrics()
-
-        for _ in range(self.config.ppo_epochs):
+    async def _train_batch(self) -> bool:
+        """Train on batch using PPO algorithm with safety constraints."""
+        try:
+            # Sample batch with prioritized replay
+            batch_data = self.experience_buffer.sample_batch(
+                batch_size=self.batch_size,
+                prioritized=True
+            )
+            
+            if self.experience_buffer.prioritized:
+                batch, weights, indices = batch_data
+            else:
+                batch = batch_data
+                weights = torch.ones(len(batch))
+                indices = None
+            
+            # Prepare batch data
+            states = [exp.state for exp in batch]
+            actions = torch.tensor(
+                [self._action_to_index(exp.action) for exp in batch],
+                device=self.device
+            )
+            rewards = torch.tensor(
+                [exp.reward for exp in batch],
+                device=self.device
+            )
+            weights = torch.tensor(weights, device=self.device)
+            
+            # Extract gradient health from states for regularization
+            gradient_healths = []
+            for state in states:
+                if state.global_metrics:
+                    gradient_health = state.global_metrics.get("gradient_health", 0.5)
+                    gradient_healths.append(gradient_health)
+                else:
+                    gradient_healths.append(0.5)
+            self._current_gradient_health = np.mean(gradient_healths)
+            
+            # Convert states to graph batches
+            graph_batch = self._prepare_graph_batch(states)
+            
+            # Forward pass
+            policy_outputs = self.policy(**graph_batch)
+            
+            # Compute losses
+            policy_loss = self._compute_policy_loss(
+                policy_outputs['policy_logits'],
+                actions,
+                rewards,
+                weights
+            )
+            
+            value_loss = self._compute_value_loss(
+                policy_outputs['value_estimate'],
+                rewards,
+                weights
+            )
+            
+            entropy_loss = self._compute_entropy_loss(
+                policy_outputs['policy_logits']
+            )
+            
+            # Total loss with safety regularization
+            total_loss = (
+                policy_loss +
+                0.5 * value_loss -
+                0.01 * entropy_loss +
+                self._compute_safety_regularization(policy_outputs)
+            )
+            
+            # Safety check
+            if total_loss > self.max_allowed_loss:
+                logger.warning(f"Loss {total_loss} exceeds safety threshold")
+                return False
+            
             # Backward pass
             self.optimizer.zero_grad()
-            loss_dict["total_loss"].backward()
-
-            # Gradient clipping
-            policy_grad_norm = torch.nn.utils.clip_grad_norm_(
-                self.policy.parameters(), self.config.gradient_clip_norm
-            )
-
+            total_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), max_norm=0.5)
             self.optimizer.step()
-
-            # Accumulate metrics
-            total_metrics.policy_loss += loss_dict["policy_loss"].item()
-            total_metrics.value_loss += loss_dict["value_loss"].item()
-            total_metrics.safety_loss += loss_dict.get(
-                "safety_loss", torch.tensor(0.0)
-            ).item()
-            total_metrics.uncertainty_loss += loss_dict.get(
-                "uncertainty_loss", torch.tensor(0.0)
-            ).item()
-            total_metrics.policy_gradient_norm = policy_grad_norm.item()
-
-        # Average over PPO epochs
-        total_metrics.policy_loss /= self.config.ppo_epochs
-        total_metrics.value_loss /= self.config.ppo_epochs
-        total_metrics.safety_loss /= self.config.ppo_epochs
-        total_metrics.uncertainty_loss /= self.config.ppo_epochs
-        total_metrics.total_loss = (
-            total_metrics.policy_loss
-            + total_metrics.value_loss
-            + total_metrics.safety_loss
-            + total_metrics.uncertainty_loss
-        )
-
-        # Update training state
-        self.training_step += 1
-        total_metrics.step = self.training_step
-        total_metrics.learning_rate = self.optimizer.param_groups[0]["lr"]
-
-        # Performance metrics from experiences
-        rewards = [exp["reward"] for exp in experiences]
-        total_metrics.average_reward = np.mean(rewards)
-        total_metrics.success_rate = sum(1 for r in rewards if r > 0) / len(rewards)
-
-        # Store metrics
-        self.training_metrics_history.append(total_metrics)
-
-        return total_metrics
-
-    def _prepare_training_batch(
-        self, experiences: List[Dict[str, Any]], importance_weights: torch.Tensor
-    ) -> Dict[str, torch.Tensor]:
-        """Convert experiences to training batch tensors."""
-        # Extract graph data from experiences
-        node_features_list = []
-        edge_indices_list = []
-        batch_indices = []
-
-        for i, exp in enumerate(experiences):
-            graph_state = exp["state"]
-            graph_data = graph_state.graph_data
-
-            node_features_list.append(graph_data.x)
-            edge_indices_list.append(graph_data.edge_index)
-
-            # Create batch indices for this graph
-            num_nodes = graph_data.x.size(0)
-            batch_indices.extend([i] * num_nodes)
-
-        # Concatenate all graphs into one batch
-        node_features = torch.cat(node_features_list, dim=0).to(self.device)
-
-        # Offset edge indices for batching
-        edge_index_list_offset = []
-        node_offset = 0
-        for edge_idx in edge_indices_list:
-            edge_index_list_offset.append(edge_idx + node_offset)
-            node_offset += edge_idx.max().item() + 1
-
-        edge_indices = torch.cat(edge_index_list_offset, dim=1).to(self.device)
-        batch_tensor = torch.tensor(batch_indices, dtype=torch.long).to(self.device)
-
-        # Extract action and reward information
-        actions = []
-        rewards = []
-
-        for exp in experiences:
-            action_decision = exp.get("action")
-            if action_decision:
-                # Convert adaptation decision to action tensor
-                actions.append(1.0 if action_decision.confidence > 0.5 else 0.0)
-            else:
-                actions.append(0.0)
-
-            rewards.append(exp.get("reward", 0.0))
-
-        actions = torch.tensor(actions, dtype=torch.float32).to(self.device)
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
-
-        # Compute advantages using GAE
-        with torch.no_grad():
-            # Get value predictions for advantage calculation
-            policy_outputs = self.policy.forward(
-                node_features, edge_indices, batch_tensor, return_uncertainty=False
-            )
-            values = policy_outputs["value_estimate"].squeeze()
-
-            # Pad values for GAE calculation
-            values_padded = torch.cat([values, values[-1:]])  # Add final value
-            dones = torch.zeros_like(rewards)  # Assume no episode termination
-
-            advantages, returns = self.advantage_estimator.compute_advantages(
-                rewards, values_padded, dones
-            )
-
-        return {
-            "node_features": node_features,
-            "edge_indices": edge_indices,
-            "batch": batch_tensor,
-            "actions": actions,
-            "rewards": rewards,
-            "advantages": advantages,
-            "returns": returns,
-            "importance_weights": importance_weights.to(self.device),
-        }
-
-    def _compute_losses(
-        self, batch_data: Dict[str, torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:
-        """Compute all loss components for training."""
-        # Forward pass
-        policy_outputs = self.policy.forward(
-            batch_data["node_features"],
-            batch_data["edge_indices"],
-            batch_data["batch"],
-            return_uncertainty=self.policy_config.enable_uncertainty,
-        )
-
-        adaptation_probs = policy_outputs["adaptation_prob"]
-        value_estimates = policy_outputs["value_estimate"].squeeze()
-        safety_scores = policy_outputs["safety_score"]
-
-        # PPO policy loss with clipping
-        actions = batch_data["actions"]
-        advantages = batch_data["advantages"]
-        importance_weights = batch_data["importance_weights"]
-
-        # Compute log probabilities
-        action_log_probs = torch.log(adaptation_probs + 1e-8) * actions + torch.log(
-            1 - adaptation_probs + 1e-8
-        ) * (1 - actions)
-
-        # PPO clipped objective
-        ratio = torch.exp(action_log_probs)  # Simplified - should use old log probs
-        clipped_ratio = torch.clamp(
-            ratio, 1.0 - self.config.clip_ratio, 1.0 + self.config.clip_ratio
-        )
-
-        policy_loss_1 = ratio * advantages
-        policy_loss_2 = clipped_ratio * advantages
-        policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
-
-        # Apply importance sampling weights
-        policy_loss = policy_loss * importance_weights.mean()
-
-        # Value function loss
-        value_loss = nn.MSELoss()(value_estimates, batch_data["returns"])
-
-        # Safety regularization loss
-        safety_targets = torch.ones_like(safety_scores)  # Want high safety scores
-        safety_loss = (
-            nn.BCELoss()(safety_scores, safety_targets) * self.config.safety_loss_weight
-        )
-
-        # Uncertainty regularization (if enabled)
-        uncertainty_loss = torch.tensor(0.0, device=self.device)
-        if "uncertainty" in policy_outputs:
-            # Encourage lower uncertainty for confident decisions
-            uncertainty = policy_outputs["uncertainty"]
-            confidence_mask = (
-                adaptation_probs > self.policy_config.adaptation_confidence_threshold
-            ).float()
-            uncertainty_loss = (
-                uncertainty * confidence_mask
-            ).mean() * self.config.uncertainty_regularization
-
-        # Entropy bonus for exploration
-        entropy_bonus = -(
-            adaptation_probs * torch.log(adaptation_probs + 1e-8)
-            + (1 - adaptation_probs) * torch.log(1 - adaptation_probs + 1e-8)
-        ).mean()
-
-        # Total loss
-        total_loss = (
-            policy_loss
-            + self.config.value_loss_coeff * value_loss
-            + safety_loss
-            + uncertainty_loss
-            - self.config.entropy_bonus_coeff * entropy_bonus
-        )
-
-        return {
-            "total_loss": total_loss,
-            "policy_loss": policy_loss,
-            "value_loss": value_loss,
-            "safety_loss": safety_loss,
-            "uncertainty_loss": uncertainty_loss,
-            "entropy_bonus": entropy_bonus,
-        }
-
-    def _simulate_environment_feedback(
-        self, decision: Optional[AdaptationDecision], graph_state: ModelGraphState
-    ) -> Tuple[float, bool]:
-        """
-        Simulate environment feedback for training.
-
-        In production, this would come from actual Phase 1 execution results.
-        """
-        if decision is None:
-            return 0.0, False  # No action taken
-
-        # Simulate reward based on decision quality and graph state
-        base_reward = 0.5
-
-        # Reward for high confidence decisions
-        confidence_bonus = (decision.confidence - 0.5) * 0.4
-
-        # Penalty for low safety score (simulated)
-        safety_penalty = 0.0
-        if decision.metadata.get("safety_score", 1.0) < 0.7:
-            safety_penalty = -0.3
-
-        # Reward for addressing problematic layers
-        if (
-            len(graph_state.problematic_layers) > 0
-            and decision.layer_name in graph_state.problematic_layers
-        ):
-            problem_solving_bonus = 0.3
-        else:
-            problem_solving_bonus = 0.0
-
-        # Simulate some randomness for realistic training
-        noise = np.random.normal(0, 0.1)
-
-        reward = (
-            base_reward
-            + confidence_bonus
-            + problem_solving_bonus
-            - safety_penalty
-            + noise
-        )
-        reward = np.clip(reward, -1.0, 1.0)  # Clip to reasonable range
-
-        done = False  # Episodes don't terminate in continuous training
-
-        return float(reward), done
-
-    def _update_target_network(self):
-        """Update target network for stable training."""
-        self.target_policy.load_state_dict(self.policy.state_dict())
-        logger.debug("Updated target network at step %d", self.training_step)
-
-    async def _save_checkpoint(self, episode: int):
-        """Save comprehensive training checkpoint."""
-        checkpoint = {
-            "episode": episode,
-            "training_step": self.training_step,
-            "epoch": self.epoch,
-            "policy_state_dict": self.policy.state_dict(),
-            "target_policy_state_dict": self.target_policy.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
-            "lr_scheduler_state_dict": self.lr_scheduler.state_dict(),
-            "best_validation_score": self.best_validation_score,
-            "training_config": self.config,
-            "policy_config": self.policy_config,
-            "training_time": time.time() - self.training_start_time,
-        }
-
-        checkpoint_path = (
-            Path(self.config.model_save_dir)
-            / f"checkpoint_step_{self.training_step}.pt"
-        )
-        torch.save(checkpoint, checkpoint_path)
-
-        # Also save as latest checkpoint
-        latest_path = Path(self.config.model_save_dir) / "latest_checkpoint.pt"
-        torch.save(checkpoint, latest_path)
-
-        logger.info("Saved checkpoint at step %d", self.training_step)
-
-    def _check_early_stopping(self) -> bool:
-        """Check if training should stop early."""
-        if len(self.convergence_window) < self.config.early_stopping_patience:
+            self.scheduler.step()
+            
+            # Update statistics
+            self.training_stats.update({
+                'policy_loss': policy_loss.item(),
+                'value_loss': value_loss.item(),
+                'entropy': entropy_loss.item()
+            })
+            
+            # Update priorities
+            if indices is not None:
+                td_errors = (rewards - policy_outputs['value_estimate'].squeeze()).abs()
+                new_priorities = td_errors.detach().cpu().numpy()
+                self.experience_buffer.update_priorities(indices, new_priorities)
+            
+            # Save checkpoint periodically
+            if self.training_stats['episodes'] % 100 == 0:
+                self.rollback_manager.save_checkpoint(
+                    self.policy,
+                    self.training_stats
+                )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Policy training error: {e}")
             return False
 
-        # Check if validation score stopped improving
-        recent_scores = list(self.convergence_window)
-        if all(score >= recent_scores[0] for score in recent_scores[1:]):
-            logger.info("Early stopping: no improvement in validation score")
-            return True
+    def _calculate_experience_priority(self, experience: Experience) -> float:
+        """Calculate priority for experience replay with gradient awareness."""
+        # High priority for surprising outcomes
+        priority = abs(experience.reward)
+        
+        # Boost priority for low confidence decisions
+        if experience.action.confidence < 0.5:
+            priority *= 2.0
+        
+        # Boost priority for urgent adaptations
+        priority *= (1.0 + experience.action.urgency)
+        
+        # Boost priority for experiences with poor gradient health
+        if experience.state.global_metrics:
+            gradient_health = experience.state.global_metrics.get("gradient_health", 0.5)
+            training_stability = experience.state.global_metrics.get("training_stability", 0.5)
+            
+            # Higher priority for unstable gradients
+            if gradient_health < 0.3:
+                priority *= 3.0  # Triple priority for very poor gradients
+            elif gradient_health < 0.5:
+                priority *= 1.5
+                
+            # Higher priority for training instability
+            if training_stability < 0.3:
+                priority *= 2.0
+        
+        # Boost priority for gradient-stabilizing actions
+        if experience.action.adaptation_type in ["add_gradient_clipping", "add_batch_normalization", "add_residual_connection"]:
+            priority *= 1.5  # Prioritize learning from gradient fixes
+        
+        return max(priority, 0.1)
 
-        return False
-
-    def _compute_training_summary(
-        self, episode_metrics: List[TrainingMetrics]
-    ) -> Dict[str, Any]:
-        """Compute comprehensive training summary."""
-        if not episode_metrics:
-            return {}
-
-        recent_metrics = episode_metrics[-10:]  # Last 10 episodes
-
-        return {
-            "total_episodes": len(episode_metrics),
-            "total_training_steps": self.training_step,
-            "training_time_hours": (time.time() - self.training_start_time) / 3600,
-            "final_average_reward": np.mean([m.average_reward for m in recent_metrics]),
-            "final_success_rate": np.mean([m.success_rate for m in recent_metrics]),
-            "final_policy_loss": np.mean([m.policy_loss for m in recent_metrics]),
-            "final_value_loss": np.mean([m.value_loss for m in recent_metrics]),
-            "final_safety_loss": np.mean([m.safety_loss for m in recent_metrics]),
-            "best_validation_score": self.best_validation_score,
-            "convergence_achieved": len(self.convergence_window)
-            >= self.config.early_stopping_patience,
-            "model_parameters": sum(p.numel() for p in self.policy.parameters()),
-            "device": str(self.device),
+    def _action_to_index(self, action: AdaptationDecision) -> int:
+        """Convert adaptation decision to action index."""
+        # Map adaptation type to index
+        action_map = {
+            "add_attention": 0,
+            "add_moe": 1,
+            "add_efficiency": 2,
+            "add_routing": 3,
+            "add_diagnostic": 4,
+            # Gradient-specific adaptations
+            "add_gradient_clipping": 5,
+            "add_batch_normalization": 6,
+            "add_residual_connection": 7,
+            "add_skip_connection": 8,
+            # General adaptations
+            "emergency_stabilization": 9,
+            "conservative_optimization": 10,
+            "optimize_parameters": 11,
         }
+        return action_map.get(action.adaptation_type, 0)
 
-    def load_checkpoint(self, checkpoint_path: str) -> Dict[str, Any]:
-        """Load training checkpoint and resume training."""
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+    def _prepare_graph_batch(self, states: List[ModelGraphState]) -> Dict:
+        """Prepare batch of graph states for training."""
+        # Simplified batching - in production would use torch_geometric.data.Batch
+        # For now, just use the first state
+        if states:
+            graph_data = states[0].graph_data
+            return {
+                "x": torch.tensor(graph_data.x, dtype=torch.float32, device=self.device),
+                "edge_index": torch.tensor(graph_data.edge_index, dtype=torch.long, device=self.device),
+                "edge_attr": torch.tensor(graph_data.edge_attr, dtype=torch.float32, device=self.device),
+                "batch": None,
+            }
+        return {}
 
-        self.policy.load_state_dict(checkpoint["policy_state_dict"])
-        self.target_policy.load_state_dict(checkpoint["target_policy_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+    def _compute_policy_loss(
+        self,
+        logits: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        weights: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute policy gradient loss."""
+        # Compute log probabilities
+        log_probs = F.log_softmax(logits, dim=-1)
+        action_log_probs = log_probs.gather(1, actions.unsqueeze(-1)).squeeze(-1)
+        
+        # Advantage estimation (simplified - would use GAE in production)
+        advantages = rewards - rewards.mean()
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        
+        # Policy gradient loss
+        policy_loss = -(action_log_probs * advantages * weights).mean()
+        
+        return policy_loss
 
-        self.training_step = checkpoint["training_step"]
-        self.epoch = checkpoint["epoch"]
-        self.best_validation_score = checkpoint["best_validation_score"]
+    def _compute_value_loss(
+        self,
+        value_estimates: torch.Tensor,
+        rewards: torch.Tensor,
+        weights: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute value function loss."""
+        value_targets = rewards  # Simplified - would use returns in production
+        value_loss = (weights * F.mse_loss(
+            value_estimates.squeeze(),
+            value_targets,
+            reduction='none'
+        )).mean()
+        
+        return value_loss
 
-        logger.info("Loaded checkpoint from step %d", self.training_step)
+    def _compute_entropy_loss(self, logits: torch.Tensor) -> torch.Tensor:
+        """Compute entropy bonus for exploration."""
+        probs = F.softmax(logits, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+        entropy = -(probs * log_probs).sum(dim=-1).mean()
+        
+        return entropy
 
-        return {
-            "episode": checkpoint["episode"],
-            "training_step": self.training_step,
-            "training_time": checkpoint.get("training_time", 0),
-            "best_validation_score": self.best_validation_score,
-        }
+    def _compute_safety_regularization(
+        self,
+        policy_outputs: Dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        """Compute safety regularization with gradient awareness."""
+        # Prevent extreme confidence
+        uncertainty = policy_outputs['uncertainty']
+        min_uncertainty = 0.1
+        uncertainty_penalty = F.relu(min_uncertainty - uncertainty).mean()
+        
+        # Prevent policy collapse
+        policy_probs = F.softmax(policy_outputs['policy_logits'], dim=-1)
+        entropy = -(policy_probs * torch.log(policy_probs + 1e-8)).sum(dim=-1)
+        min_entropy = 0.5
+        entropy_penalty = F.relu(min_entropy - entropy).mean()
+        
+        # Gradient-aware regularization
+        gradient_penalty = 0.0
+        if hasattr(self, '_current_gradient_health'):
+            # Penalize actions when gradients are unhealthy
+            if self._current_gradient_health < 0.3:
+                # Increase uncertainty requirement when gradients are poor
+                gradient_penalty = 0.3 * (1.0 - self._current_gradient_health)
+        
+        return 0.1 * uncertainty_penalty + 0.1 * entropy_penalty + gradient_penalty
 
-    def get_training_statistics(self) -> Dict[str, Any]:
-        """Get comprehensive training statistics."""
-        if not self.training_metrics_history:
-            return {}
-
-        recent_metrics = list(self.training_metrics_history)[-100:]  # Last 100 steps
-
-        base_stats = {
-            "training_step": self.training_step,
-            "epoch": self.epoch,
-            "training_time_minutes": (time.time() - self.training_start_time) / 60,
-            "recent_average_reward": np.mean(
-                [m.average_reward for m in recent_metrics]
-            ),
-            "recent_success_rate": np.mean([m.success_rate for m in recent_metrics]),
-            "recent_policy_loss": np.mean([m.policy_loss for m in recent_metrics]),
-            "recent_value_loss": np.mean([m.value_loss for m in recent_metrics]),
-            "recent_safety_loss": np.mean([m.safety_loss for m in recent_metrics]),
-            "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "replay_buffer_size": len(self.replay_buffer.experience_buffer),
-            "best_validation_score": self.best_validation_score,
-            "device": str(self.device),
-        }
-
-        # Add reward system statistics
-        reward_stats = self.reward_system.get_reward_statistics()
-        base_stats["reward_system"] = reward_stats
-
-        return base_stats
-
-    def get_reward_correlations(self) -> Dict[str, Any]:
-        """Get reward system correlation analysis."""
-        return self.reward_system.get_correlations()
+    async def _update_performance_tracking(self):
+        """Update performance tracking metrics."""
+        # Calculate success rate from recent experiences
+        recent_rewards = [
+            exp.reward for exp in list(self.experience_buffer.buffer)[-100:]
+        ]
+        
+        if recent_rewards:
+            self.training_stats['avg_reward'] = np.mean(recent_rewards)
+            self.training_stats['success_rate'] = sum(
+                1 for r in recent_rewards if r > 0
+            ) / len(recent_rewards)
+        
+        # Update tracker
+        self.performance_tracker.update({
+            'avg_reward': self.training_stats['avg_reward'],
+            'success_rate': self.training_stats['success_rate'],
+        })

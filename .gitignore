@@ -2,6 +2,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.json
+coverage.xml
+*.cover
 *.so
 .Python
 build/
@@ -141,6 +148,15 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
+*~
 
+# Data files
 data/
 results/
+*.tar.gz
+*.zip
+
+# Archive
+.archive/

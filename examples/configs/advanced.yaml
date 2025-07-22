@@ -1,0 +1,352 @@
+# Advanced configuration for Esper morphogenetic training
+# This configuration demonstrates full platform capabilities
+
+# Model wrapping configuration
+kasmina:
+  # Advanced layer targeting with custom patterns
+  target_layers:
+    - type: "Linear"
+      min_size: 128  # Only target layers with >= 128 neurons
+    - type: "Conv2d"
+      kernel_size: [3, 5, 7]  # Only specific kernel sizes
+    - type: "MultiheadAttention"
+      
+  # Seed configuration per layer type
+  seed_config:
+    Linear:
+      seeds_per_layer: 8
+      seed_distribution: "uniform"
+    Conv2d:
+      seeds_per_layer: 16
+      seed_distribution: "gaussian"
+      seed_std: 0.1
+    MultiheadAttention:
+      seeds_per_layer: 4
+      seed_distribution: "xavier"
+  
+  # Kernel execution configuration
+  kernel_execution:
+    max_concurrent: 4
+    timeout_ms: 1000
+    retry_on_failure: true
+    max_retries: 3
+  
+  # Performance monitoring
+  performance_tracking:
+    enabled: true
+    metrics:
+      - "latency"
+      - "memory_usage"
+      - "activation_norm"
+    history_size: 1000
+
+# Training configuration
+training:
+  # Advanced training parameters
+  batch_size: 64
+  gradient_accumulation_steps: 4
+  
+  # Optimizer configuration
+  optimizer:
+    type: "AdamW"
+    lr: 0.001
+    betas: [0.9, 0.999]
+    weight_decay: 0.01
+    
+  # Learning rate scheduler
+  scheduler:
+    type: "CosineAnnealingWarmRestarts"
+    T_0: 10
+    T_mult: 2
+    eta_min: 1e-6
+    
+  # Mixed precision training
+  mixed_precision:
+    enabled: true
+    opt_level: "O2"
+    
+  # Gradient clipping
+  gradient_clipping:
+    enabled: true
+    max_norm: 1.0
+    
+  # Device configuration
+  device: "cuda"
+  multi_gpu:
+    enabled: true
+    strategy: "ddp"  # DataParallel or DistributedDataParallel
+
+# Tolaria service configuration (training orchestrator)
+tolaria:
+  # Advanced adaptation configuration
+  enable_adaptations: true
+  
+  # Multiple adaptation triggers
+  adaptation_triggers:
+    # Loss-based triggers
+    loss_plateau:
+      enabled: true
+      patience: 5
+      threshold: 0.005
+      min_epochs: 3
+      
+    loss_spike:
+      enabled: true
+      threshold: 2.0  # Relative to running average
+      cooldown: 50  # Batches
+      
+    # Performance-based triggers
+    gradient_norm:
+      enabled: true
+      threshold: 10.0
+      trigger_on: "above"
+      
+    # Resource-based triggers
+    memory_pressure:
+      enabled: true
+      threshold: 0.9  # 90% memory usage
+      action: "reduce_seeds"
+      
+    # Periodic triggers
+    periodic:
+      enabled: true
+      interval: 500
+      randomize: true  # Add jitter to prevent synchronization
+  
+  # Adaptation strategies
+  adaptation_strategy:
+    # Selection strategy for which layers to adapt
+    selection: "performance_weighted"
+    max_adaptations_per_step: 3
+    
+    # Kernel selection strategy
+    kernel_selection:
+      method: "thompson_sampling"
+      exploration_rate: 0.1
+      
+  # Health monitoring
+  health_monitoring:
+    enabled: true
+    metrics:
+      - "loss_trajectory"
+      - "gradient_flow"
+      - "activation_statistics"
+      - "weight_statistics"
+    anomaly_detection:
+      enabled: true
+      method: "isolation_forest"
+
+# Tamiyo service configuration (strategic controller)
+tamiyo:
+  # GNN-based policy network configuration
+  policy_network:
+    architecture: "GraphSAGE"
+    hidden_dims: [128, 64, 32]
+    num_layers: 3
+    dropout: 0.2
+    
+  # Model analysis configuration
+  model_analysis:
+    # Graph construction parameters
+    graph_construction:
+      include_skip_connections: true
+      include_attention_weights: true
+      max_distance: 3
+      
+    # Feature extraction
+    node_features:
+      - "layer_type"
+      - "parameter_count"
+      - "activation_stats"
+      - "gradient_stats"
+      - "kernel_history"
+      
+    edge_features:
+      - "data_flow_volume"
+      - "gradient_flow"
+      - "attention_weights"
+  
+  # Decision making configuration
+  decision_making:
+    # Action space
+    actions:
+      - "add_kernel"
+      - "remove_kernel"
+      - "modify_kernel"
+      - "swap_kernels"
+      - "no_action"
+      
+    # Reward function weights
+    reward_weights:
+      performance: 0.4
+      efficiency: 0.3
+      stability: 0.2
+      diversity: 0.1
+      
+    # Exploration configuration
+    exploration:
+      initial_epsilon: 0.3
+      final_epsilon: 0.05
+      decay_steps: 10000
+
+# Tezzeret service configuration (compilation forge)
+tezzeret:
+  # Compilation configuration
+  compilation:
+    # Target backends
+    backends:
+      - "pytorch"
+      - "triton"
+      - "cuda"
+      
+    # Optimization levels
+    optimization_level: 3
+    
+    # Compilation cache
+    cache:
+      enabled: true
+      size_mb: 1024
+      eviction_policy: "lru"
+      
+  # Blueprint generation
+  blueprint_generation:
+    # Generation strategies
+    strategies:
+      - "parameter_efficient"
+      - "compute_efficient"
+      - "memory_efficient"
+      
+    # Mutation operators
+    mutations:
+      enabled: true
+      operators:
+        - "noise_injection"
+        - "structural_variation"
+        - "hyperparameter_search"
+      mutation_rate: 0.1
+      
+  # Verification and testing
+  verification:
+    enabled: true
+    tests:
+      - "numerical_stability"
+      - "backward_pass"
+      - "memory_safety"
+      - "performance_regression"
+
+# Urza service configuration (kernel library)
+urza:
+  # Database configuration
+  database:
+    type: "postgresql"
+    host: "localhost"
+    port: 5432
+    name: "esper_kernels"
+    
+  # Kernel management
+  kernel_management:
+    # Retention policy
+    retention:
+      max_kernels_per_layer: 100
+      max_total_kernels: 10000
+      cleanup_interval_hours: 24
+      
+    # Performance tracking
+    performance_tracking:
+      track_execution_time: true
+      track_memory_usage: true
+      track_accuracy_impact: true
+      
+    # Kernel ranking
+    ranking:
+      algorithm: "elo"
+      initial_rating: 1200
+      k_factor: 32
+
+# Infrastructure configuration
+infrastructure:
+  # Message bus (Oona)
+  message_bus:
+    type: "redis"
+    host: "localhost"
+    port: 6379
+    
+    # Channel configuration
+    channels:
+      training_events:
+        buffer_size: 1000
+        ttl_seconds: 3600
+      adaptation_requests:
+        buffer_size: 100
+        priority: "high"
+      kernel_updates:
+        buffer_size: 500
+        
+  # Object storage
+  object_storage:
+    type: "minio"
+    endpoint: "localhost:9000"
+    access_key: "minioadmin"
+    secret_key: "minioadmin"
+    bucket: "esper-artifacts"
+    
+  # Monitoring and observability
+  monitoring:
+    # Metrics collection
+    metrics:
+      enabled: true
+      backend: "prometheus"
+      port: 9090
+      
+    # Tracing
+    tracing:
+      enabled: true
+      backend: "jaeger"
+      sampling_rate: 0.1
+      
+    # Logging
+    logging:
+      level: "INFO"
+      format: "json"
+      outputs:
+        - "console"
+        - "file"
+      file_path: "./logs/esper.log"
+      
+  # Resource limits
+  resource_limits:
+    max_memory_gb: 32
+    max_cpu_cores: 16
+    gpu_memory_fraction: 0.9
+
+# Experiment tracking
+experiment:
+  # Experiment metadata
+  name: "advanced_morphogenetic_training"
+  tags:
+    - "production"
+    - "multi_gpu"
+    - "advanced_adaptation"
+    
+  # Tracking configuration
+  tracking:
+    backend: "mlflow"
+    uri: "http://localhost:5000"
+    
+    # What to track
+    log_parameters: true
+    log_metrics: true
+    log_artifacts: true
+    log_models: true
+    
+    # Checkpointing
+    checkpoint:
+      enabled: true
+      interval_epochs: 5
+      keep_last_n: 3
+      
+  # Reproducibility
+  reproducibility:
+    seed: 42
+    deterministic: true
+    benchmark: false

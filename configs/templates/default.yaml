@@ -1,0 +1,426 @@
+# Esper Morphogenetic Training Configuration Template
+# This file documents all available configuration options for the Esper platform
+# Copy this template and modify as needed for your experiments
+
+# ===========================
+# General Run Configuration
+# ===========================
+
+# Unique identifier for this training run
+run_id: "experiment-001"
+
+# Session name for the training orchestrator (Tolaria)
+session_name: "morphogenetic_training"
+
+# Human-readable description of the experiment
+session_description: "Description of your experiment"
+
+# Experiment ID for tracking and organization
+experiment_id: "exp-001"
+
+# Maximum number of epochs to train
+max_epochs: 100
+
+# Global learning rate (can be overridden in optimization section)
+learning_rate: 0.001
+
+# Training batch size
+batch_size: 128
+
+# Device to use for training
+# Options: "auto" (automatically select), "cuda", "cpu", "cuda:0", "cuda:1", etc.
+device: "auto"
+
+# Whether to compile the model using torch.compile for performance
+# Set to false during development for faster iteration
+compile_model: true
+
+# ===========================
+# Model Configuration
+# ===========================
+model:
+  # Architecture to use
+  # Options: "resnet18", "resnet34", "resnet50", "vgg16", "mobilenet_v2", etc.
+  architecture: "resnet18"
+  
+  # Number of output classes
+  num_classes: 10
+  
+  # Whether to use pretrained weights (if available)
+  pretrained: false
+  
+  # Morphogenetic configuration for dynamic kernel loading
+  # List of layer names or types to target for morphogenetic adaptation
+  # Examples: ["layer1", "layer2"], ["nn.Linear", "nn.Conv2d"]
+  target_layers:
+    - "layer1"
+    - "layer2"
+    - "layer3"
+    - "layer4"
+  
+  # Number of seed kernels to maintain per layer
+  seeds_per_layer: 4
+  
+  # Size of the kernel cache in megabytes
+  seed_cache_size_mb: 256
+  cache_size_mb: 256  # Alternative name for the same setting
+  
+  # Whether to enable telemetry collection for model health monitoring
+  telemetry_enabled: true
+  
+  # Whether to preserve the original model weights
+  preserve_original: true
+  
+  # Additional model-specific parameters
+  model_params:
+    # Dropout rate for regularization
+    dropout_rate: 0.1
+    # Additional architecture-specific parameters can be added here
+
+# ===========================
+# Dataset Configuration
+# ===========================
+dataset:
+  # Dataset name
+  # Options: "cifar10", "cifar100", "imagenet", "mnist", "custom"
+  name: "cifar10"
+  
+  # Root directory for dataset storage
+  data_root: "./data"
+  data_dir: "./data"  # Alternative name for the same setting
+  
+  # Whether to download the dataset if not present
+  download: true
+  
+  # Batch size for data loading (can override global batch_size)
+  batch_size: 128
+  
+  # Number of data loader workers
+  num_workers: 4
+  
+  # Whether to pin memory for CUDA data loading
+  pin_memory: true
+  
+  # Whether to shuffle training data
+  shuffle_train: true
+  
+  # Whether to use data augmentation
+  use_augmentation: true
+  
+  # Data augmentation parameters
+  augmentation_params:
+    # Random crop size (for CIFAR: 32)
+    random_crop: 32
+    # Whether to apply random horizontal flip
+    random_flip: true
+    # Whether to normalize the data
+    normalize: true
+    # Additional augmentation parameters can be added here
+  
+  # Validation split ratio (0.0 to 1.0)
+  validation_split: 0.1
+  val_split: 0.1  # Alternative name for the same setting
+  
+  # Test split ratio (0.0 to 1.0)
+  test_split: 0.1
+
+# ===========================
+# Optimization Configuration
+# ===========================
+optimization:
+  # Optimizer to use
+  # Options: "adam", "adamw", "sgd", "rmsprop"
+  optimizer: "adamw"
+  
+  # Learning rate (can override global learning_rate)
+  learning_rate: 0.001
+  
+  # Weight decay for L2 regularization
+  weight_decay: 0.01
+  
+  # Momentum (for SGD and RMSprop)
+  momentum: 0.9
+  
+  # Learning rate scheduler
+  # Options: "none", "cosine", "step", "exponential", "plateau"
+  scheduler: "cosine"
+  
+  # Scheduler-specific parameters
+  scheduler_params:
+    # For cosine annealing
+    T_max: 100  # Maximum number of iterations
+    eta_min: 0.00001  # Minimum learning rate
+    
+    # For step scheduler
+    step_size: 30  # Epoch interval for LR decay
+    gamma: 0.1  # LR decay factor
+    
+    # For plateau scheduler
+    patience: 10  # Number of epochs with no improvement
+    factor: 0.1  # Factor by which LR will be reduced
+    threshold: 0.0001  # Threshold for measuring improvement
+  
+  # Maximum number of training epochs
+  max_epochs: 100
+  
+  # Early stopping configuration
+  early_stopping_patience: 20  # Epochs to wait before stopping
+  early_stopping_min_delta: 0.0001  # Minimum change to qualify as improvement
+  
+  # Loss function to use
+  # Options: "cross_entropy", "mse", "mae", "bce"
+  loss_function: "cross_entropy"
+  
+  # Gradient clipping norm (0 to disable)
+  gradient_clip_norm: 1.0
+  
+  # Number of gradient accumulation steps
+  accumulation_steps: 1
+
+# Alternative names for optimization settings (for backward compatibility)
+optimizer: "adamw"  # Can be specified at top level
+weight_decay: 0.01  # Can be specified at top level
+scheduler: "cosine"  # Can be specified at top level
+
+# ===========================
+# Morphogenetic Configuration
+# ===========================
+morphogenetic:
+  # Whether to enable Tamiyo strategic controller
+  tamiyo_enabled: true
+  
+  # Tamiyo service URL
+  tamiyo_url: "http://tamiyo:8001"
+  
+  # Path to pre-trained Tamiyo policy (optional)
+  tamiyo_policy_path: null
+  
+  # How often to request adaptation decisions (in epochs)
+  decision_frequency: 5
+  adaptation_frequency: 5  # Alternative name
+  
+  # Maximum adaptations allowed per epoch
+  max_adaptations_per_epoch: 2
+  
+  # Cooldown period between adaptations (in seconds)
+  adaptation_cooldown: 30.0
+  
+  # Confidence threshold for accepting adaptations (0.0 to 1.0)
+  confidence_threshold: 0.7
+  
+  # Urgency threshold for immediate adaptations (0.0 to 1.0)
+  urgency_threshold: 0.5
+  
+  # Interval for collecting health signals (in epochs)
+  health_signal_interval: 1
+  
+  # Window size for performance tracking (in epochs)
+  performance_window: 10
+  
+  # Whether to enable blueprint generation for new kernels
+  enable_blueprint_generation: false
+  
+  # How often to attempt blueprint generation (in epochs)
+  blueprint_generation_frequency: 50
+
+# Alternative top-level morphogenetic settings
+adaptation_frequency: 5  # Can be specified at top level
+adaptation_cooldown: 30  # Can be specified at top level
+max_adaptations_per_epoch: 2  # Can be specified at top level
+
+# ===========================
+# Service Integration
+# ===========================
+
+# Oona message bus configuration
+oona:
+  # Oona service URL
+  url: "http://localhost:8001"
+  
+  # Request timeout in seconds
+  timeout: 30.0
+
+# Optional Tamiyo policy path (alternative location)
+tamiyo_policy_path: null
+
+# ===========================
+# Logging Configuration
+# ===========================
+logging:
+  # Logging level
+  # Options: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+  log_level: "INFO"
+  
+  # Log format
+  # Options: "structured" (JSON), "simple" (text)
+  log_format: "structured"
+  
+  # Log file path (null for stdout only)
+  log_file: "./logs/training.log"
+  
+  # Whether to track metrics during training
+  track_metrics: true
+  
+  # Metrics logging interval (in epochs)
+  metrics_interval: 1
+  
+  # Whether to save metrics to file
+  save_metrics: true
+  
+  # Metrics output file
+  metrics_file: "./logs/training_metrics.json"
+  
+  # Whether to use Weights & Biases for tracking
+  use_wandb: false
+  
+  # Weights & Biases configuration
+  wandb_project: "esper-experiments"
+  wandb_entity: null  # Your W&B username or team
+  
+  # Whether to use TensorBoard
+  use_tensorboard: true
+  
+  # TensorBoard log directory
+  tensorboard_log_dir: "./logs/tensorboard"
+
+# ===========================
+# Checkpointing Configuration
+# ===========================
+checkpoint:
+  # Whether to save checkpoints during training
+  save_checkpoints: true
+  
+  # Directory to save checkpoints
+  checkpoint_dir: "./checkpoints"
+  
+  # How often to save checkpoints (in epochs)
+  checkpoint_frequency: 10
+  
+  # Whether to keep only the best checkpoint
+  keep_best_only: false
+  
+  # Maximum number of checkpoints to keep (oldest deleted)
+  max_checkpoints: 5
+  
+  # Whether to save the final model
+  save_final_model: true
+  
+  # Path for the final model
+  model_save_path: "./checkpoints/final_model.pt"
+  
+  # Whether to save morphogenetic state
+  save_morphogenetic_state: true
+  
+  # Path to resume training from (null to start fresh)
+  resume_from_checkpoint: null
+  
+  # Whether to strictly enforce loading all checkpoint keys
+  strict_loading: true
+
+# Alternative top-level checkpoint settings
+checkpoint_dir: "./checkpoints"  # Can be specified at top level
+checkpoint_frequency: 10  # Can be specified at top level
+
+# ===========================
+# Demo/Development Settings
+# ===========================
+demo:
+  # Whether to auto-start training (for demos)
+  auto_start_training: false
+  
+  # Whether to show live metrics in console
+  show_live_metrics: true
+  
+  # Whether to enable web UI
+  enable_web_ui: false
+  
+  # Web UI port
+  web_ui_port: 8088
+  
+  # Interval for sampling predictions (in epochs)
+  sample_predictions_interval: 10
+  
+  # Whether to visualize adaptations
+  visualize_adaptations: true
+
+# ===========================
+# Infrastructure Configuration
+# ===========================
+# These settings are typically used by the services, not training scripts
+
+# Database configuration (for Urza kernel library)
+database:
+  host: "localhost"
+  port: 5432
+  database: "urza_db"
+  username: "esper"
+  password: "esper_password"
+  ssl_mode: "prefer"
+
+# Redis configuration (for Oona message bus)
+redis:
+  host: "localhost"
+  port: 6379
+  database: 0
+  password: null
+
+# Object storage configuration (for kernel artifacts)
+storage:
+  endpoint_url: "http://localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket_name: "esper-artifacts"
+  region: "us-east-1"
+
+# Component-specific configurations
+components:
+  tolaria:
+    enabled: true
+    replicas: 1
+    config:
+      # Tolaria-specific settings
+      max_concurrent_adaptations: 2
+      health_check_interval: 30
+  
+  tamiyo:
+    enabled: true
+    replicas: 1
+    config:
+      # Tamiyo-specific settings
+      model_checkpoint: "./models/tamiyo_gnn.pt"
+      inference_batch_size: 32
+  
+  urza:
+    enabled: true
+    replicas: 1
+    config:
+      # Urza-specific settings
+      cache_ttl: 3600
+      max_cache_size: 1000
+  
+  tezzeret:
+    enabled: true
+    replicas: 1
+    config:
+      # Tezzeret-specific settings
+      compilation_timeout: 300
+      optimization_level: 2
+  
+  oona:
+    enabled: true
+    replicas: 1
+    config:
+      # Oona-specific settings
+      message_retention: 86400
+      max_message_size: 10485760
+
+# ===========================
+# Environment Settings
+# ===========================
+
+# Environment name
+# Options: "development", "staging", "production"
+environment: "development"
+
+# Platform version
+version: "0.1.0"

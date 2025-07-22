@@ -1,0 +1,58 @@
+# Minimal configuration for Esper morphogenetic training
+# This configuration provides basic settings to get started quickly
+
+# Model wrapping configuration
+kasmina:
+  # Target specific layer types for morphogenetic capabilities
+  target_layers:
+    - "Linear"
+    - "Conv2d"
+  
+  # Number of adaptation seeds per layer
+  seeds_per_layer: 4
+  
+  # Enable automatic kernel compilation
+  auto_compile: true
+
+# Training configuration
+training:
+  # Basic training parameters
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 10
+  
+  # Device configuration
+  device: "auto"  # auto, cuda, or cpu
+  
+  # Logging
+  log_interval: 50
+  verbose: true
+
+# Tolaria service configuration (training orchestrator)
+tolaria:
+  # Enable morphogenetic adaptations during training
+  enable_adaptations: true
+  
+  # Adaptation triggers
+  adaptation_triggers:
+    # Trigger adaptation based on loss plateau
+    loss_plateau:
+      enabled: true
+      patience: 3
+      threshold: 0.01
+    
+    # Periodic adaptation check
+    periodic:
+      enabled: true
+      interval: 100  # Every N batches
+
+# Minimal infrastructure configuration
+infrastructure:
+  # Use in-memory message bus for development
+  message_bus:
+    type: "memory"
+  
+  # Use SQLite for kernel storage
+  kernel_store:
+    type: "sqlite"
+    path: "./esper_kernels.db"

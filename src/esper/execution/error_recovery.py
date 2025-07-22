@@ -16,7 +16,7 @@ from collections import defaultdict
 import torch
 
 from esper.contracts.operational import HealthSignal
-from esper.execution.kernel_executor import KernelExecutionError
+from .exceptions import KernelExecutionError
 
 logger = logging.getLogger(__name__)
 

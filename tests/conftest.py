@@ -223,6 +223,130 @@ def test_config() -> Dict[str, Any]:
 
 
 @pytest.fixture(autouse=True)
+def prevent_real_network_calls():
+    """Automatically prevent real network calls during testing."""
+    from unittest.mock import patch, AsyncMock
+    
+    with patch('esper.utils.http_client.AsyncHttpClient') as mock_http_client:
+        
+        # Cache for consistent responses per kernel
+        response_cache = {}
+        
+        # Create mock responses that can handle different scenarios
+        def create_mock_response(url):
+            mock_response = AsyncMock()
+            
+            # Handle empty or invalid kernel IDs
+            if url.endswith("/kernels/") or "invalid" in url:
+                mock_response.status = 404
+                mock_response.json.return_value = {"error": "Kernel not found"}
+                mock_response.read.return_value = b""
+                return mock_response
+            
+            # Extract kernel ID from URL
+            if "/kernels/" in url:
+                kernel_id = url.split("/kernels/")[-1]
+            elif "s3://" in url:
+                # Extract from S3 path like s3://test-bucket/test_kernel.pt
+                kernel_id = url.split("/")[-1].replace(".pt", "")
+            else:
+                kernel_id = "test-kernel-123"
+            
+            
+            # Create or reuse cached response data for this kernel
+            if kernel_id not in response_cache:
+                # Create consistent tensor binary data for mocking based on kernel_id
+                torch.manual_seed(hash(kernel_id) % 2**32)
+                
+                # Determine tensor size based on expected usage
+                tensor_size = 128  # Default size
+                if "test_artifact" in kernel_id:
+                    # For integration tests, create larger tensors
+                    tensor_size = 128 * 64 + 64  # Enough for 128->64 layer
+                
+                mock_tensor = torch.randn(tensor_size).to(torch.float32)
+                kernel_binary = mock_tensor.detach().cpu().numpy().tobytes()
+                
+                # Calculate checksum for the binary data
+                import hashlib
+                checksum = hashlib.sha256(kernel_binary).hexdigest()
+                
+                response_cache[kernel_id] = {
+                    'binary': kernel_binary,
+                    'checksum': checksum
+                }
+            
+            cached_data = response_cache[kernel_id]
+            
+            # Handle binary download requests (S3 URLs)
+            if "s3://" in url:
+                mock_response.status = 200
+                mock_response.json.return_value = {}
+                mock_response.read.return_value = cached_data['binary']
+                mock_response.text.return_value = 'mock-binary-response'
+                return mock_response
+            
+            # Determine appropriate shapes based on context
+            # Default shapes for basic tests
+            input_shape = [10]
+            output_shape = [5]
+            
+            # For integration tests with larger models, use more realistic shapes
+            if ("test_artifact" in kernel_id or "artifact_" in kernel_id or 
+                "integration" in str(url) or "128" in str(url)):
+                
+                # Try to infer from common patterns
+                if "artifact_0" in kernel_id or "128" in kernel_id:
+                    input_shape = [128]
+                    output_shape = [64]
+                elif "artifact_2" in kernel_id or "64" in kernel_id:
+                    input_shape = [64]
+                    output_shape = [32]
+                elif "artifact_4" in kernel_id or "32" in kernel_id:
+                    input_shape = [32]
+                    output_shape = [16]
+                else:
+                    # Default for integration tests
+                    input_shape = [128]
+                    output_shape = [64]
+            
+            # Default successful metadata response
+            mock_response.status = 200
+            mock_response.json.return_value = {
+                "metadata": {
+                    'kernel_id': kernel_id,
+                    'blueprint_id': f'blueprint-{kernel_id}',
+                    'name': f'kernel-{kernel_id}',
+                    'input_shape': input_shape,
+                    'output_shape': output_shape,
+                    'parameter_count': input_shape[0] * output_shape[0] + output_shape[0],
+                    'memory_footprint_mb': 1.0,
+                    'compilation_target': 'torchscript',
+                    'compatibility_version': '1.0',
+                    'created_at': '2023-01-01T00:00:00Z',
+                    'checksum': cached_data['checksum']
+                },
+                "binary_ref": f"s3://test-bucket/{kernel_id}.pt"
+            }
+            mock_response.read.return_value = cached_data['binary']
+            mock_response.text.return_value = 'mock-response'
+            return mock_response
+        
+        # Create mock HTTP client instance
+        mock_http_instance = AsyncMock()
+        mock_http_instance.get.side_effect = create_mock_response
+        mock_http_instance.post.side_effect = create_mock_response  
+        mock_http_instance.put.side_effect = create_mock_response
+        mock_http_instance.__aenter__.return_value = mock_http_instance
+        mock_http_instance.__aexit__.return_value = None
+        
+        # Configure the mock class to return our instance
+        mock_http_client.return_value = mock_http_instance
+        
+        yield mock_http_instance
+
+
+@pytest.fixture(autouse=True)
 def setup_logging():
     """Setup logging for tests."""
     logging.getLogger("esper").setLevel(logging.WARNING)

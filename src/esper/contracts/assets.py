@@ -138,8 +138,8 @@ class KernelMetadata(BaseModel):
         if len(input_shape) != len(self.input_shape):
             return False
         
-        # Allow flexible batch dimension (index 0), check others
-        for i in range(1, len(input_shape)):
+        # Check all dimensions (input_shape is already excluding batch)
+        for i in range(len(input_shape)):
             if input_shape[i] != self.input_shape[i]:
                 return False
         

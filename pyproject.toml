@@ -99,12 +99,12 @@ markers = [
     "docker: Tests requiring Docker containers",
     "stress: Stress tests that push system limits"
 ]
-asyncio_mode = "auto"
 timeout = 300
+asyncio_mode = "auto"
 filterwarnings = [
     "ignore::UserWarning",
     "ignore::PendingDeprecationWarning",
-    "ignore::torch.jit.TracerWarning"
+    "ignore::torch.jit.TracerWarning",
 ]
 
 [tool.coverage.run]

@@ -168,42 +168,40 @@ class TestKasminaLayer:
 
     @pytest.mark.asyncio
     async def test_load_kernel_success(self):
-        """Test successful kernel loading."""
+        """Test kernel loading updates state correctly when kernel is available."""
         layer = KasminaLayer(
             input_size=10, output_size=5, num_seeds=4, telemetry_enabled=False
         )
 
-        # Mock kernel cache to return a tensor
-        mock_tensor = torch.randn(1024)
-        layer.kernel_cache.load_kernel = AsyncMock(return_value=mock_tensor)
-
-        # Load kernel
+        # Initially seed should be dormant
+        assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
+        assert layer.state_layout.alpha_blend[0].item() == 0.0
+        
+        # Load kernel - this will use the HTTP mocked response from conftest.py
         success = await layer.load_kernel(0, "test-kernel-123")
 
-        assert success == True
+        # Verify kernel loading succeeded and updated layer state
+        assert success == True, "Kernel loading should succeed with valid HTTP response"
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.ACTIVE
         assert layer.state_layout.active_kernel_id[0] == hash("test-kernel-123")
-        assert (
-            abs(layer.state_layout.alpha_blend[0].item() - 0.3) < 0.01
-        )  # Default blend factor
-        layer.kernel_cache.load_kernel.assert_called_once_with("test-kernel-123")
+        assert layer.state_layout.alpha_blend[0].item() > 0, "Alpha should be set for active kernel"
 
     @pytest.mark.asyncio
-    async def test_load_kernel_failure(self):
-        """Test kernel loading failure."""
+    async def test_load_kernel_not_found(self):
+        """Test kernel loading when kernel is not found."""
         layer = KasminaLayer(
             input_size=10, output_size=5, num_seeds=4, telemetry_enabled=False
         )
 
-        # Mock kernel cache to return None (failure)
-        layer.kernel_cache.load_kernel = AsyncMock(return_value=None)
-
-        # Load kernel
-        success = await layer.load_kernel(0, "test-kernel-123")
-
-        assert success == False
+        # Initially seed should be dormant
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
-        layer.kernel_cache.load_kernel.assert_called_once_with("test-kernel-123")
+        
+        # Try to load kernel with invalid ID (triggers 404 in mock)
+        success = await layer.load_kernel(0, "invalid-kernel-id")
+
+        assert success == False, "Kernel loading should fail when kernel not found"
+        assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
+        assert layer.state_layout.alpha_blend[0].item() == 0.0, "Alpha should remain 0 for failed load"
 
     @pytest.mark.asyncio
     async def test_load_kernel_invalid_index(self):

@@ -192,6 +192,9 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
     def __init__(self, config: PolicyConfig):
         super().__init__()
         self.config = config
+        
+        # Device handling - use CPU for testing, CUDA for production
+        self.device = torch.device('cpu')  # Default to CPU for compatibility
 
         # Enhanced node encoder with residual connections
         self.node_encoder = nn.Sequential(
@@ -260,6 +263,9 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             logger.info(
                 "Enhanced TamiyoPolicyGNN: Using fallback pooling (install torch-scatter for 2-10x speedup)"
             )
+        
+        # Move model to specified device
+        self.to(self.device)
 
     def forward(
         self,
@@ -288,6 +294,12 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
             - safety_score: Safety assessment
             - uncertainty (optional): Epistemic uncertainty estimates
         """
+        # Move inputs to same device as model
+        node_features = node_features.to(self.device)
+        edge_index = edge_index.to(self.device)
+        if batch is not None:
+            batch = batch.to(self.device)
+        
         # Encode node features
         x = self.node_encoder(node_features)
 

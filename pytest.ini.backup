@@ -1,0 +1,71 @@
+[tool:pytest]
+# Pytest configuration for Esper platform comprehensive testing
+
+# Test discovery
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+
+# Minimum version requirements
+minversion = 7.0
+
+# Add import paths
+addopts = 
+    --strict-markers
+    --strict-config
+    --verbose
+    --tb=short
+    --cov=src/esper
+    --cov-branch
+    --cov-report=term-missing:skip-covered
+    --cov-report=html:htmlcov
+    --cov-report=xml:coverage.xml
+    --cov-fail-under=85
+    --durations=10
+    --color=yes
+
+# Test markers
+markers =
+    unit: Unit tests (fast, isolated)
+    integration: Integration tests (slower, with dependencies)
+    performance: Performance and benchmark tests
+    slow: Tests that take significant time to run
+    stress: Stress tests (high-load testing scenarios)
+    asyncio: Asynchronous tests requiring event loop
+    gpu: Tests that require GPU acceleration
+    memory_intensive: Tests that use significant memory
+    network: Tests requiring network access
+    docker: Tests requiring Docker containers
+
+# Async test configuration
+asyncio_mode = auto
+
+# Coverage configuration
+# Note: Additional coverage config is in pyproject.toml
+
+# Logging configuration during tests
+log_cli = false
+log_cli_level = WARNING
+log_cli_format = %(asctime)s [%(levelname)8s] %(name)s: %(message)s
+log_cli_date_format = %Y-%m-%d %H:%M:%S
+
+# Disable warnings for cleaner output
+filterwarnings =
+    ignore::UserWarning
+    ignore::PendingDeprecationWarning
+    ignore::torch.jit.TracerWarning
+    # PyTorch warnings
+    ignore:.*The torch.jit.*:UserWarning
+    ignore:.*torch.distributed.*:UserWarning
+    # NumPy warnings  
+    ignore:.*numpy.dtype size changed.*:RuntimeWarning
+    ignore:.*numpy.ufunc size changed.*:RuntimeWarning
+
+# Test timeouts (in seconds)
+timeout = 300
+timeout_method = thread
+
+# Parallel execution settings
+# Use with: pytest -n auto
+# Requires pytest-xdist: pip install pytest-xdist

@@ -16,19 +16,15 @@ from typing import Any, Dict, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 
-from .error_recovery import ErrorRecoveryManager, ErrorType, create_error_context
+from .exceptions import KernelExecutionError, KernelDeserializationError
+from .error_recovery import ErrorType, create_error_context
+
+# Import error recovery after exceptions to avoid circular import
+def _lazy_import_error_recovery():
+    from .error_recovery import ErrorRecoveryManager, ErrorType, create_error_context
+    return ErrorRecoveryManager, ErrorType, create_error_context
 
 logger = logging.getLogger(__name__)
-
-
-class KernelExecutionError(Exception):
-    """Exception raised when kernel execution fails."""
-    pass
-
-
-class KernelDeserializationError(Exception):
-    """Exception raised when kernel deserialization fails."""
-    pass
 
 
 class KernelShapeError(Exception):
@@ -99,6 +95,15 @@ class KernelValidator:
             nn.Sequential,
             nn.ModuleList,
         }
+        # Also allow TorchScript modules
+        try:
+            import torch.jit
+            # Add common TorchScript types
+            script_types = [torch.jit.ScriptModule, torch.jit.TracedModule]
+            for script_type in script_types:
+                self.allowed_modules.add(script_type)
+        except (ImportError, AttributeError):
+            pass  # TorchScript not available
     
     def validate_module(self, module: nn.Module) -> Tuple[bool, str]:
         """
@@ -131,8 +136,14 @@ class KernelValidator:
     
     def _validate_module_types(self, module: nn.Module) -> bool:
         """Recursively validate module types."""
-        if type(module) not in self.allowed_modules:
-            logger.warning(f"Disallowed module type: {type(module)}")
+        module_type = type(module)
+        
+        # Allow TorchScript modules (any module whose type name contains 'Script')
+        if 'Script' in module_type.__name__ or 'Traced' in module_type.__name__:
+            return True
+            
+        if module_type not in self.allowed_modules:
+            logger.warning(f"Disallowed module type: {module_type}")
             return False
         
         for child in module.children():
@@ -238,6 +249,7 @@ class RealKernelExecutor:
         # Components
         self.validator = KernelValidator()
         self.stats = ExecutionStats()
+        ErrorRecoveryManager, _, _ = _lazy_import_error_recovery()
         self.error_recovery = ErrorRecoveryManager()
         
         logger.info(f"Initialized RealKernelExecutor on device {device}")

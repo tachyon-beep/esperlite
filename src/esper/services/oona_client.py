@@ -145,3 +145,12 @@ class OonaClient:
             return True
         except redis.exceptions.ConnectionError:
             return False
+
+    def close(self) -> None:
+        """Closes the Redis connection."""
+        try:
+            if hasattr(self, 'redis_client') and self.redis_client:
+                self.redis_client.close()
+                logger.info("OonaClient Redis connection closed")
+        except Exception as e:
+            logger.warning("Error closing Redis connection: %s", e)

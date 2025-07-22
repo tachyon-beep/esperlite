@@ -209,12 +209,14 @@ class TamiyoTrainer:
                 batch = val_data[i : i + self.config.batch_size]
                 batch_tensors = self._prepare_batch(batch)
 
-                # Forward pass
-                adapt_prob, _, _, value_est = self.policy(
+                # Forward pass - policy now returns a dictionary
+                policy_outputs = self.policy(
                     batch_tensors["node_features"],
                     batch_tensors["edge_index"],
                     batch_tensors["batch"],
                 )
+                adapt_prob = policy_outputs["adaptation_prob"]
+                value_est = policy_outputs["value_estimate"]
 
                 # Compute losses
                 policy_loss = self._compute_policy_loss(
@@ -244,9 +246,10 @@ class TamiyoTrainer:
 
         # Placeholder implementation - in a real system this would
         # convert ModelGraphState to proper graph tensors
+        # Use the same node feature dimension as PolicyConfig default (16)
         node_features = torch.randn(
-            batch_size * 4, 64, device=self.device
-        )  # 4 nodes per graph
+            batch_size * 4, 16, device=self.device
+        )  # 4 nodes per graph, 16 features
 
         # Create edge indices for batch of graphs
         edge_indices = []
@@ -308,12 +311,14 @@ class TamiyoTrainer:
         self, batch_tensors: Dict[str, torch.Tensor]
     ) -> Dict[str, torch.Tensor]:
         """Compute PPO loss components."""
-        # Forward pass
-        adapt_prob, _, _, value_est = self.policy(
+        # Forward pass - policy now returns a dictionary
+        policy_outputs = self.policy(
             batch_tensors["node_features"],
             batch_tensors["edge_index"],
             batch_tensors["batch"],
         )
+        adapt_prob = policy_outputs["adaptation_prob"]
+        value_est = policy_outputs["value_estimate"]
 
         # Policy loss
         policy_loss = self._compute_policy_loss(

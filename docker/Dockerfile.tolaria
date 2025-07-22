@@ -16,11 +16,11 @@ WORKDIR /build
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
 
-# Install the package first
+# Install the package with full GPU support
 RUN pip install --no-cache-dir -e .
 
-# Install torch-scatter manually after PyTorch is installed
-RUN pip install --no-cache-dir torch-scatter -f https://data.pyg.org/whl/torch-2.7.0+cpu.html || \
+# Install torch-scatter for GPU
+RUN pip install --no-cache-dir torch-scatter || \
     echo "Warning: torch-scatter installation failed, using fallback mode"
 
 # Production image
@@ -34,6 +34,9 @@ RUN apt-get update && apt-get install -y \
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /build /app
+
+# Install the package in the runtime image for proper entry points
+RUN cd /app && pip install --no-deps -e .
 
 WORKDIR /app
 

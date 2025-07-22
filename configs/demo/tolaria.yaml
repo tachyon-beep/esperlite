@@ -1,94 +1,68 @@
 # Tolaria configuration for tech demo
-session_name: "esper_demo_morphogenetic"
-session_description: "Tech demo showcasing morphogenetic neural network training"
-experiment_id: "demo-001"
+# Training parameters
+learning_rate: 0.001
+weight_decay: 0.0001
+max_epochs: 50
 
+# Optimizer settings
+optimizer: "adam"
+scheduler: "cosine"
+scheduler_params:
+  eta_min: 0.00001
+
+# Morphogenetic settings
+tamiyo_policy_path: null
+adaptation_frequency: 5
+max_adaptations_per_epoch: 2
+adaptation_cooldown: 30
+
+# Model configuration
 model:
   architecture: "resnet18"
   num_classes: 10
   pretrained: false
   target_layers: ["nn.Linear", "nn.Conv2d"]
   seeds_per_layer: 4
-  cache_size_mb: 256
-  telemetry_enabled: true
-  preserve_original: true
+  seed_cache_size_mb: 256
   model_params:
     dropout_rate: 0.1
 
+# Dataset configuration
 dataset:
   name: "cifar10"
-  data_root: "./data"
+  data_dir: "./data"
   download: true
-  batch_size: 64  # Smaller for demo
+  batch_size: 64
   num_workers: 2
   pin_memory: true
-  shuffle_train: true
-  use_augmentation: true
-  augmentation_params:
+  val_split: 0.1
+  train_transforms:
     random_crop: 32
     random_flip: true
     normalize: true
-  validation_split: 0.1
-  test_split: 0.1
+  val_transforms:
+    normalize: true
 
-optimization:
-  optimizer: "adam"
-  learning_rate: 0.001
-  weight_decay: 0.0001
-  momentum: 0.9
-  scheduler: "cosine"
-  scheduler_params:
-    T_max: 50
-    eta_min: 0.00001
-  max_epochs: 50  # Shorter for demo
-  early_stopping_patience: 10
-  early_stopping_min_delta: 0.0001
-  loss_function: "cross_entropy"
-  gradient_clip_norm: 1.0
-  accumulation_steps: 1
+# Infrastructure configuration
+oona:
+  url: "http://tamiyo:8001"
+  timeout: 30.0
 
-morphogenetic:
-  tamiyo_enabled: true
-  tamiyo_url: "http://tamiyo:8001"
-  decision_frequency: 5
-  max_adaptations_per_epoch: 2
-  adaptation_cooldown: 30.0
-  confidence_threshold: 0.7
-  urgency_threshold: 0.5
-  health_signal_interval: 1
-  performance_window: 10
-  enable_blueprint_generation: false
-  blueprint_generation_frequency: 50
+urza:
+  base_url: "http://urza:8000"
+  timeout: 30.0
+  retry_attempts: 3
 
-logging:
-  log_level: "INFO"
-  log_format: "structured"
-  log_file: "/app/logs/tolaria.log"
-  track_metrics: true
-  metrics_interval: 1
-  save_metrics: true
-  metrics_file: "/app/logs/training_metrics.json"
-  use_wandb: false
-  use_tensorboard: true
-  tensorboard_log_dir: "/app/logs/tensorboard"
+# Checkpointing and logging
+checkpoint_dir: "/app/checkpoints"
+checkpoint_frequency: 10
+log_frequency: 100
 
-checkpoint:
-  save_checkpoints: true
-  checkpoint_dir: "/app/checkpoints"
-  checkpoint_frequency: 10
-  keep_best_only: false
-  max_checkpoints: 3
-  save_final_model: true
-  model_save_path: "/app/checkpoints/final_model.pt"
-  save_morphogenetic_state: true
-  resume_from_checkpoint: null
-  strict_loading: true
+# Device and performance
+device: "cuda"
+mixed_precision: true
+compile_model: false  # Disable for demo to speed up startup
 
-# Demo-specific settings
-demo:
-  auto_start_training: false
-  show_live_metrics: true
-  enable_web_ui: true
-  web_ui_port: 8088
-  sample_predictions_interval: 5
-  visualize_adaptations: true
+# Experiment tracking
+experiment_name: "esper_demo_morphogenetic"
+experiment_tags: ["demo", "morphogenetic", "cifar10"]

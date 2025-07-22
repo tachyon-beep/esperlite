@@ -11,9 +11,8 @@ from pathlib import Path
 
 def generate_password(length=32):
     """Generate a secure random password"""
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    # Avoid problematic characters in passwords
-    alphabet = alphabet.replace('"', '').replace("'", '').replace('\\', '')
+    # Avoid shell-problematic characters like $, &, and quotes
+    alphabet = string.ascii_letters + string.digits + "!@#%^*_+-="
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 def generate_api_key(length=48):

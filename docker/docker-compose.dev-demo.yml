@@ -1,6 +1,9 @@
 # Development-as-Production configuration for tech demo
 # This configuration mimics production setup but optimized for demo environment
 
+x-common-variables: &common-env-file
+  env_file: ../.env.dev-demo
+
 services:
   # Infrastructure Services with Production-like Configuration
   postgres:
@@ -81,8 +84,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
-      # Production-like settings
-      MINIO_STORAGE_CLASS_STANDARD: "EC:2"
+      # Single node configuration for demo
       MINIO_PROMETHEUS_AUTH_TYPE: "public"
     volumes:
       - minio_demo_data:/data
@@ -186,6 +188,10 @@ services:
         reservations:
           memory: 2G
           cpus: '1'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     labels:
       - "com.esper.service=tamiyo"
       - "com.esper.environment=demo"
@@ -225,6 +231,10 @@ services:
         reservations:
           memory: 4G
           cpus: '2'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     labels:
       - "com.esper.service=tolaria"
       - "com.esper.environment=demo"

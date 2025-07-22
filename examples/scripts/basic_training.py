@@ -6,8 +6,7 @@ autonomous architecture evolution in a PyTorch model during training.
 """
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 
 from esper import wrap
@@ -15,9 +14,9 @@ from esper import wrap
 
 def create_dummy_dataset(num_samples=1000, input_dim=784, num_classes=10):
     """Create a dummy dataset for demonstration purposes."""
-    X = torch.randn(num_samples, input_dim)
+    x = torch.randn(num_samples, input_dim)
     y = torch.randint(0, num_classes, (num_samples,))
-    return TensorDataset(X, y)
+    return TensorDataset(x, y)
 
 
 def main():
@@ -41,7 +40,6 @@ def main():
         model,
         target_layers=[nn.Linear],  # Target Linear layers for adaptation
         seeds_per_layer=4,  # Number of adaptation seeds per layer
-        device=device,
     )
 
     # Move to device
@@ -49,11 +47,11 @@ def main():
 
     # Setup training
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(morphable_model.parameters(), lr=0.001)
+    optimizer = optim.Adam(morphable_model.parameters(), lr=0.001, weight_decay=1e-5)
 
     # Create dummy data
     train_dataset = create_dummy_dataset(num_samples=5000)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=0)
 
     # Training loop
     num_epochs = 10

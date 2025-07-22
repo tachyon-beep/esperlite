@@ -9,24 +9,24 @@ This script demonstrates advanced usage of Esper, including:
 """
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Dict, Any, List
 
-from esper import wrap, KasminaLayer
+from esper import wrap
 
 
 class CustomModel(nn.Module):
     """A custom model with named layers for targeted adaptation."""
 
-    def __init__(self, input_dim=784, hidden_dims=[512, 256, 128], num_classes=10):
+    def __init__(self, input_dim=784, hidden_dims=None, num_classes=10):
         super().__init__()
+        if hidden_dims is None:
+            hidden_dims = [512, 256, 128]
 
         # Build encoder layers
         self.encoder = nn.ModuleList()
         prev_dim = input_dim
-        for i, hidden_dim in enumerate(hidden_dims):
+        for hidden_dim in hidden_dims:
             self.encoder.append(nn.Linear(prev_dim, hidden_dim))
             self.encoder.append(nn.ReLU())
             self.encoder.append(nn.Dropout(0.2))
@@ -36,6 +36,7 @@ class CustomModel(nn.Module):
         self.classifier = nn.Linear(prev_dim, num_classes)
 
     def forward(self, x):
+        """Forward pass through the model."""
         # Pass through encoder
         for layer in self.encoder:
             x = layer(x)
@@ -48,6 +49,11 @@ def custom_layer_selector(module: nn.Module, name: str) -> bool:
     """Custom function to select which layers to make morphable.
 
     Args:
+        module: The module to check
+        name: The name of the module
+
+    Returns:
+        bool: Whether to make this layer morphable
         module: The PyTorch module to check
         name: The name of the module in the model
 
@@ -64,14 +70,14 @@ def custom_layer_selector(module: nn.Module, name: str) -> bool:
 def create_datasets(num_train=10000, num_val=2000, input_dim=784, num_classes=10):
     """Create training and validation datasets."""
     # Training data
-    X_train = torch.randn(num_train, input_dim)
+    x_train = torch.randn(num_train, input_dim)
     y_train = torch.randint(0, num_classes, (num_train,))
-    train_dataset = TensorDataset(X_train, y_train)
+    train_dataset = TensorDataset(x_train, y_train)
 
     # Validation data
-    X_val = torch.randn(num_val, input_dim)
+    x_val = torch.randn(num_val, input_dim)
     y_val = torch.randint(0, num_classes, (num_val,))
-    val_dataset = TensorDataset(X_val, y_val)
+    val_dataset = TensorDataset(x_val, y_val)
 
     return train_dataset, val_dataset
 
@@ -120,8 +126,6 @@ def main():
         model,
         target_layers=custom_layer_selector,  # Use custom selector function
         seeds_per_layer=8,  # More seeds for experimentation
-        adaptation_rate=0.1,  # Custom adaptation rate
-        device=device,
     )
 
     morphable_model = morphable_model.to(device)
@@ -135,8 +139,8 @@ def main():
 
     # Create datasets
     train_dataset, val_dataset = create_datasets()
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=0)
 
     # Training loop with validation
     num_epochs = 20
@@ -152,7 +156,7 @@ def main():
         correct = 0
         total = 0
 
-        for batch_idx, (inputs, targets) in enumerate(train_loader):
+        for inputs, targets in train_loader:
             inputs, targets = inputs.to(device), targets.to(device)
 
             # Forward pass
@@ -190,12 +194,12 @@ def main():
         # Track best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            print(f"  New best validation accuracy!")
+            print("  New best validation accuracy!")
 
         # Get and display adaptation statistics
         if hasattr(morphable_model, "get_model_stats"):
             stats = morphable_model.get_model_stats()
-            print(f"  Adaptation Stats:")
+            print("  Adaptation Stats:")
             print(f"    Active Seeds: {stats.get('active_seeds', 'N/A')}")
             print(
                 f"    Total Kernel Executions: {stats.get('total_kernel_executions', 'N/A')}"
@@ -224,7 +228,8 @@ def main():
         # Find most active epoch
         most_active = max(adaptation_history, key=lambda x: x["kernel_executions"])
         print(
-            f"  Most active epoch: {most_active['epoch']} ({most_active['kernel_executions']} executions)"
+            f"  Most active epoch: {most_active['epoch']} "
+            f"({most_active['kernel_executions']} executions)"
         )
 
     # Display final model analysis

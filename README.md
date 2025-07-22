@@ -86,7 +86,6 @@ pip install -e .[acceleration]
 
 This enables torch-scatter optimizations with automatic fallback if unavailable.
 
-
 ## Status
 
 - ✅ **Phase 1 & 2 Complete** - Core morphogenetic system with GNN-based intelligence
@@ -97,6 +96,7 @@ This enables torch-scatter optimizations with automatic fallback if unavailable.
 ## Production Deployment
 
 Full production infrastructure is available:
+
 - Docker containerization with multi-stage builds
 - Kubernetes manifests with Kustomize overlays
 - Prometheus/Grafana monitoring stack

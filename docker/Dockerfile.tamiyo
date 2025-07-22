@@ -1,13 +1,13 @@
 # Dockerfile for Tamiyo Strategic Controller
-FROM python:3.12-slim as builder
+FROM python:3.12-slim AS builder
 
 # Install build dependencies including CUDA support for torch-scatter
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    git \
-    curl \
     build-essential \
+    curl \
+    g++ \
+    gcc \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -16,8 +16,12 @@ WORKDIR /build
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
 
-# Install with acceleration support for GNN operations
-RUN pip install --no-cache-dir -e .[acceleration]
+# Install the package without torch-scatter first
+RUN pip install --no-cache-dir -e .
+
+# Install torch-scatter manually after PyTorch is installed
+RUN pip install --no-cache-dir torch-scatter -f https://data.pyg.org/whl/torch-2.7.0+cpu.html || \
+    echo "Warning: torch-scatter installation failed, using fallback mode"
 
 # Production image
 FROM python:3.12-slim

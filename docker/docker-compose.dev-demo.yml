@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Development-as-Production configuration for tech demo
 # This configuration mimics production setup but optimized for demo environment
 

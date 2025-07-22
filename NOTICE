@@ -1,12 +1,15 @@
+# NOTICE
+
 Esper Morphogenetic Training Platform
 Copyright 2024 John Morrissey and Contributors
 
 This project includes software developed by John Morrissey
-and the Esper contributors (https://github.com/esper/esperlite).
+and the Esper contributors (<https://github.com/esper/esperlite>).
 
 Licensed under the MIT License (see LICENSE file).
 
 Third-party components:
+
 - PyTorch: Copyright (c) Facebook, Inc. (BSD-style license)
 - PyTorch Geometric: Copyright (c) Matthias Fey (MIT license)
 - NumPy: Copyright (c) NumPy Developers (BSD license)

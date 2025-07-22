@@ -7,7 +7,6 @@ for morphogenetic adaptation of transformer models.
 
 from esper.blueprints.metadata import BlueprintCategory
 
-
 # Blueprint definitions for transformer components
 BLUEPRINTS = [
     {

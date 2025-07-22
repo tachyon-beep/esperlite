@@ -4,9 +4,13 @@ Operational data models for runtime system monitoring and control.
 
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Set
+from typing import Any
+from typing import Dict
+from typing import Set
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
 from pydantic import field_validator
 
 
@@ -39,13 +43,13 @@ class HealthSignal(BaseModel):
     active_seeds: int = Field(default=1, ge=0)
     total_seeds: int = Field(default=1, ge=1)
     timestamp: float = Field(default_factory=time.time)
-    
+
     # Training dynamics for morphogenetic adaptation
     gradient_norm: float = Field(default=0.0, ge=0.0)
     gradient_variance: float = Field(default=0.0, ge=0.0)
     gradient_sign_stability: float = Field(default=0.0, ge=0.0, le=1.0)
     param_norm_ratio: float = Field(default=1.0, ge=0.0)
-    
+
     # Performance metrics for system efficiency
     total_executions: int = Field(default=0, ge=0)
     cache_hit_rate: float = Field(default=0.0, ge=0.0, le=1.0)

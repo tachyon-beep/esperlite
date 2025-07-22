@@ -13,16 +13,14 @@ import pytest
 import torch
 
 from src.esper.contracts.operational import HealthSignal
-from src.esper.execution.error_recovery import (
-    ErrorContext,
-    ErrorRecoveryManager,
-    ErrorTracker,
-    ErrorType,
-    HealthMonitor,
-    RecoveryStrategy,
-    classify_kernel_error,
-    create_error_context,
-)
+from src.esper.execution.error_recovery import ErrorContext
+from src.esper.execution.error_recovery import ErrorRecoveryManager
+from src.esper.execution.error_recovery import ErrorTracker
+from src.esper.execution.error_recovery import ErrorType
+from src.esper.execution.error_recovery import HealthMonitor
+from src.esper.execution.error_recovery import RecoveryStrategy
+from src.esper.execution.error_recovery import classify_kernel_error
+from src.esper.execution.error_recovery import create_error_context
 from src.esper.execution.kernel_executor import KernelExecutionError
 
 
@@ -232,7 +230,7 @@ class TestErrorRecoveryManager:
             exception=RuntimeError("Test error"),
         )
 
-        success = await self.manager.handle_error(context)
+        await self.manager.handle_error(context)
 
         # Should have recorded the error
         assert len(self.manager.error_tracker.error_history) == 1
@@ -293,7 +291,7 @@ class TestErrorRecoveryManager:
         with patch.object(
             self.manager.error_tracker, "is_problematic_kernel", return_value=True
         ):
-            success = await self.manager.handle_error(context)
+            await self.manager.handle_error(context)
 
             # Should have escalated
             recovery_record = self.manager.recovery_history[-1]

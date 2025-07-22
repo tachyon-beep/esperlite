@@ -10,7 +10,10 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

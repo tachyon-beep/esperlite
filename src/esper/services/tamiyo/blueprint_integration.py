@@ -13,8 +13,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-import torch
-
 from esper.blueprints.metadata import BlueprintCategory
 from esper.blueprints.metadata import BlueprintMetadata
 from esper.blueprints.registry import BlueprintRegistry
@@ -26,7 +24,6 @@ from esper.services.clients.tezzeret_client import TezzeretClient
 from esper.services.oona_client import OonaClient
 from esper.utils.circuit_breaker import CircuitBreaker
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,11 +34,11 @@ class BlueprintSelector:
     Maps policy decisions to appropriate blueprint templates from
     the registry.
     """
-    
+
     def __init__(self, blueprint_registry: BlueprintRegistry):
         self.registry = blueprint_registry
         self.selection_history: List[Dict] = []
-        
+
         # Action type to blueprint category mapping
         self.action_mapping = {
             0: BlueprintCategory.TRANSFORMER,    # Attention/FFN
@@ -50,7 +47,7 @@ class BlueprintSelector:
             3: BlueprintCategory.ROUTING,        # Distributed
             4: BlueprintCategory.DIAGNOSTICS,    # Monitoring
         }
-    
+
     def select_blueprint(
         self,
         action_type: int,
@@ -75,38 +72,38 @@ class BlueprintSelector:
         if not category:
             logger.warning(f"Unknown action type: {action_type}")
             return None
-        
+
         # Get layer info from model state
         layer_info = self._extract_layer_info(model_state, layer_name)
         layer_type = layer_info.get("type", "Linear")
-        
+
         # Filter blueprints by criteria
         candidates = self.registry.list_blueprints(
             category=category,
             safe_only=True,  # Safety first
             compatible_with=layer_type
         )
-        
+
         if not candidates:
             logger.info(f"No compatible blueprints for {layer_type} in {category}")
             return None
-        
+
         # Apply constraints
         if constraints:
             candidates = self._apply_constraints(candidates, constraints)
-        
+
         # Score and rank candidates
         scored_candidates = []
         for blueprint in candidates:
             score = self._score_blueprint(blueprint, model_state, layer_info)
             scored_candidates.append((score, blueprint))
-        
+
         # Sort by score (descending)
         scored_candidates.sort(key=lambda x: x[0], reverse=True)
-        
+
         if scored_candidates:
             best_score, best_blueprint = scored_candidates[0]
-            
+
             # Record selection
             self.selection_history.append({
                 "timestamp": time.time(),
@@ -115,16 +112,16 @@ class BlueprintSelector:
                 "blueprint_id": best_blueprint.blueprint_id,
                 "score": best_score
             })
-            
+
             logger.info(
                 f"Selected blueprint {best_blueprint.blueprint_id} "
                 f"for {layer_name} with score {best_score:.3f}"
             )
-            
+
             return best_blueprint
-        
+
         return None
-    
+
     def _extract_layer_info(
         self,
         model_state: ModelGraphState,
@@ -140,10 +137,10 @@ class BlueprintSelector:
                     "health_score": node.get("health_score", 0.5),
                     "current_adaptations": node.get("adaptations", [])
                 }
-        
+
         # Default if not found
         return {"type": "Linear", "parameters": 0, "health_score": 0.5}
-    
+
     def _apply_constraints(
         self,
         candidates: List[BlueprintMetadata],
@@ -151,28 +148,28 @@ class BlueprintSelector:
     ) -> List[BlueprintMetadata]:
         """Filter blueprints by constraints."""
         filtered = []
-        
+
         max_memory = constraints.get("max_memory_mb", float('inf'))
         max_latency = constraints.get("max_latency_ms", float('inf'))
         max_params = constraints.get("max_param_increase", float('inf'))
-        
+
         for blueprint in candidates:
             # Check memory constraint
             if blueprint.memory_footprint_kb / 1024 > max_memory:
                 continue
-            
+
             # Check latency constraint
             if blueprint.expected_latency_ms > max_latency:
                 continue
-            
+
             # Check parameter constraint
             if blueprint.param_delta > max_params:
                 continue
-            
+
             filtered.append(blueprint)
-        
+
         return filtered
-    
+
     def _score_blueprint(
         self,
         blueprint: BlueprintMetadata,
@@ -181,27 +178,27 @@ class BlueprintSelector:
     ) -> float:
         """Score blueprint based on expected benefit and cost."""
         score = 0.0
-        
+
         # Benefit scores
         score += blueprint.past_accuracy_gain_estimate * 10.0
         score += blueprint.stability_improvement_estimate * 5.0
         score += blueprint.speed_improvement_estimate * 3.0
-        
+
         # Cost penalties
         score -= blueprint.risk_score * 5.0
         score -= (blueprint.memory_footprint_kb / 1024) * 0.01
         score -= blueprint.expected_latency_ms * 0.1
-        
+
         # Context bonuses
         if layer_info["health_score"] < 0.3:
             # Prioritize stability for unhealthy layers
             if blueprint.stability_improvement_estimate > 0.01:
                 score += 2.0
-        
+
         # Avoid redundant adaptations
         if blueprint.blueprint_id in layer_info.get("current_adaptations", []):
             score -= 10.0
-        
+
         return score
 
 
@@ -211,7 +208,7 @@ class ExecutionSystemIntegrator:
     
     Handles the complete flow from blueprint selection to kernel loading.
     """
-    
+
     def __init__(
         self,
         oona_client: OonaClient,
@@ -221,17 +218,17 @@ class ExecutionSystemIntegrator:
         self.oona_client = oona_client
         self.urza_url = urza_url
         self.tezzeret_client = tezzeret_client or TezzeretClient(urza_url)
-        
+
         # Circuit breaker for reliability
         self.circuit_breaker = CircuitBreaker(
             failure_threshold=3,
             recovery_timeout=60.0,
             expected_exception=Exception
         )
-        
+
         # Track active adaptations
         self.active_adaptations: Dict[str, Dict] = {}
-    
+
     async def load_kernel(
         self,
         layer_name: str,
@@ -260,26 +257,26 @@ class ExecutionSystemIntegrator:
                     "seed_idx": seed_idx,
                     "timestamp": time.time()
                 }
-                
+
                 await self.oona_client.publish(
                     topic="control.kasmina.commands",
                     message=command
                 )
-                
+
                 # Track active adaptation
                 self.active_adaptations[f"{layer_name}:{seed_idx}"] = {
                     "kernel_id": kernel_id,
                     "loaded_at": time.time(),
                     "status": "active"
                 }
-                
+
                 logger.info(f"Loaded kernel {kernel_id} into {layer_name}:{seed_idx}")
                 return True
-                
+
         except Exception as e:
             logger.error(f"Failed to load kernel: {e}")
             return False
-    
+
     async def unload_kernel(
         self,
         layer_name: str,
@@ -294,25 +291,25 @@ class ExecutionSystemIntegrator:
                     "seed_idx": seed_idx,
                     "timestamp": time.time()
                 }
-                
+
                 await self.oona_client.publish(
                     topic="control.kasmina.commands",
                     message=command
                 )
-                
+
                 # Update tracking
                 key = f"{layer_name}:{seed_idx}"
                 if key in self.active_adaptations:
                     self.active_adaptations[key]["status"] = "unloaded"
                     self.active_adaptations[key]["unloaded_at"] = time.time()
-                
+
                 logger.info(f"Unloaded kernel from {layer_name}:{seed_idx}")
                 return True
-                
+
         except Exception as e:
             logger.error(f"Failed to unload kernel: {e}")
             return False
-    
+
     async def request_blueprint_compilation(
         self,
         blueprint: BlueprintMetadata,
@@ -343,21 +340,21 @@ class ExecutionSystemIntegrator:
                 created_by="tamiyo",
                 performance_metrics={}
             )
-            
+
             # Submit to Tezzeret via Urza
             blueprint_id = await self.tezzeret_client.submit_blueprint(
                 blueprint_contract
             )
-            
+
             if blueprint_id:
                 logger.info(f"Submitted blueprint {blueprint_id} for compilation")
                 return blueprint_id
-            
+
         except Exception as e:
             logger.error(f"Failed to submit blueprint: {e}")
-        
+
         return None
-    
+
     async def wait_for_compilation(
         self,
         blueprint_id: str,
@@ -374,34 +371,34 @@ class ExecutionSystemIntegrator:
             Kernel ID if compilation successful
         """
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             try:
                 # Check compilation status
                 status = await self.tezzeret_client.get_blueprint_status(
                     blueprint_id
                 )
-                
+
                 if status and status.get("state") == BlueprintState.CHARACTERIZED:
                     # Compilation complete
                     kernel_id = status.get("kernel_id")
                     if kernel_id:
                         logger.info(f"Compilation complete: {kernel_id}")
                         return kernel_id
-                
+
                 elif status and status.get("state") == BlueprintState.INVALID:
                     logger.error(f"Blueprint compilation failed: {blueprint_id}")
                     return None
-                
+
             except Exception as e:
                 logger.warning(f"Error checking compilation status: {e}")
-            
+
             # Wait before next check
             await asyncio.sleep(5.0)
-        
+
         logger.error(f"Compilation timeout for blueprint {blueprint_id}")
         return None
-    
+
     def get_active_adaptations(self) -> Dict[str, Dict]:
         """Get currently active adaptations."""
         return {
@@ -417,7 +414,7 @@ class Phase2IntegrationOrchestrator:
     Handles the full adaptation pipeline from Tamiyo decision to
     kernel execution.
     """
-    
+
     def __init__(
         self,
         blueprint_registry: BlueprintRegistry,
@@ -428,10 +425,10 @@ class Phase2IntegrationOrchestrator:
         self.execution_integrator = ExecutionSystemIntegrator(
             oona_client, urza_url
         )
-        
+
         # Track adaptation pipeline state
         self.pipeline_state = {}
-    
+
     async def execute_adaptation_pipeline(
         self,
         decision: AdaptationDecision,
@@ -455,7 +452,7 @@ class Phase2IntegrationOrchestrator:
             "decision": decision,
             "status": "started"
         }
-        
+
         try:
             # 1. Select appropriate blueprint
             blueprint = self.blueprint_selector.select_blueprint(
@@ -464,50 +461,50 @@ class Phase2IntegrationOrchestrator:
                 layer_name=decision.layer_name,
                 constraints=constraints
             )
-            
+
             if not blueprint:
                 logger.warning("No suitable blueprint found")
                 self.pipeline_state[pipeline_id]["status"] = "no_blueprint"
                 return False, {"reason": "no_suitable_blueprint"}
-            
+
             self.pipeline_state[pipeline_id]["blueprint_id"] = blueprint.blueprint_id
-            
+
             # 2. Request compilation
             blueprint_id = await self.execution_integrator.request_blueprint_compilation(
                 blueprint, decision.layer_name
             )
-            
+
             if not blueprint_id:
                 self.pipeline_state[pipeline_id]["status"] = "compilation_failed"
                 return False, {"reason": "compilation_request_failed"}
-            
+
             # 3. Wait for compilation
             kernel_id = await self.execution_integrator.wait_for_compilation(
                 blueprint_id
             )
-            
+
             if not kernel_id:
                 self.pipeline_state[pipeline_id]["status"] = "compilation_timeout"
                 return False, {"reason": "compilation_timeout"}
-            
+
             self.pipeline_state[pipeline_id]["kernel_id"] = kernel_id
-            
+
             # 4. Load kernel into execution layer
             success = await self.execution_integrator.load_kernel(
                 layer_name=decision.layer_name,
                 kernel_id=kernel_id,
                 seed_idx=0  # TODO: Smarter seed selection
             )
-            
+
             if success:
                 self.pipeline_state[pipeline_id]["status"] = "completed"
                 self.pipeline_state[pipeline_id]["end_time"] = time.time()
-                
+
                 duration = (
                     self.pipeline_state[pipeline_id]["end_time"] -
                     self.pipeline_state[pipeline_id]["start_time"]
                 )
-                
+
                 return True, {
                     "pipeline_id": pipeline_id,
                     "blueprint_id": blueprint.blueprint_id,
@@ -517,13 +514,13 @@ class Phase2IntegrationOrchestrator:
             else:
                 self.pipeline_state[pipeline_id]["status"] = "load_failed"
                 return False, {"reason": "kernel_load_failed"}
-                
+
         except Exception as e:
             logger.error(f"Pipeline execution error: {e}")
             self.pipeline_state[pipeline_id]["status"] = "error"
             self.pipeline_state[pipeline_id]["error"] = str(e)
             return False, {"reason": "pipeline_error", "error": str(e)}
-    
+
     def _map_adaptation_to_action(self, decision: AdaptationDecision) -> int:
         """Map adaptation decision to action type."""
         # Simple mapping based on adaptation type
@@ -535,6 +532,6 @@ class Phase2IntegrationOrchestrator:
             "add_routing": 3,
             "add_diagnostic": 4,
         }
-        
+
         # Default to transformer category
         return mapping.get(decision.adaptation_type, 0)

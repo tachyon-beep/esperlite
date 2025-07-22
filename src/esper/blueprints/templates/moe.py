@@ -7,7 +7,6 @@ mixture-of-experts architectures.
 
 from esper.blueprints.metadata import BlueprintCategory
 
-
 BLUEPRINTS = [
     {
         "metadata": {

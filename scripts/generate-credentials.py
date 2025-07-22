@@ -3,11 +3,12 @@
 Generate secure random credentials for Esper development environment
 """
 
-import secrets
-import string
 import json
 import os
+import secrets
+import string
 from pathlib import Path
+
 
 def generate_password(length=32):
     """Generate a secure random password"""
@@ -50,7 +51,7 @@ def generate_credentials():
             "master_key": secrets.token_hex(32),
         }
     }
-    
+
     return credentials
 
 def write_env_file(credentials, filepath):
@@ -114,10 +115,10 @@ ENABLE_PROFILING=false
 ENABLE_ASYNC_COMPILATION=true
 SAFETY_CHECKS_ENABLED=true
 """
-    
+
     with open(filepath, 'w') as f:
         f.write(env_content)
-    
+
     # Set restrictive permissions
     os.chmod(filepath, 0o600)
 
@@ -125,7 +126,7 @@ def write_secrets_json(credentials, filepath):
     """Write credentials to JSON file for programmatic access"""
     with open(filepath, 'w') as f:
         json.dump(credentials, f, indent=2)
-    
+
     # Set restrictive permissions
     os.chmod(filepath, 0o600)
 
@@ -140,28 +141,28 @@ minio-secret-key={credentials['minio']['secret_key']}
 grafana-admin-password={credentials['monitoring']['grafana_admin_password']}
 jwt-secret={credentials['jwt']['secret']}
 """
-    
+
     with open(filepath, 'w') as f:
         f.write(k8s_secrets)
-    
+
     os.chmod(filepath, 0o600)
 
 def main():
     """Generate all credential files"""
     print("🔐 Generating secure credentials for Esper development environment...")
-    
+
     # Generate credentials
     credentials = generate_credentials()
-    
+
     # Create secrets directory
     secrets_dir = Path("secrets")
     secrets_dir.mkdir(exist_ok=True)
-    
+
     # Write files
     write_env_file(credentials, ".env.dev-demo")
     write_secrets_json(credentials, "secrets/credentials.json")
     write_k8s_secrets(credentials, "k8s/overlays/development/secrets.env")
-    
+
     print("✅ Credentials generated successfully!")
     print("\nFiles created:")
     print("  - .env.dev-demo (Docker Compose environment)")

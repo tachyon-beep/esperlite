@@ -199,7 +199,7 @@ class TestDatabaseConfigIntegration:
                 mock_engine.pool = MagicMock(spec=StaticPool)
                 mock_create_engine.return_value = mock_engine
 
-                config = DatabaseConfig()
+                DatabaseConfig()
 
                 # Verify StaticPool was used
                 create_engine_call = mock_create_engine.call_args
@@ -225,7 +225,7 @@ class TestDatabaseConfigIntegration:
                 mock_engine.pool = MagicMock(spec=QueuePool)
                 mock_create_engine.return_value = mock_engine
 
-                config = DatabaseConfig()
+                DatabaseConfig()
 
                 # Verify QueuePool configuration
                 create_engine_call = mock_create_engine.call_args

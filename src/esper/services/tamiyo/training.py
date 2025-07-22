@@ -6,7 +6,7 @@ through reinforcement learning on collected experience data.
 """
 
 import logging
-import pickle
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -429,22 +429,52 @@ class TamiyoTrainer:
         """Save experience data to disk."""
         save_path = Path(self.config.training_data_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Change extension to .json
+        if save_path.suffix != '.json':
+            save_path = save_path.with_suffix('.json')
 
-        with open(save_path, "wb") as f:
-            pickle.dump(experience_data, f)
+        # Convert tensors to lists for JSON serialization
+        serializable_data = []
+        for exp in experience_data:
+            serializable_exp = {}
+            for key, value in exp.items():
+                if isinstance(value, torch.Tensor):
+                    serializable_exp[key] = value.tolist()
+                else:
+                    serializable_exp[key] = value
+            serializable_data.append(serializable_exp)
+
+        with open(save_path, "w") as f:
+            json.dump(serializable_data, f, indent=2)
 
         logger.info("Saved %d experiences to %s", len(experience_data), save_path)
 
     def load_experience_data(self) -> List[Dict[str, Any]]:
         """Load experience data from disk."""
         load_path = Path(self.config.training_data_path)
+        
+        # Check for .json file
+        if load_path.suffix != '.json':
+            load_path = load_path.with_suffix('.json')
 
         if not load_path.exists():
             logger.warning("No experience data found at %s", load_path)
             return []
 
-        with open(load_path, "rb") as f:
-            experience_data = pickle.load(f)
+        with open(load_path, "r") as f:
+            serializable_data = json.load(f)
+        
+        # Convert lists back to tensors
+        experience_data = []
+        for exp in serializable_data:
+            reconstructed_exp = {}
+            for key, value in exp.items():
+                if isinstance(value, list) and key in ['state', 'action', 'reward', 'next_state']:
+                    reconstructed_exp[key] = torch.tensor(value)
+                else:
+                    reconstructed_exp[key] = value
+            experience_data.append(reconstructed_exp)
 
         logger.info("Loaded %d experiences from %s", len(experience_data), load_path)
         return experience_data

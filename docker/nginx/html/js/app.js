@@ -379,11 +379,22 @@ class EsperDemoApp {
         const service = log.service || log.channel?.split(':')[1] || 'system';
         const message = log.message || log.data || '';
         
-        entry.innerHTML = `
-            <span class="log-time">${time}</span>
-            <span class="log-service">${service}</span>
-            <span class="log-message">${message}</span>
-        `;
+        // Create elements safely to prevent XSS
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'log-time';
+        timeSpan.textContent = time;
+        
+        const serviceSpan = document.createElement('span');
+        serviceSpan.className = 'log-service';
+        serviceSpan.textContent = service;
+        
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'log-message';
+        messageSpan.textContent = message;
+        
+        entry.appendChild(timeSpan);
+        entry.appendChild(serviceSpan);
+        entry.appendChild(messageSpan);
         
         container.appendChild(entry);
         

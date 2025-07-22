@@ -20,7 +20,6 @@ from esper.services.tamiyo import EnhancedTamiyoService
 from esper.services.tamiyo import PolicyConfig
 from esper.utils.config import ServiceConfig
 
-
 # Configure production logging
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class TamiyoLauncher:
     """Production launcher for Enhanced Tamiyo Service."""
-    
+
     def __init__(
         self,
         redis_url: Optional[str] = None,
@@ -45,7 +44,7 @@ class TamiyoLauncher:
             port=8082,  # Tamiyo standard port
             redis_url=redis_url or os.getenv("REDIS_URL", "redis://localhost:6379"),
         )
-        
+
         # Set Urza service URL
         if urza_url:
             self.service_config.service_urls["urza"] = urza_url
@@ -53,10 +52,10 @@ class TamiyoLauncher:
             self.service_config.service_urls["urza"] = os.getenv(
                 "URZA_URL", "http://localhost:8080"
             )
-        
+
         # Initialize Oona client
         self.oona_client = OonaClient(self.service_config.get_redis_url())
-        
+
         # Policy configuration with production settings
         self.policy_config = PolicyConfig(
             # Enhanced GNN architecture
@@ -73,7 +72,7 @@ class TamiyoLauncher:
             max_adaptations_per_epoch=3,
             safety_margin=0.2,
         )
-        
+
         # Initialize enhanced service
         self.tamiyo_service = EnhancedTamiyoService(
             service_config=self.service_config,
@@ -81,11 +80,11 @@ class TamiyoLauncher:
             policy_config=self.policy_config,
             enable_learning=enable_learning,
         )
-        
+
         logger.info(
             "🚀 Enhanced Tamiyo Service initialized with REMEDIATION A1 components"
         )
-    
+
     async def start(self):
         """Start the enhanced Tamiyo service."""
         logger.info("Starting Enhanced Tamiyo Service...")
@@ -96,7 +95,7 @@ class TamiyoLauncher:
             f"  - Blueprints loaded: "
             f"{len(self.tamiyo_service.blueprint_registry.blueprints)}"
         )
-        
+
         try:
             # Start the service
             await self.tamiyo_service.start()
@@ -107,7 +106,7 @@ class TamiyoLauncher:
             raise
         finally:
             await self.shutdown()
-    
+
     async def shutdown(self):
         """Gracefully shutdown the service."""
         logger.info("Shutting down Enhanced Tamiyo Service...")
@@ -116,7 +115,7 @@ class TamiyoLauncher:
             logger.info("✅ Service shutdown complete")
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
-    
+
     def get_status(self):
         """Get comprehensive service status."""
         return self.tamiyo_service.get_status()
@@ -125,7 +124,7 @@ class TamiyoLauncher:
 async def main():
     """Main entry point."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(
         description="Launch Enhanced Tamiyo Service with REMEDIATION A1"
     )
@@ -149,20 +148,20 @@ async def main():
         action="store_true",
         help="Enable debug logging"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Set debug logging if requested
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-    
+
     # Create and start launcher
     launcher = TamiyoLauncher(
         redis_url=args.redis_url,
         urza_url=args.urza_url,
         enable_learning=not args.no_learning,
     )
-    
+
     # Print startup banner
     print("""
     ╔═══════════════════════════════════════════════════════════════════╗
@@ -177,7 +176,7 @@ async def main():
     ║  ✓ GNN Policy: Advanced graph neural network decisions          ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     # Start the service
     await launcher.start()
 

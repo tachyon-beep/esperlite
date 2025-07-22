@@ -526,12 +526,12 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
         # Default adaptation types based on analysis
         urgency = outputs["urgency_score"].item()
         risk = outputs["risk_assessment"].item()
-        
+
         # Extract gradient information from global metrics
         gradient_health = model_state.global_metrics.get("gradient_health", 0.5)
         training_stability = model_state.global_metrics.get("training_stability", 0.5)
         avg_gradient_norm = model_state.global_metrics.get("avg_gradient_norm", 1.0)
-        
+
         # Gradient-informed adaptation decisions
         if avg_gradient_norm > 10.0:
             # Exploding gradients - need immediate stabilization

@@ -12,14 +12,12 @@ import pytest
 import torch
 import torch.nn as nn
 
-from src.esper.execution.kernel_executor import (
-    ExecutionStats,
-    KernelExecutionError,
-    KernelValidator,
-    RealKernelExecutor,
-    create_test_kernel_artifact,
-    validate_kernel_artifact,
-)
+from src.esper.execution.kernel_executor import ExecutionStats
+from src.esper.execution.kernel_executor import KernelExecutionError
+from src.esper.execution.kernel_executor import KernelValidator
+from src.esper.execution.kernel_executor import RealKernelExecutor
+from src.esper.execution.kernel_executor import create_test_kernel_artifact
+from src.esper.execution.kernel_executor import validate_kernel_artifact
 
 
 class TestExecutionStats:
@@ -346,7 +344,7 @@ class TestRealKernelExecutor:
     def test_clear_cache(self):
         """Test cache clearing."""
         # Add some kernels to cache
-        kernel_artifact = create_test_kernel_artifact(10, 5)
+        create_test_kernel_artifact(10, 5)
 
         # Manually add to cache for testing
         test_module = nn.Linear(10, 5)

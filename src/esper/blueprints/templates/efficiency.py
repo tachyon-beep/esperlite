@@ -7,7 +7,6 @@ for memory-constrained morphogenetic evolution.
 
 from esper.blueprints.metadata import BlueprintCategory
 
-
 BLUEPRINTS = [
     {
         "metadata": {

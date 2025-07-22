@@ -7,7 +7,6 @@ morphogenetic adaptations.
 
 from esper.blueprints.metadata import BlueprintCategory
 
-
 BLUEPRINTS = [
     {
         "metadata": {

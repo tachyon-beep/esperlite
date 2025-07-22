@@ -136,7 +136,7 @@ class TestSignalFilterEngineCore:
             )
             # Override timestamp for predictable hashing
             signal.timestamp = base_timestamp + i * 0.1
-            
+
             if filter_engine.should_process(signal):
                 processed_count += 1
 
@@ -414,7 +414,7 @@ class TestProductionHealthCollectorCore:
         for signal in unhealthy_scenario.health_signals[:10]:
             if filter_engine.should_process(signal):
                 unhealthy_processed += 1
-                priority = filter_engine.calculate_priority(signal)
+                filter_engine.calculate_priority(signal)
                 collector.signal_buffer.add(signal)
                 collector.statistics.record_signal_processed()
             else:
@@ -424,7 +424,7 @@ class TestProductionHealthCollectorCore:
         for signal in stable_scenario.health_signals[:20]:
             if filter_engine.should_process(signal):
                 stable_processed += 1
-                priority = filter_engine.calculate_priority(signal)
+                filter_engine.calculate_priority(signal)
                 collector.signal_buffer.add(signal)
                 collector.statistics.record_signal_processed()
             else:
@@ -638,7 +638,7 @@ class TestHealthCollectorPerformance:
             signal = scenario.health_signals[i % len(scenario.health_signals)]
 
             # Create realistic message
-            message = create_test_message(signal)
+            create_test_message(signal)
 
             # Measure processing time
             start_time = time.perf_counter()
@@ -718,7 +718,7 @@ class TestHealthCollectorPerformance:
 
             batch = test_signals[i : i + batch_size]
             for signal in batch:
-                message = create_test_message(signal)
+                create_test_message(signal)
 
                 # Process the signal through filter and buffer
                 if collector.filter_engine.should_process(signal):
@@ -751,7 +751,7 @@ class TestHealthCollectorPerformance:
         ), f"Throughput {actual_throughput:.0f} Hz below adjusted requirement {adjusted_min_throughput} Hz"
 
         # Verify buffer didn't overflow
-        stats = collector.statistics.get_stats()
+        collector.statistics.get_stats()
         buffer_size = len(collector.signal_buffer.buffer)
         assert buffer_size <= collector.signal_buffer.max_size * 1.1
 
@@ -797,7 +797,7 @@ class TestHealthCollectorPerformance:
         hour_count = 0
 
         while (time.perf_counter() - start_time) < simulation_time:
-            hour_start = time.perf_counter()
+            time.perf_counter()
 
             # Process signals for this "hour"
             signals_this_hour = 0
@@ -808,7 +808,7 @@ class TestHealthCollectorPerformance:
 
                 # Progress the epoch for time simulation
                 signal.epoch = signal.epoch + hour_count * 100
-                message = create_test_message(signal)
+                create_test_message(signal)
 
                 # Process the signal through filter and buffer
                 if collector.filter_engine.should_process(signal):
@@ -820,7 +820,7 @@ class TestHealthCollectorPerformance:
                 processed_total += 1
 
             # Sample memory usage
-            stats = collector.statistics.get_stats()
+            collector.statistics.get_stats()
             buffer_size = len(collector.signal_buffer.buffer)
             memory_samples.append(buffer_size)
 
@@ -829,11 +829,11 @@ class TestHealthCollectorPerformance:
             # Brief pause to simulate time passage
             await asyncio.sleep(0.01)
 
-        end_time = time.perf_counter()
+        time.perf_counter()
 
         # Analyze memory stability
         max_memory = max(memory_samples)
-        min_memory = min(memory_samples)
+        min(memory_samples)
         final_memory = memory_samples[-1]
         memory_growth = final_memory - memory_samples[0] if memory_samples else 0
 
@@ -852,7 +852,7 @@ class TestHealthCollectorPerformance:
         ), "Memory usage exceeded buffer limits"
 
         # Processing should continue working
-        final_stats = collector.statistics.get_stats()
+        collector.statistics.get_stats()
         # Note: error_count not tracked in current implementation
 
         logger.info(

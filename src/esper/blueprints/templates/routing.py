@@ -7,7 +7,6 @@ for multi-GPU morphogenetic training.
 
 from esper.blueprints.metadata import BlueprintCategory
 
-
 BLUEPRINTS = [
     {
         "metadata": {

@@ -17,10 +17,11 @@ import torch
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from esper.services.tamiyo.policy import PolicyConfig, TamiyoPolicyGNN
-from esper.services.tamiyo.training import TamiyoTrainer, TrainingConfig
+from esper.services.tamiyo.policy import PolicyConfig
+from esper.services.tamiyo.policy import TamiyoPolicyGNN
+from esper.services.tamiyo.training import TamiyoTrainer
+from esper.services.tamiyo.training import TrainingConfig
 from esper.utils.logging import setup_logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +35,16 @@ def create_synthetic_experience_data(num_samples: int = 1000) -> list:
     """
     import random
     import time
-    
+
     experiences = []
-    
+
     for i in range(num_samples):
         # Simulate varying health scenarios
         base_health = random.uniform(0.2, 0.9)
-        
+
         # Simulate adaptation decisions
         should_adapt = base_health < 0.5
-        
+
         # Simulate rewards based on adaptation effectiveness
         if should_adapt:
             # Positive reward if adaptation was beneficial
@@ -51,7 +52,7 @@ def create_synthetic_experience_data(num_samples: int = 1000) -> list:
         else:
             # Small negative reward for unnecessary adaptation
             reward = random.uniform(-0.1, 0.1)
-        
+
         experience = {
             "state": {
                 "health_score": base_health,
@@ -67,9 +68,9 @@ def create_synthetic_experience_data(num_samples: int = 1000) -> list:
             },
             "timestamp": time.time() + i
         }
-        
+
         experiences.append(experience)
-    
+
     logger.info("Generated %d synthetic experiences", len(experiences))
     return experiences
 
@@ -78,8 +79,8 @@ def main() -> None:
     """Main training function."""
     parser = argparse.ArgumentParser(description="Train Tamiyo GNN Policy")
     parser.add_argument(
-        "--config", 
-        type=str, 
+        "--config",
+        type=str,
         help="Path to training configuration file"
     )
     parser.add_argument(
@@ -134,25 +135,25 @@ def main() -> None:
         action="store_true",
         help="Enable verbose logging"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Setup logging
     setup_logging("tamiyo-trainer", level=logging.DEBUG if args.verbose else logging.INFO)
-    
+
     logger.info("Starting Tamiyo policy training...")
-    
+
     # Determine device
     if args.device == "auto":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device(args.device)
-    
+
     logger.info("Using device: %s", device)
-    
+
     # Create configurations
     policy_config = PolicyConfig()
-    
+
     training_config = TrainingConfig(
         num_epochs=args.epochs,
         batch_size=args.batch_size,
@@ -160,16 +161,16 @@ def main() -> None:
         model_save_path=str(Path(args.output_dir) / "tamiyo_policy.pt"),
         training_data_path=str(Path(args.output_dir) / "experience_data.pkl")
     )
-    
+
     # Create model and trainer
     policy = TamiyoPolicyGNN(policy_config)
     trainer = TamiyoTrainer(policy, training_config, device)
-    
+
     # Load checkpoint if specified
     if args.resume:
         logger.info("Resuming from checkpoint: %s", args.resume)
         trainer.load_checkpoint(args.resume)
-    
+
     # Load or generate experience data
     if args.experience_data and Path(args.experience_data).exists():
         logger.info("Loading experience data from: %s", args.experience_data)
@@ -177,23 +178,23 @@ def main() -> None:
     else:
         logger.info("Generating synthetic experience data...")
         experience_data = create_synthetic_experience_data(args.synthetic_samples)
-        
+
         # Save synthetic data
         trainer.save_experience_data(experience_data)
-    
+
     if not experience_data:
         logger.error("No experience data available for training")
         return
-    
+
     logger.info("Training on %d experiences...", len(experience_data))
-    
+
     # Train the policy
     try:
         metrics = trainer.train_from_experience(experience_data)
-        
+
         logger.info("Training completed successfully!")
         logger.info("Final metrics: %s", metrics)
-        
+
         # Log key results
         print("\n" + "="*50)
         print("TRAINING RESULTS")
@@ -205,7 +206,7 @@ def main() -> None:
         print(f"Best validation accuracy: {metrics.get('best_val_accuracy', 'N/A'):.4f}")
         print(f"Model saved to: {training_config.model_save_path}")
         print("="*50)
-        
+
     except Exception as e:
         logger.error("Training failed: %s", e)
         raise

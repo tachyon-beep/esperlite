@@ -112,13 +112,13 @@ class LayerFeatureExtractor:
             )
             dead_neuron_ratio = np.mean([s.dead_neuron_ratio for s in layer_signals])
             correlation = np.mean([s.avg_correlation for s in layer_signals])
-            
+
             # Gradient dynamics - crucial for morphogenetic adaptation
             avg_gradient_norm = np.mean([s.gradient_norm for s in layer_signals])
             avg_gradient_variance = np.mean([s.gradient_variance for s in layer_signals])
             avg_gradient_stability = np.mean([s.gradient_sign_stability for s in layer_signals])
             avg_param_norm_ratio = np.mean([s.param_norm_ratio for s in layer_signals])
-            
+
             # Performance metrics
             avg_cache_hit_rate = np.mean([s.cache_hit_rate for s in layer_signals])
             total_executions = sum([s.total_executions for s in layer_signals])
@@ -513,27 +513,27 @@ class ModelGraphBuilder:
             avg_gradient_norm = np.mean(metrics['gradient_norms'])
             avg_stability = np.mean(metrics['gradient_stability'])
             total_errors = sum(metrics['error_counts'])
-            
+
             # Multiple criteria for problematic layers
             is_problematic = False
             reasons = []
-            
+
             if avg_health < 0.3:
                 is_problematic = True
                 reasons.append("low_health")
-            
+
             if avg_gradient_norm > 10.0:
                 is_problematic = True
                 reasons.append("exploding_gradients")
-            
+
             if avg_stability < 0.3:
                 is_problematic = True
                 reasons.append("unstable_gradients")
-                
+
             if total_errors > 10:
                 is_problematic = True
                 reasons.append("high_errors")
-            
+
             if is_problematic:
                 problematic.append(layer_name)
                 logger.debug(f"Layer {layer_name} identified as problematic: {reasons}")
@@ -559,17 +559,17 @@ class ModelGraphBuilder:
         gradient_norms = [s.gradient_norm for s in health_signals]
         gradient_stability = [s.gradient_sign_stability for s in health_signals]
         cache_rates = [s.cache_hit_rate for s in health_signals]
-        
+
         # Compute gradient health score (lower norms are better)
         avg_gradient_norm = np.mean(gradient_norms)
         gradient_health = 1.0 / (1.0 + avg_gradient_norm)  # Inverse relationship
-        
+
         # Training stability combines gradient stability and param norm ratios
         avg_stability = np.mean(gradient_stability)
         param_ratios = [s.param_norm_ratio for s in health_signals]
         param_health = 1.0 - abs(1.0 - np.mean(param_ratios))  # Best at 1.0
         training_stability = (avg_stability + param_health) / 2.0
-        
+
         # System efficiency based on cache performance and execution
         avg_cache_rate = np.mean(cache_rates)
         system_efficiency = avg_cache_rate

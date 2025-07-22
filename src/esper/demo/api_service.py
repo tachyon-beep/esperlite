@@ -5,8 +5,12 @@ import json
 import logging
 import time
 from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from datetime import timezone
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import aiohttp
 import aioredis

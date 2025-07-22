@@ -6,7 +6,8 @@ import uuid
 from datetime import UTC
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
 from pydantic import BaseModel
 from pydantic import Field

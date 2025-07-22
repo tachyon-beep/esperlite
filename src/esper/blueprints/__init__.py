@@ -7,16 +7,14 @@ architectural modification that can be dynamically compiled and integrated
 into a running neural network.
 """
 
+from esper.blueprints.metadata import BlueprintCategory
+from esper.blueprints.metadata import BlueprintManifest
+from esper.blueprints.metadata import BlueprintMetadata
 from esper.blueprints.registry import BlueprintRegistry
-from esper.blueprints.metadata import (
-    BlueprintMetadata,
-    BlueprintCategory,
-    BlueprintManifest,
-)
 
 __all__ = [
     "BlueprintRegistry",
-    "BlueprintMetadata", 
+    "BlueprintMetadata",
     "BlueprintCategory",
     "BlueprintManifest",
 ]

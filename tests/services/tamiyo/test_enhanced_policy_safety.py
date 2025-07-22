@@ -434,7 +434,7 @@ class TestEnhancedPolicySafety:
 
             # Test multiple decision attempts
             for attempt in range(5):
-                outputs = safety_policy(
+                safety_policy(
                     node_features, edge_index, return_uncertainty=True
                 )
 
@@ -508,7 +508,7 @@ class TestEnhancedPolicySafety:
             # Add randomness to simulate different system states
             noisy_features = node_features + torch.randn_like(node_features) * 0.1
 
-            outputs = safety_policy(noisy_features, edge_index, return_uncertainty=True)
+            safety_policy(noisy_features, edge_index, return_uncertainty=True)
 
             # Create realistic state representing dangerous system condition
             graph_state = create_realistic_graph_state(
@@ -522,7 +522,6 @@ class TestEnhancedPolicySafety:
 
             if decision is not None:
                 # Check if decision is made in dangerous context
-                confidence = decision.confidence
                 safety_score = decision.metadata.get("safety_score", 1.0)
 
                 # Consider it dangerous if made with low safety score in unstable system
@@ -569,7 +568,7 @@ class TestEnhancedPolicySafety:
             # Add system noise to simulate crisis conditions
             crisis_features = node_features + torch.randn_like(node_features) * 0.5
 
-            outputs = safety_policy(
+            safety_policy(
                 crisis_features, edge_index, return_uncertainty=True
             )
 
@@ -638,7 +637,7 @@ class TestEnhancedPolicySafety:
             # Add more noise to increase uncertainty
             noisy_features = node_features + torch.randn_like(node_features) * 1.0
 
-            outputs = safety_policy(noisy_features, edge_index, return_uncertainty=True)
+            safety_policy(noisy_features, edge_index, return_uncertainty=True)
 
             graph_state = create_realistic_graph_state(
                 problematic_layers=["uncertain_layer_0"],
@@ -692,7 +691,7 @@ class TestPolicyPerformanceUnderSafetyConstraints:
         start_time = time.perf_counter()
 
         for _ in range(100):
-            outputs = performance_policy(
+            performance_policy(
                 node_features, edge_index, return_uncertainty=False
             )
 
@@ -702,7 +701,7 @@ class TestPolicyPerformanceUnderSafetyConstraints:
         start_time = time.perf_counter()
 
         for _ in range(100):
-            outputs = performance_policy(
+            performance_policy(
                 node_features, edge_index, return_uncertainty=True
             )
 
@@ -732,7 +731,7 @@ class TestPolicyPerformanceUnderSafetyConstraints:
     def test_decision_making_latency_with_safety(self, performance_policy):
         """Test decision making latency including all safety checks."""
         # Create realistic decision scenario
-        scenario = ProductionScenarioFactory.create_unhealthy_system_scenario()
+        ProductionScenarioFactory.create_unhealthy_system_scenario()
 
         node_features = torch.randn(12, performance_policy.config.node_feature_dim)
         edge_index = torch.tensor([[i, (i + 1) % 12] for i in range(12)]).t()
@@ -743,7 +742,7 @@ class TestPolicyPerformanceUnderSafetyConstraints:
             start_time = time.perf_counter()
 
             # Full decision pipeline
-            outputs = performance_policy(
+            performance_policy(
                 node_features, edge_index, return_uncertainty=True
             )
 
@@ -752,7 +751,7 @@ class TestPolicyPerformanceUnderSafetyConstraints:
                 health_trends={"test_layer": [0.5, 0.3, 0.2]},
             )
 
-            decision = performance_policy.make_decision(graph_state)
+            performance_policy.make_decision(graph_state)
 
             end_time = time.perf_counter()
             decision_times.append(end_time - start_time)

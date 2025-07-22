@@ -8,7 +8,7 @@ the placeholder implementation in KasminaLayer with real PyTorch module executio
 import asyncio
 import io
 import logging
-import pickle
+# Removed pickle import - using torch.load for security
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -450,19 +450,23 @@ class RealKernelExecutor:
             raise KernelDeserializationError("Potentially unsafe pickle data detected")
 
         try:
-            # Use restricted unpickler for safety
+            # Use torch.load with weights_only=True for safety
             buffer = io.BytesIO(kernel_artifact)
-            module = pickle.load(buffer)
-
-            if not isinstance(module, nn.Module):
+            # Load only the state dict, not arbitrary Python objects
+            state_dict = torch.load(buffer, map_location='cpu', weights_only=True)
+            
+            # Create a new module and load the state dict
+            # This requires the kernel to save module class info separately
+            if not isinstance(state_dict, dict):
                 raise KernelDeserializationError(
-                    f"Expected nn.Module, got {type(module)}"
+                    "Invalid kernel format - expected state dict"
                 )
-
-            return module
+            
+            # For now, return the state dict - caller needs to instantiate module
+            return state_dict
 
         except Exception as e:
-            raise KernelDeserializationError(f"Pickle deserialization failed: {e}")
+            raise KernelDeserializationError(f"Kernel deserialization failed: {e}")
 
     async def _execute_with_timeout(
         self, kernel_module: nn.Module, input_tensor: torch.Tensor

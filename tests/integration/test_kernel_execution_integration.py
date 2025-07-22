@@ -218,7 +218,7 @@ class TestKernelExecutionIntegration:
             test_artifacts.append((tensor, metadata, artifact))
 
         # Mock cache methods to return different data for each kernel
-        def mock_load_side_effect(artifact_id, **kwargs):
+        def mock_load_side_effect(artifact_id, **_kwargs):
             if "multi_kernel_0" in artifact_id:
                 return test_artifacts[0][:2]  # tensor, metadata
             elif "multi_kernel_1" in artifact_id:
@@ -287,7 +287,7 @@ class TestKernelExecutionIntegration:
     async def test_kernel_compatibility_filtering(self):
         """Test kernel compatibility filtering in integrated system."""
         # Create incompatible kernel metadata
-        incompatible_metadata = KernelMetadata(
+        _ = KernelMetadata(
             kernel_id="incompatible_kernel",
             blueprint_id="test_blueprint",
             name="Incompatible Kernel",
@@ -298,7 +298,7 @@ class TestKernelExecutionIntegration:
             memory_footprint_mb=1.0,
         )
 
-        test_tensor = torch.randn(100)
+        _ = torch.randn(100)
 
         with patch.object(
             self.layer.kernel_cache, "load_kernel_with_validation"
@@ -395,7 +395,7 @@ class TestKernelExecutionPerformance:
         latencies = []
         for _ in range(100):
             start_time = time.perf_counter()
-            output = self.layer(input_tensor)
+            _ = self.layer(input_tensor)
             latency = (time.perf_counter() - start_time) * 1000  # ms
             latencies.append(latency)
 
@@ -548,7 +548,7 @@ class TestSystemResilience:
                 errors_generated += 1
 
         # Generate and handle multiple errors
-        for i in range(9):
+        for _ in range(9):
             try:
                 await generate_error()
             except Exception as e:

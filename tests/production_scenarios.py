@@ -113,7 +113,7 @@ class ProductionHealthSignalFactory:
     ) -> List[HealthSignal]:
         """Create time series of health signals showing various trends."""
         signals = []
-        base_time = time.time()
+        _ = time.time()
 
         for i in range(num_signals):
             if trend == "degrading":

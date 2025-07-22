@@ -19,7 +19,7 @@ class SimpleDemoAPI:
         self.training_loss = 2.3
         self.training_accuracy = 0.1
 
-    async def get_status(self, request: web.Request) -> web.Response:
+    async def get_status(self, _request: web.Request) -> web.Response:
         """Get system status."""
         status = {
             "uptime": int(time.time() - self.start_time),
@@ -52,7 +52,7 @@ class SimpleDemoAPI:
 
         return web.json_response(status)
 
-    async def get_training(self, request: web.Request) -> web.Response:
+    async def get_training(self, _request: web.Request) -> web.Response:
         """Get training status."""
         # Simulate training progress
         self.training_epoch = (self.training_epoch + 1) % 50
@@ -73,7 +73,7 @@ class SimpleDemoAPI:
             }
         )
 
-    async def get_logs(self, request: web.Request) -> web.Response:
+    async def get_logs(self, _request: web.Request) -> web.Response:
         """Get recent logs."""
         logs = [
             {
@@ -89,7 +89,7 @@ class SimpleDemoAPI:
         ]
         return web.json_response({"logs": logs})
 
-    async def get_kernels(self, request: web.Request) -> web.Response:
+    async def get_kernels(self, _request: web.Request) -> web.Response:
         """Get kernel statistics."""
         return web.json_response(
             {
@@ -101,7 +101,7 @@ class SimpleDemoAPI:
             }
         )
 
-    async def get_adaptations(self, request: web.Request) -> web.Response:
+    async def get_adaptations(self, _request: web.Request) -> web.Response:
         """Get adaptation history."""
         adaptations = []
         for i in range(min(5, self.training_epoch // 5)):

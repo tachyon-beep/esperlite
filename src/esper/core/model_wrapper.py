@@ -56,7 +56,7 @@ class MorphableModel(nn.Module):
         self.total_forward_calls = 0
         self.morphogenetic_active = False
 
-        logger.info(f"Created MorphableModel with {len(kasmina_layers)} KasminaLayers")
+        logger.info("Created MorphableModel with %d KasminaLayers", len(kasmina_layers))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -93,7 +93,7 @@ class MorphableModel(nn.Module):
 
         if success:
             self.morphogenetic_active = True
-            logger.info(f"Loaded kernel {artifact_id} into {layer_name}[{seed_idx}]")
+            logger.info("Loaded kernel %s into %s[%d]", artifact_id, layer_name, seed_idx)
         else:
             logger.warning(
                 f"Failed to load kernel {artifact_id} into {layer_name}[{seed_idx}]"
@@ -119,7 +119,7 @@ class MorphableModel(nn.Module):
         success = await kasmina_layer.unload_kernel(seed_idx)
 
         if success:
-            logger.info(f"Unloaded kernel from {layer_name}[{seed_idx}]")
+            logger.info("Unloaded kernel from %s[%d]", layer_name, seed_idx)
 
             # Check if any kernels are still active
             self.morphogenetic_active = self._check_morphogenetic_active()
@@ -220,7 +220,7 @@ class MorphableModel(nn.Module):
         for layer in self.kasmina_layers.values():
             layer.telemetry_enabled = enabled
 
-        logger.info(f"Telemetry {'enabled' if enabled else 'disabled'} for all layers")
+        logger.info("Telemetry %s for all layers", 'enabled' if enabled else 'disabled')
 
     def compare_with_original(self, x: torch.Tensor) -> Dict[str, Any]:
         """
@@ -290,7 +290,7 @@ def wrap(
         ]  # Default to common transformable layers
 
     logger.info("Wrapping model with morphogenetic capabilities")
-    logger.info(f"Target layers: {[cls.__name__ for cls in target_layers]}")
+    logger.info("Target layers: %s", [cls.__name__ for cls in target_layers])
 
     # Deep copy the model to avoid modifying the original
     wrapped_model = copy.deepcopy(model)
@@ -336,7 +336,7 @@ def wrap(
     # Perform the replacement
     replace_layers(wrapped_model)
 
-    logger.info(f"Created {len(kasmina_layers)} KasminaLayers")
+    logger.info("Created %d KasminaLayers", len(kasmina_layers))
 
     return MorphableModel(wrapped_model, kasmina_layers, original_model)
 

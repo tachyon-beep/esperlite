@@ -359,9 +359,9 @@ class TestAutonomousServiceCore:
             try:
                 result = task.result()
                 if isinstance(result, Exception):
-                    logger.warning(f"Task completed with exception: {result}")
+                    logger.warning("Task completed with exception: %s", result)
             except Exception as e:
-                logger.warning(f"Task exception: {e}")
+                logger.warning("Task exception: %s", e)
 
         logger.info(
             f"Component coordination test completed: {coordination_time:.1f}s runtime, "

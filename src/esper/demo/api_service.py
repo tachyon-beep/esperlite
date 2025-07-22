@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import aiohttp
@@ -37,7 +37,7 @@ class DemoAPIService:
             )
             logger.info("Connected to Redis")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error("Failed to connect to Redis: %s", e)
 
     async def cleanup(self):
         """Cleanup connections."""
@@ -48,7 +48,7 @@ class DemoAPIService:
         """Get overall system status."""
         status = {
             "uptime": int(time.time() - self.start_time),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "services": {},
             "infrastructure": {},
             "gpu": {},
@@ -169,7 +169,7 @@ class DemoAPIService:
                 async for message in pubsub.listen():
                     if message["type"] == "message":
                         log_entry = {
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                             "channel": message["channel"],
                             "data": message["data"],
                         }
@@ -193,7 +193,7 @@ class DemoAPIService:
         while True:
             # Get current metrics
             metrics = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "training": await self.get_training_status(),
                 "system": await self.get_system_status(),
             }

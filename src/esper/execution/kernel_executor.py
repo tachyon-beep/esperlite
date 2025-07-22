@@ -159,7 +159,7 @@ class KernelValidator:
             return True
 
         if module_type not in self.allowed_modules:
-            logger.warning(f"Disallowed module type: {module_type}")
+            logger.warning("Disallowed module type: %s", module_type)
             return False
 
         for child in module.children():
@@ -186,7 +186,7 @@ class KernelValidator:
 
         for pattern in dangerous_patterns:
             if pattern in module_str:
-                logger.warning(f"Found dangerous pattern: {pattern}")
+                logger.warning("Found dangerous pattern: %s", pattern)
                 return True
 
         return False
@@ -280,7 +280,7 @@ class RealKernelExecutor:
         error_recovery_manager, _, _ = _lazy_import_error_recovery()
         self.error_recovery = error_recovery_manager()
 
-        logger.info(f"Initialized RealKernelExecutor on device {device}")
+        logger.info("Initialized RealKernelExecutor on device %s", device)
 
     async def execute_kernel(
         self,
@@ -499,7 +499,7 @@ class RealKernelExecutor:
         self,
         output_tensor: torch.Tensor,
         input_tensor: torch.Tensor,
-        expected_shape: torch.Size,
+        _expected_shape: torch.Size,
     ):
         """Validate output tensor shape."""
         # Basic sanity checks

@@ -242,7 +242,7 @@ class AsyncHttpClient:
                 # Don't retry for certain errors
                 if isinstance(e, aiohttp.ClientResponseError):
                     if e.status in (400, 401, 403, 404, 422):  # Client errors
-                        logger.warning(f"{method} {url} failed with {e.status}: {e}")
+                        logger.warning("%s %s failed with %s: %s", method, url, e.status, e)
                         raise
 
                 if attempt < self.max_retries:

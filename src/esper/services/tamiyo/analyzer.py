@@ -243,7 +243,7 @@ class ModelGraphAnalyzer:
         total_weight = 0
         weighted_sum = 0
 
-        for layer_name, signal in health_signals.items():
+        for _, signal in health_signals.items():
             # For MVP, treat all layers equally
             weight = 1.0
             weighted_sum += signal.health_score * weight

@@ -76,13 +76,13 @@ class TestPhase1Pipeline:
         mock_post_response = Mock()
 
         # Configure mock client methods
-        async def mock_get(url):
+        async def mock_get(_url):
             return mock_get_response
 
-        async def mock_put(url, **kwargs):
+        async def mock_put(_url, **_kwargs):
             return mock_put_response
 
-        async def mock_post(url, **kwargs):
+        async def mock_post(_url, **_kwargs):
             return mock_post_response
 
         mock_client.get = mock_get

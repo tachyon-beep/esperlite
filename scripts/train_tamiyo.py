@@ -70,7 +70,7 @@ def create_synthetic_experience_data(num_samples: int = 1000) -> list:
         
         experiences.append(experience)
     
-    logger.info(f"Generated {len(experiences)} synthetic experiences")
+    logger.info("Generated %d synthetic experiences", len(experiences))
     return experiences
 
 
@@ -148,7 +148,7 @@ def main() -> None:
     else:
         device = torch.device(args.device)
     
-    logger.info(f"Using device: {device}")
+    logger.info("Using device: %s", device)
     
     # Create configurations
     policy_config = PolicyConfig()
@@ -167,12 +167,12 @@ def main() -> None:
     
     # Load checkpoint if specified
     if args.resume:
-        logger.info(f"Resuming from checkpoint: {args.resume}")
+        logger.info("Resuming from checkpoint: %s", args.resume)
         trainer.load_checkpoint(args.resume)
     
     # Load or generate experience data
     if args.experience_data and Path(args.experience_data).exists():
-        logger.info(f"Loading experience data from: {args.experience_data}")
+        logger.info("Loading experience data from: %s", args.experience_data)
         experience_data = trainer.load_experience_data()
     else:
         logger.info("Generating synthetic experience data...")
@@ -185,14 +185,14 @@ def main() -> None:
         logger.error("No experience data available for training")
         return
     
-    logger.info(f"Training on {len(experience_data)} experiences...")
+    logger.info("Training on %d experiences...", len(experience_data))
     
     # Train the policy
     try:
         metrics = trainer.train_from_experience(experience_data)
         
         logger.info("Training completed successfully!")
-        logger.info(f"Final metrics: {metrics}")
+        logger.info("Final metrics: %s", metrics)
         
         # Log key results
         print("\n" + "="*50)
@@ -207,7 +207,7 @@ def main() -> None:
         print("="*50)
         
     except Exception as e:
-        logger.error(f"Training failed: {e}")
+        logger.error("Training failed: %s", e)
         raise
 
 

@@ -385,7 +385,7 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
 
         # Uncertainty quantification (optional)
         if return_uncertainty and hasattr(self, "uncertainty_module"):
-            mean_pred, uncertainty = self.uncertainty_module(
+            _, uncertainty = self.uncertainty_module(
                 graph_repr, self.config.uncertainty_samples
             )
             outputs["uncertainty"] = uncertainty
@@ -518,8 +518,8 @@ class EnhancedTamiyoPolicyGNN(nn.Module):
 
     def _determine_adaptation_type(
         self,
-        target_layer: str,
-        model_state: ModelGraphState,
+        _target_layer: str,
+        _model_state: ModelGraphState,
         outputs: Dict[str, torch.Tensor],
     ) -> str:
         """Determine the most appropriate adaptation type."""

@@ -161,7 +161,7 @@ class ProductionTamiyoDeployment:
             logger.info("🛑 Received shutdown signal, stopping service...")
             await self.shutdown()
         except Exception as e:
-            logger.error(f"❌ Production deployment error: {e}")
+            logger.error("❌ Production deployment error: %s", e)
             await self.shutdown()
             raise
 
@@ -179,7 +179,7 @@ class ProductionTamiyoDeployment:
             logger.info("✅ Production deployment shutdown completed")
 
         except Exception as e:
-            logger.error(f"❌ Error during shutdown: {e}")
+            logger.error("❌ Error during shutdown: %s", e)
 
     async def _production_monitoring(self) -> None:
         """Production monitoring and alerting system."""
@@ -204,7 +204,7 @@ class ProductionTamiyoDeployment:
 
                 if alerts:
                     for alert in alerts:
-                        logger.warning(f"🚨 PRODUCTION ALERT: {alert}")
+                        logger.warning("🚨 PRODUCTION ALERT: %s", alert)
 
                 # Log key metrics
                 stats = status.get("statistics", {})
@@ -222,7 +222,7 @@ class ProductionTamiyoDeployment:
                 await asyncio.sleep(monitoring_interval)
 
             except Exception as e:
-                logger.error(f"❌ Error in production monitoring: {e}")
+                logger.error("❌ Error in production monitoring: %s", e)
                 await asyncio.sleep(monitoring_interval)
 
     def _check_alert_conditions(
@@ -312,7 +312,7 @@ async def main():
     except KeyboardInterrupt:
         logger.info("🛑 Received keyboard interrupt, shutting down...")
     except Exception as e:
-        logger.error(f"❌ Deployment failed: {e}")
+        logger.error("❌ Deployment failed: %s", e)
     finally:
         await deployment.shutdown()
 
@@ -338,14 +338,14 @@ async def basic_autonomous_example():
 
     try:
         # Start service
-        service_task = asyncio.create_task(tamiyo_service.start())
+        _ = asyncio.create_task(tamiyo_service.start())
 
         # Run for demonstration period
         await asyncio.sleep(30)  # 30 seconds
 
         # Get status
         status = tamiyo_service.get_comprehensive_status()
-        logger.info(f"📊 Final Status: {status}")
+        logger.info("📊 Final Status: %s", status)
 
     finally:
         await tamiyo_service.stop()
@@ -366,16 +366,16 @@ async def monitoring_integration_example():
                 status = tamiyo_service.get_comprehensive_status()
 
                 # Example: Send to Prometheus, DataDog, etc.
-                logger.info(f"📈 Metrics for external system: {status}")
+                logger.info("📈 Metrics for external system: %s", status)
 
                 # Get reward analysis
                 reward_analysis = tamiyo_service.get_reward_analysis()
-                logger.info(f"🎯 Reward Analysis: {reward_analysis}")
+                logger.info("🎯 Reward Analysis: %s", reward_analysis)
 
                 await asyncio.sleep(10)  # Every 10 seconds
 
             except Exception as e:
-                logger.error(f"Monitoring error: {e}")
+                logger.error("Monitoring error: %s", e)
                 break
 
     try:

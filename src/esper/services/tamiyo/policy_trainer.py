@@ -311,7 +311,7 @@ class ProductionPolicyTrainer:
             decision = self.policy.make_decision(graph_state)
 
             # Compute comprehensive reward using the reward system
-            reward, reward_metrics = await self.reward_system.compute_reward(
+            reward, _ = await self.reward_system.compute_reward(
                 decision=decision,
                 graph_state=graph_state,
                 execution_metrics=None,  # Would be provided by Phase 1 in production
@@ -355,12 +355,12 @@ class ProductionPolicyTrainer:
 
             # Early stopping check
             if self._check_early_stopping():
-                logger.info(f"Early stopping triggered at episode {episode}")
+                logger.info("Early stopping triggered at episode %d", episode)
                 break
 
         # Final evaluation
         final_metrics = self._compute_training_summary(episode_metrics)
-        logger.info(f"Training completed. Final metrics: {final_metrics}")
+        logger.info("Training completed. Final metrics: %s", final_metrics)
 
         return final_metrics
 
@@ -386,7 +386,7 @@ class ProductionPolicyTrainer:
         # Multiple PPO epochs
         total_metrics = TrainingMetrics()
 
-        for ppo_epoch in range(self.config.ppo_epochs):
+        for _ in range(self.config.ppo_epochs):
             # Backward pass
             self.optimizer.zero_grad()
             loss_dict["total_loss"].backward()
@@ -647,7 +647,7 @@ class ProductionPolicyTrainer:
     def _update_target_network(self):
         """Update target network for stable training."""
         self.target_policy.load_state_dict(self.policy.state_dict())
-        logger.debug(f"Updated target network at step {self.training_step}")
+        logger.debug("Updated target network at step %d", self.training_step)
 
     async def _save_checkpoint(self, episode: int):
         """Save comprehensive training checkpoint."""
@@ -675,7 +675,7 @@ class ProductionPolicyTrainer:
         latest_path = Path(self.config.model_save_dir) / "latest_checkpoint.pt"
         torch.save(checkpoint, latest_path)
 
-        logger.info(f"Saved checkpoint at step {self.training_step}")
+        logger.info("Saved checkpoint at step %d", self.training_step)
 
     def _check_early_stopping(self) -> bool:
         """Check if training should stop early."""
@@ -728,7 +728,7 @@ class ProductionPolicyTrainer:
         self.epoch = checkpoint["epoch"]
         self.best_validation_score = checkpoint["best_validation_score"]
 
-        logger.info(f"Loaded checkpoint from step {self.training_step}")
+        logger.info("Loaded checkpoint from step %d", self.training_step)
 
         return {
             "episode": checkpoint["episode"],

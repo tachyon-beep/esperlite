@@ -135,7 +135,7 @@ class TestCoreIntegration:
 
         # This should fail gracefully since we don't have a real kernel cache
         try:
-            success = await morphable_model.load_kernel(test_layer, 0, "test_artifact")
+            _ = await morphable_model.load_kernel(test_layer, 0, "test_artifact")
             # If it succeeds, that's fine too
         except Exception as e:
             # Expected - no real kernel cache available
@@ -166,7 +166,7 @@ class TestCoreIntegration:
 
         # Check layer-level statistics
         layer_stats = morphable_model.get_layer_stats()
-        for layer_name, stats in layer_stats.items():
+        for _, stats in layer_stats.items():
             # Layer stats might not track individual forward calls in the same way
             assert stats["total_forward_calls"] >= 0  # Just verify structure exists
             assert "state_stats" in stats

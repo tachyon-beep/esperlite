@@ -102,14 +102,14 @@ class KasminaLayer(nn.Module):
                 self.oona_client = OonaClient()
                 self._telemetry_available = True
             except Exception as e:
-                logger.warning(f"Failed to initialize Oona client: {e}")
+                logger.warning("Failed to initialize Oona client: %s", e)
                 # Keep telemetry_enabled as requested by user, but mark as unavailable
 
         # Performance tracking
         self.total_forward_calls = 0
         self.total_kernel_executions = 0
 
-        logger.info(f"Initialized KasminaLayer '{layer_name}' with {num_seeds} seeds")
+        logger.info("Initialized KasminaLayer '%s' with %d seeds", layer_name, num_seeds)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -206,7 +206,7 @@ class KasminaLayer(nn.Module):
                 self.state_layout.update_telemetry(seed_idx, 100, health_score)
 
             except Exception as e:
-                logger.error(f"Sync kernel execution failed for seed {seed_idx}: {e}")
+                logger.error("Sync kernel execution failed for seed %d: %s", seed_idx, e)
 
                 # Handle error without async operations
                 error_count = self.state_layout.increment_error_count(seed_idx)
@@ -257,7 +257,7 @@ class KasminaLayer(nn.Module):
                 )  # 100us placeholder
 
             except Exception as e:
-                logger.warning(f"Kernel execution failed for seed {seed_idx}: {e}")
+                logger.warning("Kernel execution failed for seed %d: %s", seed_idx, e)
                 error_count = self.state_layout.increment_error_count(seed_idx)
 
                 if error_count >= 3:
@@ -305,7 +305,7 @@ class KasminaLayer(nn.Module):
                 # Fallback to default transformation
                 return self.default_transform(x)
 
-            kernel_tensor, metadata = kernel_data
+            _, metadata = kernel_data
 
             # Get kernel bytes for execution
             kernel_artifact = await self.kernel_cache.get_kernel_bytes(str(kernel_id))
@@ -458,13 +458,13 @@ class KasminaLayer(nn.Module):
         except Exception:
             return 0.5  # Neutral score if computation fails
 
-    def _update_telemetry(self, exec_time_us: int, active_seed_count: int) -> None:
+    def _update_telemetry(self, exec_time_us: int, _active_seed_count: int) -> None:
         """
         Update and publish telemetry data.
 
         Args:
             exec_time_us: Execution time in microseconds
-            active_seed_count: Number of active seeds
+            _active_seed_count: Number of active seeds (unused)
         """
         try:
             # Collect layer statistics
@@ -490,7 +490,7 @@ class KasminaLayer(nn.Module):
                 # Task will be garbage collected after completion, which is fine for fire-and-forget telemetry
 
         except Exception as e:
-            logger.warning(f"Failed to update telemetry: {e}")
+            logger.warning("Failed to update telemetry: %s", e)
 
     async def _publish_health_signal(self, health_signal: HealthSignal) -> None:
         """
@@ -508,7 +508,7 @@ class KasminaLayer(nn.Module):
             )
             await self.oona_client.publish(message)
         except Exception as e:
-            logger.warning(f"Failed to publish health signal: {e}")
+            logger.warning("Failed to publish health signal: %s", e)
 
     async def load_kernel(self, seed_idx: int, artifact_id: str) -> bool:
         """
@@ -552,7 +552,7 @@ class KasminaLayer(nn.Module):
             )
 
             if kernel_data is not None:
-                kernel_tensor, metadata = kernel_data
+                _, metadata = kernel_data
 
                 # Transition to active state
                 kernel_id = hash(artifact_id)
@@ -705,7 +705,7 @@ class KasminaLayer(nn.Module):
             )
             await self.oona_client.publish(message)
         except Exception as e:
-            logger.debug(f"Failed to publish success telemetry: {e}")
+            logger.debug("Failed to publish success telemetry: %s", e)
 
     async def _publish_error_telemetry(
         self, context: dict, failure_reason: str, exception: Optional[Exception] = None
@@ -740,7 +740,7 @@ class KasminaLayer(nn.Module):
             )
             await self.oona_client.publish(message)
         except Exception as e:
-            logger.debug(f"Failed to publish error telemetry: {e}")
+            logger.debug("Failed to publish error telemetry: %s", e)
 
     async def unload_kernel(self, seed_idx: int) -> bool:
         """
@@ -761,11 +761,11 @@ class KasminaLayer(nn.Module):
             )
             self.state_layout.alpha_blend[seed_idx] = 0.0
 
-            logger.info(f"Unloaded kernel from seed {seed_idx}")
+            logger.info("Unloaded kernel from seed %d", seed_idx)
             return True
 
         except Exception as e:
-            logger.error(f"Error unloading kernel from seed {seed_idx}: {e}")
+            logger.error("Error unloading kernel from seed %d: %s", seed_idx, e)
             return False
 
     def get_layer_stats(self) -> Dict[str, Any]:
@@ -826,7 +826,7 @@ class KasminaLayer(nn.Module):
         alpha = max(0.0, min(1.0, alpha))  # Clamp to [0, 1]
         self.state_layout.alpha_blend[seed_idx] = alpha
 
-        logger.debug(f"Set alpha={alpha} for seed {seed_idx}")
+        logger.debug("Set alpha=%s for seed %d", alpha, seed_idx)
 
     def to(self, device: torch.device) -> "KasminaLayer":
         """

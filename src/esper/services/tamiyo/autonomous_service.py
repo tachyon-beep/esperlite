@@ -240,7 +240,7 @@ class AutonomousTamiyoService:
             await asyncio.gather(*self.running_tasks, return_exceptions=True)
 
         except Exception as e:
-            logger.error(f"❌ Error starting Tamiyo service: {e}")
+            logger.error("❌ Error starting Tamiyo service: %s", e)
             await self.stop()
             raise
 
@@ -305,11 +305,11 @@ class AutonomousTamiyoService:
                     await asyncio.sleep(sleep_ms / 1000.0)
 
             except Exception as e:
-                logger.error(f"❌ Error in autonomous decision loop: {e}")
+                logger.error("❌ Error in autonomous decision loop: %s", e)
                 await asyncio.sleep(self.config.decision_interval_ms / 1000.0)
 
     async def _make_safe_decision(
-        self, graph_state: ModelGraphState, health_signals: List[Any]
+        self, graph_state: ModelGraphState, _health_signals: List[Any]
     ) -> Optional[AdaptationDecision]:
         """Make a policy decision with comprehensive safety validation."""
         try:
@@ -356,7 +356,7 @@ class AutonomousTamiyoService:
             return decision
 
         except Exception as e:
-            logger.error(f"❌ Error in decision making: {e}")
+            logger.error("❌ Error in decision making: %s", e)
             return None
 
     def _validate_confidence_threshold(
@@ -382,7 +382,7 @@ class AutonomousTamiyoService:
         return ("cooldown_period", True)
 
     def _validate_adaptation_rate(
-        self, decision: AdaptationDecision
+        self, _decision: AdaptationDecision
     ) -> Tuple[str, bool]:
         """Validate system-wide adaptation rate is within safe limits."""
         current_time = time.time()
@@ -433,7 +433,7 @@ class AutonomousTamiyoService:
 
     def _record_rejection(self, reason: str, decision: AdaptationDecision):
         """Record why a decision was rejected for monitoring."""
-        logger.debug(f"🚫 Decision rejected - {reason}: {decision.layer_name}")
+        logger.debug("🚫 Decision rejected - %s: %s", reason, decision.layer_name)
         # Additional rejection tracking could be added here
 
     async def _execute_autonomous_adaptation(
@@ -485,10 +485,10 @@ class AutonomousTamiyoService:
                 )
 
             else:
-                logger.warning(f"⚠️ Adaptation execution failed: {decision.layer_name}")
+                logger.warning("⚠️ Adaptation execution failed: %s", decision.layer_name)
 
         except Exception as e:
-            logger.error(f"❌ Error executing adaptation {decision.layer_name}: {e}")
+            logger.error("❌ Error executing adaptation %s: %s", decision.layer_name, e)
 
     async def _integrate_with_phase1_execution(
         self, decision: AdaptationDecision
@@ -515,15 +515,15 @@ class AutonomousTamiyoService:
             return True
 
         except Exception as e:
-            logger.error(f"Phase 1 integration error: {e}")
+            logger.error("Phase 1 integration error: %s", e)
             return False
 
     async def _store_learning_experience(
         self,
         decision: AdaptationDecision,
-        graph_state: ModelGraphState,
+        _graph_state: ModelGraphState,
         reward: float,
-        reward_metrics: Any,
+        _reward_metrics: Any,
     ) -> None:
         """Store experience for continuous policy learning."""
         try:
@@ -537,7 +537,7 @@ class AutonomousTamiyoService:
             )
 
         except Exception as e:
-            logger.error(f"Error storing learning experience: {e}")
+            logger.error("Error storing learning experience: %s", e)
 
     async def _health_monitoring_loop(self) -> None:
         """Monitor health signals and system state."""
@@ -572,7 +572,7 @@ class AutonomousTamiyoService:
                 await asyncio.sleep(self.config.health_collection_interval_ms / 1000.0)
 
             except Exception as e:
-                logger.error(f"❌ Error in health monitoring: {e}")
+                logger.error("❌ Error in health monitoring: %s", e)
                 await asyncio.sleep(self.config.health_collection_interval_ms / 1000.0)
 
     async def _continuous_learning_loop(self) -> None:
@@ -615,7 +615,7 @@ class AutonomousTamiyoService:
                 await asyncio.sleep(self.config.training_episode_interval_s)
 
             except Exception as e:
-                logger.error(f"❌ Error in continuous learning: {e}")
+                logger.error("❌ Error in continuous learning: %s", e)
                 await asyncio.sleep(self.config.training_episode_interval_s)
 
     async def _statistics_monitoring_loop(self) -> None:
@@ -632,7 +632,7 @@ class AutonomousTamiyoService:
 
                 # Log comprehensive statistics
                 stats_dict = self.statistics.to_dict()
-                logger.info(f"📊 Service Statistics: {stats_dict}")
+                logger.info("📊 Service Statistics: %s", stats_dict)
 
                 # Additional monitoring could include:
                 # - Memory usage tracking
@@ -643,7 +643,7 @@ class AutonomousTamiyoService:
                 await asyncio.sleep(self.config.statistics_update_interval_s)
 
             except Exception as e:
-                logger.error(f"❌ Error in statistics monitoring: {e}")
+                logger.error("❌ Error in statistics monitoring: %s", e)
                 await asyncio.sleep(self.config.statistics_update_interval_s)
 
     async def _performance_monitoring_loop(self) -> None:
@@ -677,7 +677,7 @@ class AutonomousTamiyoService:
                 await asyncio.sleep(60)  # Check performance every minute
 
             except Exception as e:
-                logger.error(f"❌ Error in performance monitoring: {e}")
+                logger.error("❌ Error in performance monitoring: %s", e)
                 await asyncio.sleep(60)
 
     async def _safety_monitoring_loop(self) -> None:
@@ -716,7 +716,7 @@ class AutonomousTamiyoService:
                 await asyncio.sleep(30)  # Check safety every 30 seconds
 
             except Exception as e:
-                logger.error(f"❌ Error in safety monitoring: {e}")
+                logger.error("❌ Error in safety monitoring: %s", e)
                 await asyncio.sleep(30)
 
     async def _save_checkpoint(self) -> None:
@@ -731,10 +731,10 @@ class AutonomousTamiyoService:
             }
 
             # In production, this would save to persistent storage
-            logger.info(f"💾 Checkpoint saved: {checkpoint_data}")
+            logger.info("💾 Checkpoint saved: %s", checkpoint_data)
 
         except Exception as e:
-            logger.error(f"❌ Error saving checkpoint: {e}")
+            logger.error("❌ Error saving checkpoint: %s", e)
 
     # Public API methods for monitoring and control
 
@@ -821,5 +821,5 @@ class AutonomousTamiyoService:
             }
 
         except Exception as e:
-            logger.error(f"Error in manual analysis: {e}")
+            logger.error("Error in manual analysis: %s", e)
             return {"error": str(e)}

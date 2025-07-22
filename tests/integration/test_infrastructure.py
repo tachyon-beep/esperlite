@@ -73,7 +73,7 @@ class TestModelWrapperIntegration:
         # Check that multiple layer types were wrapped
         layer_names = morphable_model.get_layer_names()
         layer_types = set()
-        for name, layer in morphable_model.kasmina_layers.items():
+        for _, layer in morphable_model.kasmina_layers.items():
             if hasattr(layer, "default_transform"):
                 layer_types.add(type(layer.default_transform).__name__)
 

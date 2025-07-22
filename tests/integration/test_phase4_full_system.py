@@ -101,7 +101,7 @@ class TestTolariaTrainer:
 
     @patch("torch.utils.data.DataLoader")
     @patch("torchvision.datasets.CIFAR10")
-    def test_data_loader_setup(self, mock_cifar10, mock_dataloader, minimal_config):
+    def test_data_loader_setup(self, mock_cifar10, _mock_dataloader, minimal_config):
         """Test data loader setup."""
         # Mock dataset
         mock_dataset = Mock()
@@ -236,7 +236,7 @@ class TestTolariaService:
     """Test the TolariaService orchestration."""
 
     @patch("esper.services.tolaria.main.TolariaTrainer")
-    def test_service_initialization(self, mock_trainer_class, minimal_config):
+    def test_service_initialization(self, _mock_trainer_class, minimal_config):
         """Test service initialization."""
         service = TolariaService(minimal_config)
 
@@ -273,7 +273,7 @@ class TestTolariaService:
 
     @pytest.mark.asyncio
     @patch("esper.services.tolaria.main.TolariaTrainer")
-    async def test_service_shutdown(self, mock_trainer_class, minimal_config):
+    async def test_service_shutdown(self, _mock_trainer_class, minimal_config):
         """Test service shutdown."""
         service = TolariaService(minimal_config)
 

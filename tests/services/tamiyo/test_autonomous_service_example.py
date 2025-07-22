@@ -306,7 +306,7 @@ class TestAutonomousServiceCore:
             decision_latency_ms < 100
         ), f"Decision latency {decision_latency_ms}ms exceeds 100ms SLA"
 
-        logger.info(f"Decision cycle completed in {decision_latency_ms:.1f}ms")
+        logger.info("Decision cycle completed in %.1fms", decision_latency_ms)
 
     async def test_stable_system_no_intervention(
         self, real_oona_client, production_service_config, enhanced_policy_config
@@ -672,7 +672,7 @@ class TestAutonomousServiceReliability:
             call_count > 3
         ), f"Only {call_count} calls made, error recovery may not have worked"
 
-        logger.info(f"Error recovery test completed after {call_count} calls")
+        logger.info("Error recovery test completed after %d calls", call_count)
 
 
 if __name__ == "__main__":

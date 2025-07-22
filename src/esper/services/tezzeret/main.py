@@ -25,7 +25,7 @@ async def main():
         logger = logging.getLogger(__name__)
 
         logger.info("Starting Tezzeret compilation worker")
-        logger.info(f"Configuration: {config.to_dict()}")
+        logger.info("Configuration: %s", config.to_dict())
 
         # Get worker ID from environment or generate one
         worker_id = os.getenv("TEZZERET_WORKER_ID", "tezzeret-worker-01")
@@ -35,7 +35,7 @@ async def main():
         await worker.start_polling()
 
     except Exception as e:
-        logger.error(f"Failed to start Tezzeret worker: {e}")
+        logger.error("Failed to start Tezzeret worker: %s", e)
         sys.exit(1)
 
 

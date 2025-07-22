@@ -98,7 +98,7 @@ class TamiyoTrainer:
         Returns:
             Dictionary of training metrics
         """
-        logger.info(f"Starting training with {len(experience_data)} experiences")
+        logger.info("Starting training with %d experiences", len(experience_data))
 
         # Split data
         split_idx = int(len(experience_data) * (1 - validation_split))
@@ -145,7 +145,7 @@ class TamiyoTrainer:
 
         # Final evaluation
         final_metrics = self._compute_final_metrics(training_metrics)
-        logger.info(f"Training completed. Final metrics: {final_metrics}")
+        logger.info("Training completed. Final metrics: %s", final_metrics)
 
         return final_metrics
 
@@ -383,12 +383,12 @@ class TamiyoTrainer:
 
         # Always save to the main model path
         torch.save(checkpoint, save_path)
-        logger.info(f"Saved checkpoint to: {save_path}")
+        logger.info("Saved checkpoint to: %s", save_path)
 
         # Update best validation score
         if val_loss < self.best_validation_score:
             self.best_validation_score = val_loss
-            logger.info(f"New best model with validation loss: {val_loss:.4f}")
+            logger.info("New best model with validation loss: %.4f", val_loss)
 
         # Save epoch-specific checkpoint for debugging
         checkpoint_path = save_path.parent / f"checkpoint_epoch_{epoch}.pt"
@@ -423,7 +423,7 @@ class TamiyoTrainer:
         self.training_step = checkpoint.get("training_step", 0)
         self.best_validation_score = checkpoint.get("val_loss", float("inf"))
 
-        logger.info(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
+        logger.info("Loaded checkpoint from epoch %d", checkpoint['epoch'])
 
     def save_experience_data(self, experience_data: List[Dict[str, Any]]) -> None:
         """Save experience data to disk."""
@@ -433,18 +433,18 @@ class TamiyoTrainer:
         with open(save_path, "wb") as f:
             pickle.dump(experience_data, f)
 
-        logger.info(f"Saved {len(experience_data)} experiences to {save_path}")
+        logger.info("Saved %d experiences to %s", len(experience_data), save_path)
 
     def load_experience_data(self) -> List[Dict[str, Any]]:
         """Load experience data from disk."""
         load_path = Path(self.config.training_data_path)
 
         if not load_path.exists():
-            logger.warning(f"No experience data found at {load_path}")
+            logger.warning("No experience data found at %s", load_path)
             return []
 
         with open(load_path, "rb") as f:
             experience_data = pickle.load(f)
 
-        logger.info(f"Loaded {len(experience_data)} experiences from {load_path}")
+        logger.info("Loaded %d experiences from %s", len(experience_data), load_path)
         return experience_data

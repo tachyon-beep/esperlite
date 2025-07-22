@@ -188,7 +188,7 @@ class KasminaAttentionLayer(KasminaLayer):
                 if self.bias_v is not None:
                     self.bias_v.copy_(original_layer.bias_v)
 
-        logger.info(f"Copied weights from MultiheadAttention to {self.layer_name}")
+        logger.info("Copied weights from MultiheadAttention to %s", self.layer_name)
 
     def forward(
         self,

@@ -158,7 +158,7 @@ class KasminaConv2dLayer(KasminaLayer):
         Returns:
             Blended output tensor
         """
-        batch_size, in_channels, height, width = x.shape
+        _, _, _, _ = x.shape
 
         # Start with default transformation
         default_output = self.default_transform(x)
@@ -196,7 +196,7 @@ class KasminaConv2dLayer(KasminaLayer):
                     self.total_kernel_executions += 1
 
                 except Exception as e:
-                    logger.error(f"Seed {seed_idx} execution failed: {e}")
+                    logger.error("Seed %d execution failed: %s", seed_idx, e)
                     # Mark seed as error and continue
                     self.state_layout.increment_error_count(seed_idx)
 

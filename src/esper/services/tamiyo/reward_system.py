@@ -190,7 +190,7 @@ class TrendAnalyzer:
             return 0.0
 
         try:
-            slope, _, r_value, p_value, _ = stats.linregress(x, y)
+            slope, _, _, p_value, _ = stats.linregress(x, y)
 
             # Only consider significant trends
             if p_value > 0.05:
@@ -418,7 +418,7 @@ class MultiMetricRewardSystem:
         Returns:
             (reward_value, detailed_metrics)
         """
-        logger.debug(f"Computing reward for decision: {decision.layer_name}")
+        logger.debug("Computing reward for decision: %s", decision.layer_name)
 
         # Extract current performance metrics
         current_metrics = self._extract_performance_metrics(
@@ -582,7 +582,7 @@ class MultiMetricRewardSystem:
         return float(np.clip(accuracy_reward, -1.0, 1.0))
 
     def _compute_speed_reward(
-        self, current_metrics: Dict[str, float], decision: AdaptationDecision
+        self, current_metrics: Dict[str, float], _decision: AdaptationDecision
     ) -> float:
         """Compute speed-based reward component."""
         latency = current_metrics.get("execution_latency", 0.0)
@@ -601,7 +601,7 @@ class MultiMetricRewardSystem:
         return float(np.clip(speed_reward, -1.0, 1.0))
 
     def _compute_memory_reward(
-        self, current_metrics: Dict[str, float], decision: AdaptationDecision
+        self, current_metrics: Dict[str, float], _decision: AdaptationDecision
     ) -> float:
         """Compute memory efficiency reward component."""
         memory_usage = current_metrics.get("memory_usage_mb", 0.0)
@@ -728,7 +728,7 @@ class MultiMetricRewardSystem:
         return float(np.clip(avg_outcome * 0.5, -0.5, 0.5))  # Scaled consistency reward
 
     def _estimate_temporal_impacts(
-        self, decision: AdaptationDecision, current_metrics: Dict[str, float]
+        self, decision: AdaptationDecision, _current_metrics: Dict[str, float]
     ) -> Dict[str, float]:
         """Estimate temporal impacts of the decision."""
         base_impact = (
@@ -825,7 +825,7 @@ class MultiMetricRewardSystem:
                 0.5 - metrics.safety_score
             )
             penalized_reward += safety_penalty
-            logger.warning(f"Applied safety penalty: {safety_penalty:.3f}")
+            logger.warning("Applied safety penalty: %.3f", safety_penalty)
 
         # Stability penalty
         if metrics.stability_score < 0.3:
@@ -833,7 +833,7 @@ class MultiMetricRewardSystem:
                 0.3 - metrics.stability_score
             )
             penalized_reward += stability_penalty
-            logger.warning(f"Applied stability penalty: {stability_penalty:.3f}")
+            logger.warning("Applied stability penalty: %.3f", stability_penalty)
 
         return float(np.clip(penalized_reward, -5.0, 5.0))  # Reasonable bounds
 
@@ -909,7 +909,7 @@ class AdaptiveWeightOptimizer:
         self.weight_performance = defaultdict(list)
 
     async def update_weights(
-        self, decision: AdaptationDecision, metrics: RewardMetrics, final_reward: float
+        self, _decision: AdaptationDecision, metrics: RewardMetrics, final_reward: float
     ):
         """Update component weights based on learning outcomes."""
         # This is a simplified adaptive weight system

@@ -92,7 +92,7 @@ class KasminaLayerNormLayer(KasminaLayer):
                 if self.bias is not None and original_layer.bias is not None:
                     self.bias.copy_(original_layer.bias)
 
-        logger.info(f"Copied weights from LayerNorm to {self.layer_name}")
+        logger.info("Copied weights from LayerNorm to %s", self.layer_name)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -226,7 +226,7 @@ class KasminaLayerNormLayer(KasminaLayer):
             )
 
     def _compute_health_score(
-        self, input_tensor: torch.Tensor, output_tensor: torch.Tensor
+        self, _input_tensor: torch.Tensor, output_tensor: torch.Tensor
     ) -> float:
         """
         Compute health score based on normalization quality.

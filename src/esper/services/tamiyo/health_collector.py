@@ -225,7 +225,6 @@ class ErrorRecoveryIntegration:
         """Convert error recovery event to health signal."""
         try:
             # Extract error information
-            error_type = error_payload.get("error_type", "unknown")
             layer_name = error_payload.get("layer_name", "unknown")
             seed_idx = error_payload.get("seed_idx", 0)
             recovery_success = error_payload.get("recovery_success", False)
@@ -253,7 +252,7 @@ class ErrorRecoveryIntegration:
             )
 
         except Exception as e:
-            logger.warning(f"Failed to convert error event to health signal: {e}")
+            logger.warning("Failed to convert error event to health signal: %s", e)
             return None
 
 
@@ -301,7 +300,7 @@ class ProductionHealthCollector:
         logger.info("Starting intelligent health signal collection")
 
         # Subscribe to all telemetry streams
-        topics = [
+        _ = [
             "telemetry.execution.kernel_performance",
             "telemetry.cache.hit_rates",
             "telemetry.error_recovery.events",
@@ -318,7 +317,7 @@ class ProductionHealthCollector:
                 return_exceptions=True,
             )
         except Exception as e:
-            logger.error(f"Health collection error: {e}")
+            logger.error("Health collection error: %s", e)
             self.running = False
             raise
 
@@ -355,7 +354,7 @@ class ProductionHealthCollector:
                     await self._process_message(message)
 
             except Exception as e:
-                logger.error(f"Message ingestion error: {e}")
+                logger.error("Message ingestion error: %s", e)
                 self.statistics.record_error()
                 await asyncio.sleep(0.1)  # Brief backoff on error
 
@@ -380,7 +379,7 @@ class ProductionHealthCollector:
                 self.statistics.record_signal_dropped()
 
         except Exception as e:
-            logger.warning(f"Failed to process message: {e}")
+            logger.warning("Failed to process message: %s", e)
             self.statistics.record_error()
 
     def _parse_health_signal(self, message: OonaMessage) -> Optional[HealthSignal]:
@@ -401,7 +400,7 @@ class ProductionHealthCollector:
             return None
 
         except Exception as e:
-            logger.warning(f"Failed to parse health signal: {e}")
+            logger.warning("Failed to parse health signal: %s", e)
             return None
 
     def _parse_execution_signal(
@@ -430,7 +429,7 @@ class ProductionHealthCollector:
             )
 
         except KeyError as e:
-            logger.warning(f"Missing required field in execution signal: {e}")
+            logger.warning("Missing required field in execution signal: %s", e)
             return None
 
     def _parse_layer_signal(self, payload: Dict[str, Any]) -> Optional[HealthSignal]:
@@ -454,7 +453,7 @@ class ProductionHealthCollector:
             )
 
         except KeyError as e:
-            logger.warning(f"Missing required field in layer signal: {e}")
+            logger.warning("Missing required field in layer signal: %s", e)
             return None
 
     def _compute_health_score(self, metrics: Dict[str, Any]) -> float:
@@ -494,7 +493,7 @@ class ProductionHealthCollector:
                 )
 
             except Exception as e:
-                logger.error(f"Statistics reporting error: {e}")
+                logger.error("Statistics reporting error: %s", e)
 
     async def get_recent_signals(self, count: int = 1000) -> List[HealthSignal]:
         """Get recent health signals for analysis."""

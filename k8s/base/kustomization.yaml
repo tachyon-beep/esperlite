@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: esper
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - redis.yaml
+  - postgresql.yaml
+  - tamiyo.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: esper-platform

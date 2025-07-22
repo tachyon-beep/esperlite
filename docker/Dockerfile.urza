@@ -1,0 +1,45 @@
+# Dockerfile for Urza Library Service
+FROM python:3.12-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy project files
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+
+# Install base dependencies with database support
+RUN pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir \
+    asyncpg \
+    sqlalchemy[asyncio] \
+    alembic
+
+# Create non-root user
+RUN useradd -m -u 1000 esper && chown -R esper:esper /app
+
+# Create directories for data
+RUN mkdir -p /app/data /app/logs && \
+    chown -R esper:esper /app/data /app/logs
+
+USER esper
+
+# Environment variables
+ENV PYTHONPATH=/app:$PYTHONPATH
+ENV PYTHONUNBUFFERED=1
+ENV SERVICE_NAME=urza
+
+# Expose API port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command - placeholder for now since Urza service isn't implemented
+CMD ["python", "-c", "print('Urza service placeholder - implement esper.services.urza.main'); import time; time.sleep(3600)"]

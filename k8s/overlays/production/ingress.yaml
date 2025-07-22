@@ -1,0 +1,42 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esper-ingress
+  namespace: esper
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  tls:
+    - hosts:
+        - api.esper.example.com
+      secretName: esper-tls
+  rules:
+    - host: api.esper.example.com
+      http:
+        paths:
+          - path: /tamiyo
+            pathType: Prefix
+            backend:
+              service:
+                name: tamiyo-service
+                port:
+                  number: 8001
+          - path: /urza
+            pathType: Prefix
+            backend:
+              service:
+                name: urza-service
+                port:
+                  number: 8000
+          - path: /tolaria
+            pathType: Prefix
+            backend:
+              service:
+                name: tolaria-service
+                port:
+                  number: 8080

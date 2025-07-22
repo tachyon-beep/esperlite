@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: esper
+
+bases:
+  - ../../base
+
+resources:
+  - ingress.yaml
+  - network-policy.yaml
+
+patchesStrategicMerge:
+  - tamiyo-patch.yaml
+  - redis-patch.yaml
+  - postgresql-patch.yaml
+
+configMapGenerator:
+  - name: esper-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=WARN
+      - DEVICE=cuda  # For GPU nodes
+
+secretGenerator:
+  - name: esper-secrets
+    behavior: replace
+    envs:
+      - secrets.env  # Create this file with actual secrets
+
+replicas:
+  - name: tamiyo
+    count: 3
+  - name: postgresql
+    count: 1  # Consider using a managed database service
+  - name: redis
+    count: 1  # Consider using a managed Redis service
+
+images:
+  - name: esper/tamiyo
+    newTag: v1.0.0
+  - name: esper/tolaria
+    newTag: v1.0.0
+  - name: esper/urza
+    newTag: v1.0.0

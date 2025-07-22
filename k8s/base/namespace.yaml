@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: esper
+  labels:
+    name: esper
+    app.kubernetes.io/name: esper
+    app.kubernetes.io/part-of: esper-platform

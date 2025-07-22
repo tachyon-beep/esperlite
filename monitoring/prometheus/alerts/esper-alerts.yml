@@ -1,0 +1,91 @@
+groups:
+  - name: esper_alerts
+    interval: 30s
+    rules:
+      # Service availability
+      - alert: ServiceDown
+        expr: up{job=~"tamiyo|tolaria|urza"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Esper service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 5 minutes."
+
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is above 5% for {{ $labels.job }}."
+
+      # Kernel execution failures
+      - alert: KernelExecutionFailures
+        expr: rate(kasmina_kernel_execution_failures_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "High kernel execution failure rate"
+          description: "Kernel execution failure rate is above 10% on {{ $labels.layer }}."
+
+      # GNN decision latency
+      - alert: GNNHighLatency
+        expr: histogram_quantile(0.99, rate(tamiyo_gnn_forward_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "GNN inference latency is high"
+          description: "99th percentile GNN inference latency is above 1 second."
+
+      # Memory usage
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{pod=~"tamiyo-.*|tolaria-.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on {{ $labels.pod }}"
+          description: "Memory usage is above 90% of limit for {{ $labels.pod }}."
+
+      # Redis connection issues
+      - alert: RedisConnectionFailures
+        expr: rate(redis_connection_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis connection errors"
+          description: "Redis connection errors detected on {{ $labels.service }}."
+
+      # Database connection pool exhaustion
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "PostgreSQL connection pool is above 80% capacity."
+
+      # Morphogenetic adaptation rate
+      - alert: LowAdaptationRate
+        expr: rate(esper_adaptations_total[1h]) < 0.1 and rate(esper_forward_calls_total[1h]) > 100
+        for: 1h
+        labels:
+          severity: info
+          team: ml
+        annotations:
+          summary: "Low morphogenetic adaptation rate"
+          description: "Less than 0.1 adaptations per hour despite active training."

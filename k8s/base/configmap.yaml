@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: esper-config
+  namespace: esper
+  labels:
+    app.kubernetes.io/name: esper
+    app.kubernetes.io/component: config
+data:
+  # Service URLs
+  URZA_URL: "http://urza-service:8000"
+  TAMIYO_URL: "http://tamiyo-service:8001"
+  REDIS_URL: "redis://redis-service:6379/0"
+  S3_ENDPOINT: "http://minio-service:9000"
+  
+  # Logging
+  LOG_LEVEL: "INFO"
+  
+  # Device configuration
+  DEVICE: "cpu"  # Override in production overlay for GPU nodes
+  
+  # Paths
+  MODEL_CACHE_DIR: "/app/models"
+  CHECKPOINT_DIR: "/app/checkpoints"

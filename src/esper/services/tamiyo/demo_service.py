@@ -1,7 +1,7 @@
 """Simple Tamiyo demo service for the tech demo."""
 
-import asyncio
 import logging
+
 from aiohttp import web
 
 logger = logging.getLogger(__name__)
@@ -16,11 +16,13 @@ async def analyze(request):
     """Analyze endpoint for demo."""
     data = await request.json()
     # Simple demo response
-    return web.json_response({
-        "decision": "no_adaptation",
-        "confidence": 0.8,
-        "reason": "Model is performing within expected parameters"
-    })
+    return web.json_response(
+        {
+            "decision": "no_adaptation",
+            "confidence": 0.8,
+            "reason": "Model is performing within expected parameters",
+        }
+    )
 
 
 def create_app():
@@ -33,12 +35,13 @@ def create_app():
 
 if __name__ == "__main__":
     import sys
+
     port = 8001
     if len(sys.argv) > 2 and sys.argv[1] == "--port":
         port = int(sys.argv[2])
-    
+
     logging.basicConfig(level=logging.INFO)
     logger.info(f"Starting Tamiyo demo service on port {port}")
-    
+
     app = create_app()
     web.run_app(app, host="0.0.0.0", port=port)

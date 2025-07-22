@@ -13,31 +13,36 @@ from pydantic import Field
 class DatabaseConfig(BaseModel):
     """Database connection configuration."""
 
-    host: str = "localhost"
-    port: int = 5432
-    database: str = "urza_db"
-    username: str
-    password: str
-    ssl_mode: str = "prefer"
+    host: str = Field(default="localhost", description="Database host address")
+    port: int = Field(default=5432, description="Database port number", ge=1, le=65535)
+    database: str = Field(default="urza_db", description="Database name")
+    username: str = Field(description="Database username")
+    password: str = Field(description="Database password")
+    ssl_mode: str = Field(default="prefer", description="SSL connection mode")
 
 
 class RedisConfig(BaseModel):
     """Redis connection configuration."""
 
-    host: str = "localhost"
-    port: int = 6379
-    database: int = 0
-    password: Optional[str] = None
+    host: str = Field(default="localhost", description="Redis host address")
+    port: int = Field(default=6379, description="Redis port number", ge=1, le=65535)
+    database: int = Field(default=0, description="Redis database number", ge=0)
+    password: Optional[str] = Field(default=None, description="Redis password")
 
 
 class StorageConfig(BaseModel):
     """Object storage configuration."""
 
-    endpoint_url: str = "http://localhost:9000"
-    access_key: str
-    secret_key: str
-    bucket_name: str = "esper-artifacts"
-    region: str = "us-east-1"
+    endpoint_url: str = Field(
+        default="http://localhost:9000",
+        description="S3-compatible storage endpoint URL",
+    )
+    access_key: str = Field(description="Storage access key")
+    secret_key: str = Field(description="Storage secret key")
+    bucket_name: str = Field(
+        default="esper-artifacts", description="Storage bucket name"
+    )
+    region: str = Field(default="us-east-1", description="Storage region")
 
 
 class ComponentConfig(BaseModel):
@@ -52,20 +57,29 @@ class ComponentConfig(BaseModel):
 class EsperConfig(BaseModel):
     """Main configuration model for the Esper system."""
 
-    name: str
-    version: str = "0.1.0"
-    environment: str = "development"
+    name: str = Field(description="Configuration name")
+    version: str = Field(default="0.1.0", description="Configuration version")
+    environment: str = Field(
+        default="development",
+        description="Deployment environment",
+        pattern="^(development|staging|production)$",
+    )
 
-    database: DatabaseConfig
-    redis: RedisConfig
-    storage: StorageConfig
+    database: DatabaseConfig = Field(description="Database configuration")
+    redis: RedisConfig = Field(description="Redis configuration")
+    storage: StorageConfig = Field(description="Object storage configuration")
 
-    components: Dict[str, ComponentConfig] = Field(default_factory=dict)
+    components: Dict[str, ComponentConfig] = Field(
+        default_factory=dict, description="Component-specific configurations"
+    )
 
     # Training configuration
-    training: Dict[str, Any] = Field(default_factory=dict)
+    training: Dict[str, Any] = Field(
+        default_factory=dict, description="Training-specific settings"
+    )
 
     # Logging configuration
     logging: Dict[str, Any] = Field(
-        default_factory=lambda: {"level": "INFO", "format": "structured"}
+        default_factory=lambda: {"level": "INFO", "format": "structured"},
+        description="Logging configuration",
     )

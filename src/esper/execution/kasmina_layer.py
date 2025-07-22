@@ -332,8 +332,8 @@ class KasminaLayer(nn.Module):
                 kernel_id=str(kernel_id),
             )
 
-            # Update success metrics in state layout
-            self.state_layout.update_execution_success(seed_idx)
+            # Note: Success metrics are tracked via telemetry
+            # Error counts are reset when transitioning to ACTIVE state
 
             # Log performance info
             logger.debug(
@@ -355,7 +355,7 @@ class KasminaLayer(nn.Module):
             )
 
             # Handle error through recovery system
-            recovery_success = await self.error_recovery.handle_error(
+            await self.error_recovery.handle_error(
                 error_context, fallback_action=lambda: self.default_transform(x)
             )
 
@@ -460,7 +460,7 @@ class KasminaLayer(nn.Module):
         try:
             grad_norm = torch.norm(output, dim=None).item()
             return 1.0 / (1.0 + grad_norm)
-        except:
+        except Exception:
             return 0.5  # Neutral score if computation fails
 
     def _update_telemetry(self, exec_time_us: int, active_seed_count: int) -> None:
@@ -625,7 +625,10 @@ class KasminaLayer(nn.Module):
             return False
 
     async def _handle_kernel_load_failure(
-        self, error_context: dict, failure_reason: str, exception: Exception = None
+        self,
+        error_context: dict,
+        failure_reason: str,
+        exception: Optional[Exception] = None,
     ) -> None:
         """
         Centralized error handling for kernel loading failures.
@@ -710,7 +713,7 @@ class KasminaLayer(nn.Module):
             logger.debug(f"Failed to publish success telemetry: {e}")
 
     async def _publish_error_telemetry(
-        self, context: dict, failure_reason: str, exception: Exception = None
+        self, context: dict, failure_reason: str, exception: Optional[Exception] = None
     ) -> None:
         """Publish error telemetry for kernel operations."""
         if not self.telemetry_enabled or not self._telemetry_available:

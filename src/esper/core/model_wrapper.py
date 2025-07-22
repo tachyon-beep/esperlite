@@ -135,10 +135,10 @@ class MorphableModel(nn.Module):
         Returns:
             True if any morphogenetic capabilities are active
         """
-        for layer in self.kasmina_layers.values():
-            if layer.state_layout.get_active_seeds().any():
-                return True
-        return False
+        return any(
+            layer.state_layout.get_active_seeds().any()
+            for layer in self.kasmina_layers.values()
+        )
 
     def get_layer_names(self) -> List[str]:
         """
@@ -242,9 +242,10 @@ class MorphableModel(nn.Module):
         original_output = self.original_model(x)
 
         # Compute differences
-        diff = morphable_output - original_output
-        mse = torch.mean(diff**2).item()
-        max_diff = torch.max(torch.abs(diff)).item()
+        with torch.no_grad():
+            diff = morphable_output - original_output
+            mse = torch.mean(diff**2).item()
+            max_diff = torch.max(torch.abs(diff)).item()
 
         return {
             "mse": mse,
@@ -578,10 +579,19 @@ def _create_kasmina_layer_layernorm(
         KasminaLayerNormLayer configured to replace the LayerNorm layer
     """
     # Create LayerNorm-aware KasminaLayer
+    # Handle both single-dimensional and multi-dimensional normalized shapes
+    if isinstance(original_layer.normalized_shape, int):
+        normalized_shape = original_layer.normalized_shape
+    elif len(original_layer.normalized_shape) == 1:
+        normalized_shape = original_layer.normalized_shape[0]
+    else:
+        # For multi-dimensional shapes, we'll need to handle this differently
+        raise NotImplementedError(
+            f"Multi-dimensional normalized shapes not yet supported: {original_layer.normalized_shape}"
+        )
+
     kasmina_layer = KasminaLayerNormLayer(
-        normalized_shape=original_layer.normalized_shape[
-            0
-        ],  # Assuming 1D normalized shape
+        normalized_shape=normalized_shape,
         eps=original_layer.eps,
         elementwise_affine=original_layer.elementwise_affine,
         bias=original_layer.bias is not None,

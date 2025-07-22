@@ -119,6 +119,26 @@ services:
     networks:
       - esper-demo-network
 
+  # Demo API Service
+  demo-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.demo-api
+    container_name: esper-demo-api
+    environment:
+      REDIS_URL: ${REDIS_URL}
+      LOG_LEVEL: ${LOG_LEVEL}
+    ports:
+      - "0.0.0.0:8889:8888"
+    networks:
+      - esper-demo-network
+    depends_on:
+      - redis
+    restart: unless-stopped
+    labels:
+      - "com.esper.service=demo-api"
+      - "com.esper.environment=demo"
+
   # Esper Services - Built locally for demo
   urza:
     build:
@@ -296,7 +316,7 @@ services:
     image: nginx:alpine
     container_name: esper-demo-nginx
     volumes:
-      - ./nginx/demo.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/simple.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/html:/usr/share/nginx/html:ro
     ports:
       - "0.0.0.0:80:80"

@@ -277,8 +277,8 @@ class RealKernelExecutor:
         # Components
         self.validator = KernelValidator()
         self.stats = ExecutionStats()
-        ErrorRecoveryManager, _, _ = _lazy_import_error_recovery()
-        self.error_recovery = ErrorRecoveryManager()
+        error_recovery_manager, _, _ = _lazy_import_error_recovery()
+        self.error_recovery = error_recovery_manager()
 
         logger.info(f"Initialized RealKernelExecutor on device {device}")
 

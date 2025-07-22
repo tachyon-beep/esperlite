@@ -4,353 +4,358 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Esper - Morphogenetic Training Platform Demo</title>
-    <style>
-        :root {
-            --primary-color: #1a73e8;
-            --secondary-color: #34a853;
-            --danger-color: #ea4335;
-            --warning-color: #fbbc04;
-            --bg-color: #f8f9fa;
-            --text-color: #202124;
-            --card-bg: #ffffff;
-            --border-color: #dadce0;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            background-color: var(--card-bg);
-            border-bottom: 1px solid var(--border-color);
-            padding: 20px 0;
-            margin-bottom: 30px;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            color: var(--primary-color);
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            font-size: 1.2rem;
-            color: #5f6368;
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .status-card {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            border: 1px solid var(--border-color);
-        }
-
-        .status-card h3 {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status-indicator.healthy { background-color: var(--secondary-color); }
-        .status-indicator.warning { background-color: var(--warning-color); }
-        .status-indicator.error { background-color: var(--danger-color); }
-        .status-indicator.loading { 
-            background-color: #ccc;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-
-        .links-section {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            border: 1px solid var(--border-color);
-        }
-
-        .links-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .link-card {
-            text-decoration: none;
-            color: inherit;
-            padding: 20px;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-
-        .link-card:hover {
-            border-color: var(--primary-color);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        .link-card h4 {
-            color: var(--primary-color);
-            margin-bottom: 10px;
-        }
-
-        .link-card p {
-            color: #5f6368;
-            font-size: 0.9rem;
-        }
-
-        .metrics {
-            display: flex;
-            gap: 20px;
-            margin-top: 15px;
-        }
-
-        .metric {
-            flex: 1;
-            text-align: center;
-        }
-
-        .metric-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .metric-label {
-            font-size: 0.85rem;
-            color: #5f6368;
-        }
-
-        .footer {
-            text-align: center;
-            margin-top: 50px;
-            padding: 20px;
-            color: #5f6368;
-            font-size: 0.9rem;
-        }
-
-        .api-endpoint {
-            background: #f5f5f5;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.85rem;
-            margin-top: 10px;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1>🧬 Esper Platform</h1>
-            <p class="subtitle">Morphogenetic Neural Network Training - Tech Demo Environment</p>
-        </div>
-    </header>
-
     <div class="container">
-        <div class="status-grid">
-            <div class="status-card">
-                <h3>
-                    <span class="status-indicator loading" id="urza-status"></span>
-                    Urza Library Service
-                </h3>
-                <p>Central repository for kernel artifacts and blueprints</p>
-                <div class="api-endpoint">API: /api/urza/</div>
-                <div class="metrics" id="urza-metrics">
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Kernels</div>
+        <header>
+            <div class="header-content">
+                <div>
+                    <h1>🧬 Esper Platform</h1>
+                    <p class="subtitle">Morphogenetic Neural Network Training</p>
+                </div>
+                <div class="status-bar">
+                    <span class="status-item">
+                        <i class="fas fa-clock"></i>
+                        Uptime: <span id="uptime">--:--:--</span>
+                    </span>
+                    <span class="status-item">
+                        <i class="fas fa-microchip"></i>
+                        GPU: <span id="gpu-status">Checking...</span>
+                    </span>
+                    <span class="status-item">
+                        <i class="fas fa-network-wired"></i>
+                        <span id="connection-status">Connecting...</span>
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="overview">
+                <i class="fas fa-tachometer-alt"></i> Overview
+            </button>
+            <button class="tab-button" data-tab="training">
+                <i class="fas fa-brain"></i> Training
+            </button>
+            <button class="tab-button" data-tab="logs">
+                <i class="fas fa-terminal"></i> Logs
+            </button>
+            <button class="tab-button" data-tab="adaptations">
+                <i class="fas fa-dna"></i> Adaptations
+            </button>
+            <button class="tab-button" data-tab="resources">
+                <i class="fas fa-server"></i> Resources
+            </button>
+        </nav>
+
+        <main>
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <div class="grid-2">
+                    <div class="card">
+                        <h3><i class="fas fa-heartbeat"></i> Service Health</h3>
+                        <div id="service-health" class="service-grid">
+                            <div class="service-item" data-service="urza">
+                                <div class="service-icon">📚</div>
+                                <div class="service-info">
+                                    <h4>Urza Library</h4>
+                                    <p>Kernel Repository</p>
+                                    <span class="status-badge loading">Checking...</span>
+                                </div>
+                            </div>
+                            <div class="service-item" data-service="tamiyo">
+                                <div class="service-icon">🧠</div>
+                                <div class="service-info">
+                                    <h4>Tamiyo Controller</h4>
+                                    <p>Strategic Intelligence</p>
+                                    <span class="status-badge loading">Checking...</span>
+                                </div>
+                            </div>
+                            <div class="service-item" data-service="tolaria">
+                                <div class="service-icon">🎯</div>
+                                <div class="service-info">
+                                    <h4>Tolaria Orchestrator</h4>
+                                    <p>Training Coordinator</p>
+                                    <span class="status-badge loading">Checking...</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Blueprints</div>
+
+                    <div class="card">
+                        <h3><i class="fas fa-chart-line"></i> Training Overview</h3>
+                        <div class="training-overview">
+                            <div class="progress-ring">
+                                <svg width="120" height="120">
+                                    <circle cx="60" cy="60" r="50" class="progress-bg"/>
+                                    <circle cx="60" cy="60" r="50" class="progress-fill" id="epoch-progress"/>
+                                </svg>
+                                <div class="progress-text">
+                                    <span id="current-epoch">0</span>/<span id="total-epochs">50</span>
+                                    <small>Epochs</small>
+                                </div>
+                            </div>
+                            <div class="training-stats">
+                                <div class="stat">
+                                    <label>Loss</label>
+                                    <value id="current-loss">--</value>
+                                </div>
+                                <div class="stat">
+                                    <label>Accuracy</label>
+                                    <value id="current-accuracy">--%</value>
+                                </div>
+                                <div class="stat">
+                                    <label>Learning Rate</label>
+                                    <value id="learning-rate">--</value>
+                                </div>
+                                <div class="stat">
+                                    <label>Adaptations</label>
+                                    <value id="adaptation-count">0</value>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-microchip"></i> GPU Performance</h3>
+                    <div class="gpu-stats">
+                        <div class="gpu-info">
+                            <h4 id="gpu-name">--</h4>
+                            <div class="gpu-meters">
+                                <div class="meter">
+                                    <label>Utilization</label>
+                                    <div class="meter-bar">
+                                        <div class="meter-fill" id="gpu-util" style="width: 0%"></div>
+                                    </div>
+                                    <span class="meter-value" id="gpu-util-text">0%</span>
+                                </div>
+                                <div class="meter">
+                                    <label>Memory</label>
+                                    <div class="meter-bar">
+                                        <div class="meter-fill" id="gpu-mem" style="width: 0%"></div>
+                                    </div>
+                                    <span class="meter-value" id="gpu-mem-text">0 GB</span>
+                                </div>
+                            </div>
+                        </div>
+                        <canvas id="gpu-chart" width="400" height="100"></canvas>
                     </div>
                 </div>
             </div>
 
-            <div class="status-card">
-                <h3>
-                    <span class="status-indicator loading" id="tamiyo-status"></span>
-                    Tamiyo Strategic Controller
-                </h3>
-                <p>GNN-based intelligence for morphogenetic decisions</p>
-                <div class="api-endpoint">API: /api/tamiyo/</div>
-                <div class="metrics" id="tamiyo-metrics">
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Decisions/hr</div>
+            <!-- Training Tab -->
+            <div id="training" class="tab-content">
+                <div class="card">
+                    <h3><i class="fas fa-chart-area"></i> Training Progress</h3>
+                    <div class="chart-container">
+                        <canvas id="training-chart" width="800" height="300"></canvas>
                     </div>
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Latency (ms)</div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h3><i class="fas fa-cogs"></i> Model Configuration</h3>
+                        <div class="config-info">
+                            <div class="config-item">
+                                <label>Architecture</label>
+                                <value>ResNet18</value>
+                            </div>
+                            <div class="config-item">
+                                <label>Dataset</label>
+                                <value>CIFAR-10</value>
+                            </div>
+                            <div class="config-item">
+                                <label>Batch Size</label>
+                                <value>64</value>
+                            </div>
+                            <div class="config-item">
+                                <label>Optimizer</label>
+                                <value>Adam</value>
+                            </div>
+                            <div class="config-item">
+                                <label>Target Layers</label>
+                                <value>Linear, Conv2d</value>
+                            </div>
+                            <div class="config-item">
+                                <label>Seeds per Layer</label>
+                                <value>4</value>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3><i class="fas fa-seedling"></i> Active Seeds</h3>
+                        <div id="seeds-list" class="seeds-container">
+                            <p class="empty-state">No active seeds yet</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="status-card">
-                <h3>
-                    <span class="status-indicator loading" id="tolaria-status"></span>
-                    Tolaria Training Orchestrator
-                </h3>
-                <p>Master training coordinator and model wrapper</p>
-                <div class="api-endpoint">API: /api/tolaria/</div>
-                <div class="metrics" id="tolaria-metrics">
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Active Seeds</div>
+            <!-- Logs Tab -->
+            <div id="logs" class="tab-content">
+                <div class="card">
+                    <div class="logs-header">
+                        <h3><i class="fas fa-terminal"></i> System Logs</h3>
+                        <div class="log-controls">
+                            <select id="log-filter">
+                                <option value="">All Services</option>
+                                <option value="urza">Urza</option>
+                                <option value="tamiyo">Tamiyo</option>
+                                <option value="tolaria">Tolaria</option>
+                            </select>
+                            <button id="clear-logs" class="btn-small">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                            <button id="pause-logs" class="btn-small">
+                                <i class="fas fa-pause"></i> Pause
+                            </button>
+                        </div>
                     </div>
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Adaptations</div>
+                    <div id="log-container" class="log-container">
+                        <div class="log-entry">
+                            <span class="log-time">--:--:--</span>
+                            <span class="log-service">system</span>
+                            <span class="log-message">Waiting for logs...</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="status-card">
-                <h3>
-                    <span class="status-indicator loading" id="infra-status"></span>
-                    Infrastructure Services
-                </h3>
-                <p>PostgreSQL, Redis, MinIO object storage</p>
-                <div class="metrics" id="infra-metrics">
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">DB Conn</div>
+            <!-- Adaptations Tab -->
+            <div id="adaptations" class="tab-content">
+                <div class="card">
+                    <h3><i class="fas fa-dna"></i> Morphogenetic Adaptations</h3>
+                    <div id="adaptations-timeline" class="timeline">
+                        <p class="empty-state">No adaptations performed yet</p>
                     </div>
-                    <div class="metric">
-                        <div class="metric-value">-</div>
-                        <div class="metric-label">Cache Hit %</div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h3><i class="fas fa-database"></i> Kernel Library</h3>
+                        <div class="kernel-stats">
+                            <div class="stat-card">
+                                <i class="fas fa-cube"></i>
+                                <div>
+                                    <h4 id="total-kernels">0</h4>
+                                    <label>Total Kernels</label>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-fire"></i>
+                                <div>
+                                    <h4 id="active-kernels">0</h4>
+                                    <label>Active</label>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-file-code"></i>
+                                <div>
+                                    <h4 id="blueprints">0</h4>
+                                    <label>Blueprints</label>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <i class="fas fa-percentage"></i>
+                                <div>
+                                    <h4 id="cache-rate">0%</h4>
+                                    <label>Cache Hit</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3><i class="fas fa-brain"></i> Tamiyo Policy</h3>
+                        <div class="policy-info">
+                            <div class="policy-status">
+                                <i class="fas fa-robot"></i>
+                                <span>GNN Policy Active</span>
+                            </div>
+                            <div class="policy-metrics">
+                                <div class="metric">
+                                    <label>Decisions/hr</label>
+                                    <value id="decisions-rate">0</value>
+                                </div>
+                                <div class="metric">
+                                    <label>Avg Confidence</label>
+                                    <value id="avg-confidence">--%</value>
+                                </div>
+                                <div class="metric">
+                                    <label>Latency</label>
+                                    <value id="policy-latency">-- ms</value>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="links-section">
-            <h2>Demo Resources</h2>
-            <div class="links-grid">
-                <a href="/grafana/" class="link-card">
-                    <h4>📊 Grafana Dashboards</h4>
-                    <p>Real-time metrics and system performance monitoring</p>
-                </a>
-                
-                <a href="/api/urza/docs" class="link-card">
-                    <h4>📚 API Documentation</h4>
-                    <p>Interactive API docs with OpenAPI/Swagger</p>
-                </a>
-                
-                <a href="/minio/" class="link-card">
-                    <h4>🗄️ MinIO Console</h4>
-                    <p>Object storage browser for artifacts and models</p>
-                </a>
-                
-                <a href="http://localhost:9090" class="link-card">
-                    <h4>🔍 Prometheus</h4>
-                    <p>Raw metrics and query interface</p>
-                </a>
+            <!-- Resources Tab -->
+            <div id="resources" class="tab-content">
+                <div class="grid-2">
+                    <div class="card">
+                        <h3><i class="fas fa-server"></i> Infrastructure</h3>
+                        <div class="infra-grid">
+                            <div class="infra-item">
+                                <i class="fas fa-database"></i>
+                                <h4>PostgreSQL</h4>
+                                <span class="status-badge healthy">Healthy</span>
+                                <small>Connections: <span id="pg-connections">--</span></small>
+                            </div>
+                            <div class="infra-item">
+                                <i class="fas fa-memory"></i>
+                                <h4>Redis</h4>
+                                <span class="status-badge healthy">Healthy</span>
+                                <small>Memory: <span id="redis-memory">--</span></small>
+                            </div>
+                            <div class="infra-item">
+                                <i class="fas fa-hdd"></i>
+                                <h4>MinIO</h4>
+                                <span class="status-badge healthy">Healthy</span>
+                                <small>Objects: <span id="minio-objects">--</span></small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3><i class="fas fa-link"></i> Quick Links</h3>
+                        <div class="links-grid">
+                            <a href="/grafana/" class="link-button">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>Grafana Dashboards</span>
+                            </a>
+                            <a href="http://localhost:9090" class="link-button">
+                                <i class="fas fa-search"></i>
+                                <span>Prometheus</span>
+                            </a>
+                            <a href="http://localhost:9001" class="link-button">
+                                <i class="fas fa-folder-open"></i>
+                                <span>MinIO Console</span>
+                            </a>
+                            <a href="/api/docs" class="link-button">
+                                <i class="fas fa-book"></i>
+                                <span>API Docs</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-memory"></i> System Resources</h3>
+                    <div class="system-resources">
+                        <canvas id="resources-chart" width="800" height="200"></canvas>
+                    </div>
+                </div>
             </div>
-        </div>
+        </main>
     </div>
 
-    <footer class="footer">
-        <p>Esper Morphogenetic Training Platform - Development Demo</p>
-        <p>Phase 1 & 2 Complete | <a href="https://github.com/esper/esperlite">GitHub</a></p>
-    </footer>
-
-    <script>
-        // Service health check
-        async function checkHealth() {
-            const services = [
-                { name: 'urza', endpoint: '/api/urza/health' },
-                { name: 'tamiyo', endpoint: '/api/tamiyo/health' },
-                { name: 'tolaria', endpoint: '/api/tolaria/health' }
-            ];
-
-            for (const service of services) {
-                try {
-                    const response = await fetch(service.endpoint);
-                    const indicator = document.getElementById(`${service.name}-status`);
-                    
-                    if (response.ok) {
-                        indicator.className = 'status-indicator healthy';
-                    } else {
-                        indicator.className = 'status-indicator warning';
-                    }
-                } catch (error) {
-                    const indicator = document.getElementById(`${service.name}-status`);
-                    indicator.className = 'status-indicator error';
-                }
-            }
-
-            // Check infrastructure
-            try {
-                const response = await fetch('/health');
-                const indicator = document.getElementById('infra-status');
-                indicator.className = response.ok ? 'status-indicator healthy' : 'status-indicator warning';
-            } catch (error) {
-                document.getElementById('infra-status').className = 'status-indicator error';
-            }
-        }
-
-        // Update metrics (mock data for demo)
-        function updateMetrics() {
-            // These would normally come from actual API calls
-            document.querySelector('#urza-metrics .metric:nth-child(1) .metric-value').textContent = '42';
-            document.querySelector('#urza-metrics .metric:nth-child(2) .metric-value').textContent = '8';
-            
-            document.querySelector('#tamiyo-metrics .metric:nth-child(1) .metric-value').textContent = '120';
-            document.querySelector('#tamiyo-metrics .metric:nth-child(2) .metric-value').textContent = '45';
-            
-            document.querySelector('#tolaria-metrics .metric:nth-child(1) .metric-value').textContent = '16';
-            document.querySelector('#tolaria-metrics .metric:nth-child(2) .metric-value').textContent = '3.2k';
-            
-            document.querySelector('#infra-metrics .metric:nth-child(1) .metric-value').textContent = '24/200';
-            document.querySelector('#infra-metrics .metric:nth-child(2) .metric-value').textContent = '94%';
-        }
-
-        // Initial check and periodic updates
-        checkHealth();
-        updateMetrics();
-        setInterval(checkHealth, 30000); // Check every 30 seconds
-        setInterval(updateMetrics, 5000); // Update metrics every 5 seconds
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

@@ -52,7 +52,7 @@ class TestMorphableModel:
         assert len(morphable.kasmina_layers) == 2
         assert morphable.original_model == model
         assert morphable.total_forward_calls == 0
-        assert morphable.morphogenetic_active == False
+        assert not morphable.morphogenetic_active
 
     def test_forward_pass(self):
         """Test forward pass through MorphableModel."""
@@ -83,8 +83,8 @@ class TestMorphableModel:
         # Load kernel
         success = await morphable.load_kernel("layer1", 0, "test-kernel-123")
 
-        assert success == True
-        assert morphable.morphogenetic_active == True
+        assert success
+        assert morphable.morphogenetic_active
         mock_layer.load_kernel.assert_called_once_with(0, "test-kernel-123")
 
     @pytest.mark.asyncio
@@ -100,7 +100,7 @@ class TestMorphableModel:
         # Load kernel
         success = await morphable.load_kernel("layer1", 0, "test-kernel-123")
 
-        assert success == False
+        assert not success
         mock_layer.load_kernel.assert_called_once_with(0, "test-kernel-123")
 
     @pytest.mark.asyncio
@@ -131,10 +131,8 @@ class TestMorphableModel:
         # Unload kernel
         success = await morphable.unload_kernel("layer1", 0)
 
-        assert success == True
-        assert (
-            morphable.morphogenetic_active == False
-        )  # Should be False after unloading
+        assert success
+        assert not morphable.morphogenetic_active  # Should be False after unloading
         mock_layer.unload_kernel.assert_called_once_with(0)
 
     @pytest.mark.asyncio
@@ -225,7 +223,7 @@ class TestMorphableModel:
         stats = morphable.get_model_stats()
 
         assert stats["total_forward_calls"] == 20
-        assert stats["morphogenetic_active"] == True
+        assert stats["morphogenetic_active"]
         assert stats["total_kasmina_layers"] == 2
         assert stats["total_seeds"] == 8
         assert stats["active_seeds"] == 3  # 2 + 1
@@ -264,13 +262,13 @@ class TestMorphableModel:
 
         # Enable telemetry
         morphable.enable_telemetry(True)
-        assert mock_layer1.telemetry_enabled == True
-        assert mock_layer2.telemetry_enabled == True
+        assert mock_layer1.telemetry_enabled
+        assert mock_layer2.telemetry_enabled
 
         # Disable telemetry
         morphable.enable_telemetry(False)
-        assert mock_layer1.telemetry_enabled == False
-        assert mock_layer2.telemetry_enabled == False
+        assert not mock_layer1.telemetry_enabled
+        assert not mock_layer2.telemetry_enabled
 
     def test_compare_with_original(self):
         """Test comparison with original model."""
@@ -346,7 +344,7 @@ class TestWrapFunction:
         # Check that KasminaLayers have correct parameters
         for layer in morphable.kasmina_layers.values():
             assert layer.num_seeds == 8
-            assert layer.telemetry_enabled == True
+            assert layer.telemetry_enabled
 
     def test_wrap_preserves_behavior(self):
         """Test that wrapped model preserves original behavior."""
@@ -400,7 +398,7 @@ class TestCreateKasminaLayer:
         assert kasmina_layer.output_size == 5
         assert kasmina_layer.num_seeds == 4
         assert kasmina_layer.layer_name == "test_layer"
-        assert kasmina_layer.telemetry_enabled == False
+        assert not kasmina_layer.telemetry_enabled
 
         # Check that weights are copied
         assert torch.allclose(

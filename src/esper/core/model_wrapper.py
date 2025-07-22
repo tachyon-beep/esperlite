@@ -7,18 +7,16 @@ standard PyTorch models into morphogenetic models.
 
 import copy
 import logging
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Type
+from typing import Any, Dict, List, Optional, Type
 
 import torch
 import torch.nn as nn
 
 from esper.execution.kasmina_attention_layer import KasminaAttentionLayer
-from esper.execution.kasmina_batchnorm_layer import KasminaBatchNorm1dLayer
-from esper.execution.kasmina_batchnorm_layer import KasminaBatchNorm2dLayer
+from esper.execution.kasmina_batchnorm_layer import (
+    KasminaBatchNorm1dLayer,
+    KasminaBatchNorm2dLayer,
+)
 from esper.execution.kasmina_conv2d_layer import KasminaConv2dLayer
 from esper.execution.kasmina_layer import KasminaLayer
 from esper.execution.kasmina_layernorm_layer import KasminaLayerNormLayer

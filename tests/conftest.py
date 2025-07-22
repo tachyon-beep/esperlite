@@ -9,11 +9,8 @@ import asyncio
 import logging
 import tempfile
 from pathlib import Path
-from typing import Any
-from typing import Dict
-from typing import Generator
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
+from typing import Any, Dict, Generator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import torch
@@ -216,8 +213,7 @@ def test_config() -> Dict[str, Any]:
 @pytest.fixture(autouse=True)
 def prevent_real_network_calls():
     """Automatically prevent real network calls during testing."""
-    from unittest.mock import AsyncMock
-    from unittest.mock import patch
+    from unittest.mock import AsyncMock, patch
 
     with patch("esper.utils.http_client.AsyncHttpClient") as mock_http_client:
 

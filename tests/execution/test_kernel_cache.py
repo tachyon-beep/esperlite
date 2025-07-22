@@ -169,19 +169,19 @@ class TestKernelCache:
 
         # Remove existing kernel
         result = cache.remove_kernel("test-kernel")
-        assert result == True
+        assert result
         assert "test-kernel" not in cache._cache
         assert "test-kernel" not in cache._cache_info
         assert cache.total_size_mb == pytest.approx(0.0)
 
         # Try to remove non-existent kernel
         result = cache.remove_kernel("non-existent")
-        assert result == False
+        assert not result
 
     def test_is_gpu_resident_empty(self):
         """Test GPU residency check with empty cache."""
         cache = KernelCache()
-        assert cache.is_gpu_resident == False
+        assert not cache.is_gpu_resident
 
     def test_is_gpu_resident_with_cpu_tensor(self):
         """Test GPU residency check with CPU tensor."""
@@ -189,7 +189,7 @@ class TestKernelCache:
 
         # Add CPU tensor
         cache._cache["test"] = torch.randn(100)
-        assert cache.is_gpu_resident == False
+        assert not cache.is_gpu_resident
 
     @patch("torch.cuda.is_available", return_value=True)
     def test_is_gpu_resident_with_gpu_tensor(self, mock_cuda_available):
@@ -198,7 +198,7 @@ class TestKernelCache:
 
         # Add GPU tensor
         cache._cache["test"] = torch.randn(100).cuda()
-        assert cache.is_gpu_resident == True
+        assert cache.is_gpu_resident
 
     @pytest.mark.asyncio
     async def test_fetch_from_urza_with_real_http_client(self):

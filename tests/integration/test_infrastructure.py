@@ -45,7 +45,7 @@ class TestModelWrapperIntegration:
         # Test model statistics
         model_stats = morphable_model.get_model_stats()
         assert model_stats["total_forward_calls"] == 1
-        assert model_stats["morphogenetic_active"] == False
+        assert not model_stats["morphogenetic_active"]
         assert model_stats["total_seeds"] > 0
 
     def test_mixed_architecture_integration(

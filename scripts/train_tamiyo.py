@@ -11,12 +11,13 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+
 import torch
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from esper.services.tamiyo.policy import TamiyoPolicyGNN, PolicyConfig
+from esper.services.tamiyo.policy import PolicyConfig, TamiyoPolicyGNN
 from esper.services.tamiyo.training import TamiyoTrainer, TrainingConfig
 from esper.utils.logging import setup_logging
 

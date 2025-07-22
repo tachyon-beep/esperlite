@@ -69,7 +69,7 @@ class TestPhase2ExecutionPipeline:
         # Check statistics
         stats = morphable_model.get_model_stats()
         assert stats["total_forward_calls"] == 3
-        assert stats["morphogenetic_active"] == False  # No kernels loaded
+        assert not stats["morphogenetic_active"]  # No kernels loaded
 
     @pytest.mark.asyncio
     async def test_kernel_loading_simulation(self):
@@ -97,7 +97,7 @@ class TestPhase2ExecutionPipeline:
         )
 
         # Check that morphogenetic capabilities are active
-        assert morphable_model.morphogenetic_active == True
+        assert morphable_model.morphogenetic_active
 
         # Check layer state
         layer_stats = morphable_model.get_layer_stats(first_layer)
@@ -113,7 +113,7 @@ class TestPhase2ExecutionPipeline:
         morphable_model.morphogenetic_active = (
             morphable_model._check_morphogenetic_active()
         )
-        assert morphable_model.morphogenetic_active == False
+        assert not morphable_model.morphogenetic_active
 
         # Test forward pass without kernel
         output_without_kernel = morphable_model(x)
@@ -158,7 +158,7 @@ class TestPhase2ExecutionPipeline:
         # Check statistics
         stats = morphable_model.get_model_stats()
         assert stats["active_seeds"] == 3
-        assert stats["morphogenetic_active"] == True
+        assert stats["morphogenetic_active"]
 
         # Test forward pass
         x = torch.randn(3, 10)
@@ -201,14 +201,14 @@ class TestPhase2ExecutionPipeline:
 
         # Check all layers have telemetry enabled
         for layer in morphable_model.kasmina_layers.values():
-            assert layer.telemetry_enabled == True
+            assert layer.telemetry_enabled
 
         # Disable telemetry
         morphable_model.enable_telemetry(False)
 
         # Check all layers have telemetry disabled
         for layer in morphable_model.kasmina_layers.values():
-            assert layer.telemetry_enabled == False
+            assert not layer.telemetry_enabled
 
     def test_performance_overhead_measurement(self):
         """Test performance overhead measurement."""
@@ -262,14 +262,14 @@ class TestPhase2ExecutionPipeline:
             kasmina_layer.state_layout.lifecycle_states[0]
             == SeedLifecycleState.ERROR_RECOVERY
         )
-        assert kasmina_layer.state_layout.fallback_active[0] == True
+        assert kasmina_layer.state_layout.fallback_active[0]
 
         # Reset seed should clear error state
         kasmina_layer.state_layout.reset_seed(0)
         assert (
             kasmina_layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
         )
-        assert kasmina_layer.state_layout.fallback_active[0] == False
+        assert not kasmina_layer.state_layout.fallback_active[0]
 
     def test_cache_functionality(self):
         """Test kernel cache functionality."""
@@ -340,7 +340,7 @@ class TestPhase2ExecutionPipeline:
         assert comparison["mse"] < 1e-6
         assert comparison["max_absolute_difference"] < 1e-6
         assert comparison["output_shape"] == (3, 5)
-        assert comparison["morphogenetic_active"] == False
+        assert not comparison["morphogenetic_active"]
 
     @pytest.mark.asyncio
     async def test_full_pipeline_integration(self):
@@ -378,7 +378,7 @@ class TestPhase2ExecutionPipeline:
         # Step 4: Verify execution
         assert output.shape == (5, 5)
         assert not torch.any(torch.isnan(output))
-        assert morphable_model.morphogenetic_active == True
+        assert morphable_model.morphogenetic_active
 
         # Step 5: Check statistics
         stats = morphable_model.get_model_stats()
@@ -406,7 +406,7 @@ class TestPhase2ExecutionPipeline:
         morphable_model.morphogenetic_active = (
             morphable_model._check_morphogenetic_active()
         )
-        assert morphable_model.morphogenetic_active == False
+        assert not morphable_model.morphogenetic_active
 
         print("✅ Full Phase 2 pipeline integration test completed successfully!")
 
@@ -429,7 +429,7 @@ class TestPhase2EdgeCases:
         morphable_model = esper.wrap(model, telemetry_enabled=False)
 
         assert len(morphable_model.kasmina_layers) == 0
-        assert morphable_model.morphogenetic_active == False
+        assert not morphable_model.morphogenetic_active
 
         # Should still work normally
         x = torch.randn(3, 10)

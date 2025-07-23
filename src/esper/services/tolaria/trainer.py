@@ -894,18 +894,65 @@ class TolariaTrainer:
             return False
 
     async def _apply_architecture_modification(
-        self, _decision: AdaptationDecision, layer_name: str
+        self, decision: AdaptationDecision, layer_name: str
     ) -> bool:
-        """Apply architecture modification adaptation."""
-        logger.warning(
-            "Architecture modification requested for %s but not implemented",
-            layer_name
-        )
-        # Architecture modification is not yet implemented
-        # This would require dynamic model surgery capabilities
-        raise NotImplementedError(
-            "Architecture modification adaptation is not yet implemented"
-        )
+        """Apply architecture modification through seed orchestration.
+        
+        This uses the Kasmina seed mechanism to achieve morphogenetic behavior
+        by dynamically loading different kernels and adjusting blend factors,
+        rather than traditional model surgery.
+        """
+        try:
+            # Check if seed orchestrator is available
+            if not hasattr(self, 'seed_orchestrator'):
+                # Initialize seed orchestrator if not already done
+                from esper.core.seed_orchestrator import SeedOrchestrator
+                from esper.services.tamiyo.performance_tracker import PerformanceTracker
+                from esper.blueprints.registry import BlueprintRegistry
+                
+                # Use existing components if available
+                performance_tracker = getattr(self, 'performance_tracker', PerformanceTracker())
+                blueprint_registry = BlueprintRegistry.get_instance()
+                
+                self.seed_orchestrator = SeedOrchestrator(
+                    performance_tracker=performance_tracker,
+                    blueprint_registry=blueprint_registry,
+                    oona_client=self.oona_client,
+                    urza_url=self.config.urza_url if hasattr(self.config, 'urza_url') else "http://localhost:8000"
+                )
+                logger.info("Initialized seed orchestrator for architecture modification")
+            
+            # Apply modification through seed orchestration
+            success, details = await self.seed_orchestrator.apply_architecture_modification(
+                model=self.model,
+                decision=decision
+            )
+            
+            if success:
+                logger.info(
+                    f"Successfully applied architecture modification to {layer_name}: {details}"
+                )
+                # Update metrics
+                self.metrics['architecture_modifications'] = self.metrics.get('architecture_modifications', 0) + 1
+                self.metrics['last_modification_epoch'] = self.state.epoch
+            else:
+                logger.warning(
+                    f"Failed to apply architecture modification to {layer_name}: {details}"
+                )
+                self.metrics['failed_modifications'] = self.metrics.get('failed_modifications', 0) + 1
+            
+            return success
+            
+        except ImportError as e:
+            logger.error(f"Failed to import seed orchestrator: {e}")
+            logger.warning(
+                "Architecture modification requested but seed orchestrator not available. "
+                "Ensure Phase B4 components are properly installed."
+            )
+            return False
+        except Exception as e:
+            logger.error(f"Error applying architecture modification: {e}")
+            return False
 
 
     async def _submit_adaptation_feedback(

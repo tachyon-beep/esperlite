@@ -22,6 +22,10 @@ from esper.contracts.operational import AdaptationDecision
 from esper.contracts.operational import ModelGraphState
 from esper.services.clients.tezzeret_client import TezzeretClient
 from esper.services.oona_client import OonaClient
+from esper.services.tamiyo.performance_tracker import PerformanceTracker
+from esper.services.tamiyo.seed_selector import SeedSelector
+from esper.services.tamiyo.seed_selector import SelectionContext
+from esper.services.tamiyo.seed_selector import SelectionStrategy
 from esper.utils.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
@@ -213,27 +217,96 @@ class ExecutionSystemIntegrator:
         self,
         oona_client: OonaClient,
         urza_url: str,
-        tezzeret_client: Optional[TezzeretClient] = None
+        tezzeret_client: Optional[TezzeretClient] = None,
+        seed_selector: Optional[SeedSelector] = None,
+        performance_tracker: Optional[PerformanceTracker] = None
     ):
         self.oona_client = oona_client
         self.urza_url = urza_url
         self.tezzeret_client = tezzeret_client or TezzeretClient(urza_url)
 
+        # Initialize seed selection system
+        self.performance_tracker = performance_tracker or PerformanceTracker()
+        self.seed_selector = seed_selector or SeedSelector(
+            strategy=SelectionStrategy.UCB,
+            performance_tracker=self.performance_tracker
+        )
+
         # Circuit breaker for reliability
+        from esper.utils.circuit_breaker import CircuitBreakerConfig
         self.circuit_breaker = CircuitBreaker(
-            failure_threshold=3,
-            recovery_timeout=60.0,
-            expected_exception=Exception
+            name="execution_integrator",
+            config=CircuitBreakerConfig(
+                failure_threshold=3,
+                recovery_timeout=60
+            )
         )
 
         # Track active adaptations
         self.active_adaptations: Dict[str, Dict] = {}
+        self.current_epoch = 0
+
+    async def select_seed_for_layer(
+        self,
+        layer_name: str,
+        available_seeds: List[int],
+        current_loss: float = 0.0,
+        learning_rate: float = 0.001,
+        available_memory_mb: float = 1000.0,
+        urgency: float = 0.5
+    ) -> Tuple[int, str]:
+        """
+        Select optimal seed for a layer using intelligent selection.
+        
+        Args:
+            layer_name: Target layer name
+            available_seeds: List of available seed indices
+            current_loss: Current training loss
+            learning_rate: Current learning rate
+            available_memory_mb: Available GPU memory
+            urgency: Adaptation urgency (0-1)
+            
+        Returns:
+            (seed_idx, reason) tuple
+        """
+        # Create selection context
+        context = SelectionContext(
+            current_epoch=self.current_epoch,
+            total_epochs=100,  # Will be updated from training config
+            current_loss=current_loss,
+            learning_rate=learning_rate,
+            layer_type="Linear",  # Will be determined from layer
+            available_memory_mb=available_memory_mb,
+            urgency=urgency
+        )
+        
+        # Get currently active seeds for this layer
+        active_seeds = [
+            int(key.split(":")[1]) 
+            for key in self.active_adaptations.keys() 
+            if key.startswith(f"{layer_name}:")
+        ]
+        
+        # Select seed using intelligent strategy
+        seed_idx, reason = await self.seed_selector.select_seed(
+            layer_name=layer_name,
+            available_seeds=available_seeds,
+            context=context,
+            active_seeds=active_seeds
+        )
+        
+        logger.info(
+            f"Selected seed {seed_idx} for {layer_name}: {reason.reason}"
+        )
+        
+        return seed_idx, reason.reason
 
     async def load_kernel(
         self,
         layer_name: str,
         kernel_id: str,
-        seed_idx: int = 0
+        seed_idx: Optional[int] = None,
+        use_intelligent_selection: bool = True
     ) -> bool:
         """
         Load kernel into KasminaLayer using Phase 1 system.
@@ -241,12 +314,26 @@ class ExecutionSystemIntegrator:
         Args:
             layer_name: Target layer name
             kernel_id: Compiled kernel ID from Urza
-            seed_idx: Seed index in KasminaLayer
+            seed_idx: Seed index in KasminaLayer (None for intelligent selection)
+            use_intelligent_selection: Whether to use intelligent seed selection
             
         Returns:
             Success status
         """
         try:
+            # Use intelligent seed selection if not specified
+            if seed_idx is None and use_intelligent_selection:
+                # Default to 4 seeds per layer (standard config)
+                available_seeds = list(range(4))
+                seed_idx, selection_reason = await self.select_seed_for_layer(
+                    layer_name=layer_name,
+                    available_seeds=available_seeds
+                )
+                logger.info(f"Using intelligent selection: {selection_reason}")
+            elif seed_idx is None:
+                # Fallback to seed 0 if not using intelligent selection
+                seed_idx = 0
+                
             # Use circuit breaker for protection
             async with self.circuit_breaker:
                 # Publish kernel load command via Oona
@@ -405,6 +492,57 @@ class ExecutionSystemIntegrator:
             k: v for k, v in self.active_adaptations.items()
             if v.get("status") == "active"
         }
+    
+    async def update_performance_metrics(
+        self,
+        layer_name: str,
+        seed_idx: int,
+        accuracy_delta: float,
+        loss_delta: float,
+        latency_ms: float,
+        memory_mb: float
+    ) -> None:
+        """
+        Update performance metrics for a seed based on execution results.
+        
+        Args:
+            layer_name: Layer name
+            seed_idx: Seed index
+            accuracy_delta: Change in accuracy
+            loss_delta: Change in loss
+            latency_ms: Execution latency
+            memory_mb: Memory usage
+        """
+        from esper.services.tamiyo.performance_tracker import PerformanceDelta
+        
+        delta = PerformanceDelta(
+            accuracy_delta=accuracy_delta,
+            loss_delta=loss_delta,
+            latency_ms=latency_ms,
+            memory_mb=memory_mb
+        )
+        
+        # Get kernel ID if available
+        kernel_id = None
+        adaptation_key = f"{layer_name}:{seed_idx}"
+        if adaptation_key in self.active_adaptations:
+            kernel_id = self.active_adaptations[adaptation_key].get("kernel_id")
+        
+        await self.performance_tracker.update_metrics(
+            layer_name=layer_name,
+            seed_idx=seed_idx,
+            performance_delta=delta,
+            kernel_id=kernel_id
+        )
+        
+        logger.info(
+            f"Updated metrics for {layer_name}:{seed_idx} - "
+            f"accuracy_delta={accuracy_delta:.4f}, loss_delta={loss_delta:.4f}"
+        )
+    
+    def update_epoch(self, epoch: int) -> None:
+        """Update current epoch for selection context."""
+        self.current_epoch = epoch
 
 
 class Phase2IntegrationOrchestrator:
@@ -419,11 +557,28 @@ class Phase2IntegrationOrchestrator:
         self,
         blueprint_registry: BlueprintRegistry,
         oona_client: OonaClient,
-        urza_url: str
+        urza_url: str,
+        seed_selection_strategy: SelectionStrategy = SelectionStrategy.UCB,
+        seed_selection_config: Optional[Dict] = None
     ):
         self.blueprint_selector = BlueprintSelector(blueprint_registry)
+        
+        # Create shared performance tracker
+        performance_tracker = PerformanceTracker()
+        
+        # Create seed selector with strategy
+        seed_selector = SeedSelector(
+            strategy=seed_selection_strategy,
+            performance_tracker=performance_tracker,
+            config=seed_selection_config or {}
+        )
+        
+        # Pass to execution integrator
         self.execution_integrator = ExecutionSystemIntegrator(
-            oona_client, urza_url
+            oona_client=oona_client,
+            urza_url=urza_url,
+            seed_selector=seed_selector,
+            performance_tracker=performance_tracker
         )
 
         # Track adaptation pipeline state
@@ -489,11 +644,11 @@ class Phase2IntegrationOrchestrator:
 
             self.pipeline_state[pipeline_id]["kernel_id"] = kernel_id
 
-            # 4. Load kernel into execution layer
+            # 4. Load kernel into execution layer with intelligent seed selection
             success = await self.execution_integrator.load_kernel(
                 layer_name=decision.layer_name,
-                kernel_id=kernel_id,
-                seed_idx=0  # TODO: Smarter seed selection
+                kernel_id=kernel_id
+                # seed_idx not specified - will use intelligent selection
             )
 
             if success:

@@ -1,5 +1,5 @@
 """
-Integration tests for Phase 1 Core Asset Pipeline.
+Integration tests for Urza -> Tezzeret blueprint compilation pipeline.
 
 This module contains tests that verify the end-to-end functionality
 of the Oona -> Urza -> Tezzeret pipeline.
@@ -29,8 +29,8 @@ def mock_s3_env():
         yield
 
 
-class TestPhase1Pipeline:
-    """Integration tests for Phase 1 pipeline."""
+class TestUrzaTezzeretPipeline:
+    """Integration tests for Urza-Tezzeret compilation pipeline."""
 
     def test_blueprint_submission_contract(self):
         """Test the blueprint submission contract."""

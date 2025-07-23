@@ -147,7 +147,8 @@ class KernelValidator:
 
             return True, ""
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.error("Module validation failed: %s", e, exc_info=True)
             return False, f"Validation error: {e}"
 
     def _validate_module_types(self, module: nn.Module) -> bool:
@@ -420,13 +421,15 @@ class RealKernelExecutor:
             # Try torch.jit first (preferred format)
             module = self._deserialize_torchscript(kernel_artifact)
 
-        except Exception:
+        except (RuntimeError, torch.jit.Error) as e:
+            logger.warning("TorchScript deserialization failed, trying pickle: %s", e)
             try:
                 # Fallback to pickle (with security validation)
                 module = self._deserialize_pickle(kernel_artifact)
 
-            except Exception as e:
-                raise KernelDeserializationError(f"Failed to deserialize kernel: {e}")
+            except (RuntimeError, TypeError, ValueError) as e:
+                logger.error("All deserialization methods failed", exc_info=True)
+                raise KernelDeserializationError(f"Failed to deserialize kernel: {e}") from e
 
         # Move to target device
         module = module.to(self.device)
@@ -465,8 +468,8 @@ class RealKernelExecutor:
             # For now, return the state dict - caller needs to instantiate module
             return state_dict
 
-        except Exception as e:
-            raise KernelDeserializationError(f"Kernel deserialization failed: {e}")
+        except (RuntimeError, TypeError, ValueError, torch.serialization.pickle.UnpicklingError) as e:
+            raise KernelDeserializationError(f"Kernel deserialization failed: {e}") from e
 
     async def _execute_with_timeout(
         self, kernel_module: nn.Module, input_tensor: torch.Tensor

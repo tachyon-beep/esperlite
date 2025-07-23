@@ -4,6 +4,7 @@ Blueprint registry for managing and loading blueprint templates.
 
 import logging
 from pathlib import Path
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -25,7 +26,7 @@ class BlueprintRegistry:
     for Tamiyo's adaptation decisions.
     """
 
-    def __init__(self, manifest_path: Optional[Path] = None):
+    def __init__(self, manifest_path: Optional[Path] = None) -> None:
         """Initialize blueprint registry."""
         self.blueprints: Dict[str, BlueprintMetadata] = {}
         self.architectures: Dict[str, BlueprintManifest] = {}
@@ -37,7 +38,7 @@ class BlueprintRegistry:
             # Load default blueprints
             self._load_default_blueprints()
 
-    def _load_default_blueprints(self):
+    def _load_default_blueprints(self) -> None:
         """Load the default blueprint library."""
         # Import all template modules
         from esper.blueprints.templates import diagnostics
@@ -55,7 +56,7 @@ class BlueprintRegistry:
 
         logger.info(f"Loaded {len(self.blueprints)} default blueprints")
 
-    def _register_module_blueprints(self, module):
+    def _register_module_blueprints(self, module: Any) -> None:
         """Register all blueprints from a template module."""
         if hasattr(module, "BLUEPRINTS"):
             for blueprint_data in module.BLUEPRINTS:
@@ -63,7 +64,7 @@ class BlueprintRegistry:
                 manifest = BlueprintManifest(**blueprint_data)
                 self.register(metadata, manifest)
 
-    def register(self, metadata: BlueprintMetadata, manifest: BlueprintManifest):
+    def register(self, metadata: BlueprintMetadata, manifest: BlueprintManifest) -> None:
         """Register a blueprint in the registry."""
         blueprint_id = metadata.blueprint_id
 

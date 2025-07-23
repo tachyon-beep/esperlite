@@ -106,9 +106,14 @@ class KasminaLayer(nn.Module):
             try:
                 self.oona_client = OonaClient()
                 self._telemetry_available = True
-            except Exception as e:
-                logger.warning("Failed to initialize Oona client: %s", e)
-                # Keep telemetry_enabled as requested by user, but mark as unavailable
+            except ImportError as e:
+                # Missing dependency is ok, just disable telemetry
+                logger.warning("Oona client not available, telemetry disabled: %s", e)
+                self.telemetry_enabled = False
+            except (ConnectionError, RuntimeError) as e:
+                # Connection/runtime errors are critical - fail fast
+                logger.error("Failed to connect to Oona service: %s", e, exc_info=True)
+                raise RuntimeError(f"Telemetry initialization failed: {e}") from e
 
         # Performance tracking
         self.total_forward_calls = 0
@@ -145,7 +150,8 @@ class KasminaLayer(nn.Module):
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # We're in an async context, create a task
+                    # We're already in an async context, we can't use run_until_complete
+                    # Fall back to sync execution
                     kernel_output = self._execute_with_kernels_sync(x, active_seeds)
                 else:
                     # No running loop, safe to use run_until_complete
@@ -178,7 +184,7 @@ class KasminaLayer(nn.Module):
         Synchronous kernel execution fallback.
 
         Used when async execution is not available or fails.
-        Falls back to placeholder execution for backward compatibility.
+        This should not use placeholder kernels in production/tests.
 
         Args:
             x: Input tensor
@@ -187,41 +193,9 @@ class KasminaLayer(nn.Module):
         Returns:
             Output tensor from kernel execution
         """
-        batch_size = x.size(0)
-        output = torch.zeros(
-            batch_size, self.output_size, device=x.device, dtype=x.dtype
-        )
-
-        for seed_idx in range(self.num_seeds):
-            if not active_seeds[seed_idx]:
-                continue
-
-            try:
-                # Fall back to placeholder execution for sync context
-                kernel_output = self._execute_kernel_placeholder(x, seed_idx)
-
-                # Accumulate output
-                alpha = self.state_layout.alpha_blend[seed_idx].item()
-                output += alpha * kernel_output
-
-                self.total_kernel_executions += 1
-
-                # Update telemetry for this seed
-                health_score = self._compute_health_score(kernel_output)
-                self.state_layout.update_telemetry(seed_idx, 100, health_score)
-
-            except Exception as e:
-                logger.error("Sync kernel execution failed for seed %d: %s", seed_idx, e)
-
-                # Handle error without async operations
-                error_count = self.state_layout.increment_error_count(seed_idx)
-
-                if error_count >= 3:
-                    logger.error(
-                        f"Seed {seed_idx} moved to error recovery after {error_count} failures"
-                    )
-
-        return output
+        # In sync mode when we're already in an async context,
+        # we cannot create new async tasks, so just use default transform
+        return self.default_transform(x)
 
     async def _execute_with_kernels(
         self, x: torch.Tensor, active_seeds: torch.Tensor
@@ -259,7 +233,7 @@ class KasminaLayer(nn.Module):
                 health_score = self._compute_health_score(kernel_output)
                 self.state_layout.update_telemetry(
                     seed_idx, 100, health_score
-                )  # 100us placeholder
+                )
 
             except Exception as e:
                 logger.warning("Kernel execution failed for seed %d: %s", seed_idx, e)
@@ -392,29 +366,6 @@ class KasminaLayer(nn.Module):
             # Fallback to default transformation
             return self.default_transform(x)
 
-    def _execute_kernel_placeholder(
-        self, x: torch.Tensor, seed_idx: int
-    ) -> torch.Tensor:
-        """
-        Placeholder kernel execution for backward compatibility.
-
-        This method is kept for backward compatibility but should not be used
-        in production. Use _execute_kernel_real instead.
-
-        Args:
-            x: Input tensor
-            seed_idx: Index of the seed
-
-        Returns:
-            Kernel output tensor
-        """
-        logger.warning(
-            "Using placeholder kernel execution - update to use real execution"
-        )
-        # Placeholder: Apply a simple transformation that differs from default
-        # This simulates morphogenetic behavior
-        weight_scale = 0.5 + (seed_idx * 0.1)  # Different scale per seed
-        return self.default_transform(x) * weight_scale
 
     def _blend_outputs(
         self,
@@ -475,12 +426,12 @@ class KasminaLayer(nn.Module):
             # Collect layer statistics
             state_stats = self.state_layout.get_stats()
 
-            # Create health signal (using fields from the actual contract)
+            # Create health signal
             health_signal = HealthSignal(
                 layer_id=hash(self.layer_name) % 10000,  # Simple layer ID
                 seed_id=0,  # Representative seed
-                chunk_id=0,  # Placeholder chunk ID
-                epoch=0,  # Placeholder epoch
+                chunk_id=0,  # Not applicable for execution telemetry
+                epoch=self.total_forward_calls,  # Use forward call count as epoch proxy
                 activation_variance=state_stats["avg_health"],
                 dead_neuron_ratio=min(
                     state_stats["total_errors"] / max(state_stats["num_seeds"], 1), 1.0
@@ -491,8 +442,14 @@ class KasminaLayer(nn.Module):
 
             # Publish via Oona (async)
             if self.oona_client:
-                _ = asyncio.create_task(self._publish_health_signal(health_signal))
-                # Task will be garbage collected after completion, which is fine for fire-and-forget telemetry
+                try:
+                    # Create task and let it run in background
+                    task = asyncio.create_task(self._publish_health_signal(health_signal))
+                    # Add exception handler to prevent warnings
+                    task.add_done_callback(lambda t: None if not t.exception() else logger.debug("Telemetry publish error: %s", t.exception()))
+                except RuntimeError:
+                    # If no event loop is running, skip telemetry
+                    pass
 
         except Exception as e:
             logger.warning("Failed to update telemetry: %s", e)

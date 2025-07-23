@@ -226,7 +226,7 @@ class EsperDemoApp {
 
     async updateStatus() {
         try {
-            const response = await fetch('http://localhost:8889/api/status');
+            const response = await fetch('/api/status');
             const data = await response.json();
             
             // Update service status
@@ -269,7 +269,7 @@ class EsperDemoApp {
 
     async updateTraining() {
         try {
-            const response = await fetch('http://localhost:8889/api/training');
+            const response = await fetch('/api/training');
             const data = await response.json();
             
             // Update epoch progress
@@ -301,7 +301,7 @@ class EsperDemoApp {
 
     async updateKernelStats() {
         try {
-            const response = await fetch('http://localhost:8889/api/kernels');
+            const response = await fetch('/api/kernels');
             const data = await response.json();
             
             document.getElementById('total-kernels').textContent = data.total_kernels;
@@ -359,7 +359,7 @@ class EsperDemoApp {
         // For now, poll logs instead of streaming
         setInterval(async () => {
             try {
-                const response = await fetch('http://localhost:8889/api/logs');
+                const response = await fetch('/api/logs');
                 const data = await response.json();
                 data.logs.forEach(log => this.addLogEntry(log));
             } catch (error) {

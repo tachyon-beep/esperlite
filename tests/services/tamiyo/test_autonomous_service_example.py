@@ -20,7 +20,8 @@ import torch
 
 # Force CPU-only mode for tests to avoid CUDA device mismatches
 torch.cuda.is_available = lambda: False
-torch.set_default_tensor_type("torch.FloatTensor")
+torch.set_default_dtype(torch.float32)
+torch.set_default_device("cpu")
 
 from esper.contracts.operational import AdaptationDecision
 from esper.contracts.operational import HealthSignal

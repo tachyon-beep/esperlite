@@ -197,7 +197,7 @@ class TestCoreIntegration:
         """Test model comparison with original."""
         original_model = nn.Sequential(nn.Linear(32, 16), nn.ReLU(), nn.Linear(16, 8))
 
-        morphable_model = esper.wrap(original_model, preserve_original=True)
+        morphable_model = esper.wrap(original_model, preserve_original=True, telemetry_enabled=False)
 
         # Test comparison functionality
         input_data = torch.randn(4, 32)

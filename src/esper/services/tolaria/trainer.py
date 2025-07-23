@@ -420,18 +420,14 @@ class TolariaTrainer:
                 logger.info("Production Tamiyo client initialized")
 
         except Exception as e:
-            logger.warning("Failed to initialize Tamiyo client: %s", e)
-            # Fallback to mock client
-            try:
-                self.tamiyo_client = MockTamiyoClient()
-                logger.info(
-                    "Fallback to mock Tamiyo client due to initialization error"
+            logger.error("Failed to initialize Tamiyo client: %s", e)
+            # In production, we should not fall back to mock clients
+            self.tamiyo_client = None
+            if self.tamiyo_config and self.tamiyo_config.enabled:
+                logger.warning(
+                    "Tamiyo integration is enabled but client initialization failed. "
+                    "Autonomous adaptation will not be available."
                 )
-            except Exception as fallback_error:
-                logger.error(
-                    f"Failed to initialize even mock Tamiyo client: {fallback_error}"
-                )
-                self.tamiyo_client = None
 
     async def train(self) -> List[TrainingMetrics]:
         """Execute the complete training process."""
@@ -863,9 +859,11 @@ class TolariaTrainer:
             kernel_artifact_id = getattr(decision, "kernel_artifact_id", None)
 
             if kernel_artifact_id is None:
-                # Generate a placeholder kernel ID
-                kernel_artifact_id = f"kernel_{int(time.time() * 1000) % 10000}"
-                logger.debug("Generated placeholder kernel ID: %s", kernel_artifact_id)
+                logger.error(
+                    "No kernel_artifact_id provided in adaptation decision for layer %s",
+                    layer_name
+                )
+                return False
 
             # Find a dormant seed if no specific target provided
             if target_seed_idx is None:
@@ -881,11 +879,8 @@ class TolariaTrainer:
                     logger.warning("No dormant seeds available in layer %s", layer_name)
                     return False
 
-            # For now, simulate kernel loading (in production, this would load from Urza)
-            # success = await layer.load_kernel(target_seed_idx, kernel_artifact_id)
-            success = self._simulate_kernel_loading(
-                layer, target_seed_idx, kernel_artifact_id
-            )
+            # Load the kernel using the proper interface
+            success = await layer.load_kernel(target_seed_idx, kernel_artifact_id)
 
             if success:
                 logger.info(
@@ -902,36 +897,16 @@ class TolariaTrainer:
         self, _decision: AdaptationDecision, layer_name: str
     ) -> bool:
         """Apply architecture modification adaptation."""
-        try:
-            logger.info("Architecture modification requested for %s", layer_name)
-            # This is a placeholder for more complex architectural changes
-            # In a full implementation, this might:
-            # - Add new layers
-            # - Modify layer connections
-            # - Change layer parameters
-            return True  # Simulate success
+        logger.warning(
+            "Architecture modification requested for %s but not implemented",
+            layer_name
+        )
+        # Architecture modification is not yet implemented
+        # This would require dynamic model surgery capabilities
+        raise NotImplementedError(
+            "Architecture modification adaptation is not yet implemented"
+        )
 
-        except Exception as e:
-            logger.error("Error applying architecture modification: %s", e)
-            return False
-
-    def _simulate_kernel_loading(self, layer, seed_idx: int, kernel_id: str) -> bool:
-        """Simulate kernel loading for development/testing."""
-        try:
-            # Simulate setting seed to active state
-            from esper.execution.state_layout import SeedLifecycleState
-
-            layer.state_layout.lifecycle_states[seed_idx] = SeedLifecycleState.ACTIVE
-            layer.state_layout.alpha_blend[seed_idx] = (
-                0.3  # Set reasonable blend factor
-            )
-
-            logger.debug("Simulated loading kernel %s into seed %d", kernel_id, seed_idx)
-            return True
-
-        except Exception as e:
-            logger.error("Error simulating kernel loading: %s", e)
-            return False
 
     async def _submit_adaptation_feedback(
         self, decision: AdaptationDecision, success: bool
@@ -941,11 +916,24 @@ class TolariaTrainer:
             return
 
         try:
-            # Calculate basic performance impact (placeholder)
+            # Calculate performance impact based on recent metrics
             performance_impact = {
                 "success": success,
                 "epoch": self.state.epoch,
                 "recent_loss": self._last_train_loss,
+                "accuracy_delta": (
+                    self._last_val_accuracy - self._baseline_val_accuracy
+                    if hasattr(self, "_baseline_val_accuracy")
+                    else 0.0
+                ),
+                "loss_delta": (
+                    self._last_train_loss - self._baseline_train_loss
+                    if hasattr(self, "_baseline_train_loss")
+                    else 0.0
+                ),
+                "layer_name": target_layer_name,
+                "adaptation_type": decision.adaptation_type,
+                "timestamp": time.time(),
             }
 
             await self.tamiyo_client.submit_adaptation_feedback(

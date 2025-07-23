@@ -12,6 +12,7 @@ from typing import List
 from typing import Optional
 
 from pydantic import BaseModel
+from pydantic import ConfigDict
 from pydantic import Field
 
 
@@ -106,8 +107,7 @@ class BlueprintArchitecture(BaseModel):
     init_params: Dict = Field(default_factory=dict, description="Initialization parameters")
     forward_logic: Optional[str] = Field(None, description="Custom forward pass logic")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class BlueprintManifest(BaseModel):
@@ -119,5 +119,4 @@ class BlueprintManifest(BaseModel):
     architecture: BlueprintArchitecture = Field(..., description="Neural architecture")
     validation: Dict = Field(default_factory=dict, description="Validation criteria")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")

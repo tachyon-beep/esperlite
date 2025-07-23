@@ -1,5 +1,5 @@
 """
-Integration tests for Phase 3 - Tamiyo Strategic Controller.
+Integration tests for Tamiyo Strategic Controller and Policy System.
 
 This module contains tests that verify the end-to-end functionality
 of the Tamiyo strategic controller and policy training system.

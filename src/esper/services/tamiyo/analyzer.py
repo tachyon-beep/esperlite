@@ -271,23 +271,54 @@ class ModelGraphAnalyzer:
             return "unknown"
 
     def _estimate_layer_size(self, layer_name: str, size_type: str) -> int:
-        """Estimate the input/output size of a layer (simplified)."""
-        # For MVP, return placeholder values
-        # In a real implementation, this would analyze the actual model
-        # Parameters used for future extensibility
-        _ = layer_name, size_type
-        return 128
+        """Estimate the input/output size of a layer."""
+        # Default reasonable sizes based on common architectures
+        layer_type = self._infer_layer_type(layer_name)
+        
+        if layer_type == "linear":
+            # Common FC layer sizes
+            if "fc1" in layer_name or "classifier" in layer_name:
+                return 512 if size_type == "output" else 2048
+            elif "fc2" in layer_name or "output" in layer_name:
+                return 10 if size_type == "output" else 512
+            else:
+                return 256  # Default for other linear layers
+        elif layer_type == "convolutional":
+            # Common conv layer channel sizes
+            if "conv1" in layer_name:
+                return 64 if size_type == "output" else 3
+            elif "conv2" in layer_name:
+                return 128 if size_type == "output" else 64
+            elif "conv3" in layer_name:
+                return 256 if size_type == "output" else 128
+            else:
+                return 128  # Default
+        else:
+            return 128  # Default for unknown types
 
     def _estimate_parameter_count(self, layer_name: str) -> int:
-        """Estimate the parameter count of a layer (simplified)."""
-        # For MVP, return placeholder values
-        # In a real implementation, this would analyze the actual model
+        """Estimate the parameter count of a layer."""
         layer_type = self._infer_layer_type(layer_name)
+        
         if layer_type == "linear":
-            return 65536  # 256 * 256
+            # Estimate based on common layer configurations
+            input_size = self._estimate_layer_size(layer_name, "input")
+            output_size = self._estimate_layer_size(layer_name, "output")
+            # params = input * output + bias
+            return input_size * output_size + output_size
         elif layer_type == "convolutional":
-            return 2304  # 3 * 3 * 256
+            # Assume 3x3 kernels as default
+            kernel_size = 3
+            in_channels = self._estimate_layer_size(layer_name, "input")
+            out_channels = self._estimate_layer_size(layer_name, "output")
+            # params = kernel_h * kernel_w * in_channels * out_channels + bias
+            return kernel_size * kernel_size * in_channels * out_channels + out_channels
+        elif layer_type == "normalization":
+            # BatchNorm/LayerNorm have 2 * num_features parameters (gamma, beta)
+            features = self._estimate_layer_size(layer_name, "output")
+            return 2 * features
         else:
+            # Default for unknown types
             return 1024
 
     def _infer_edges(

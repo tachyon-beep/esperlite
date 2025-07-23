@@ -337,10 +337,11 @@ class ErrorRecoveryManager:
                 )
                 return True  # Assume success for now
 
-            except Exception as e:
-                logger.warning("Retry attempt %d failed: %s", attempt + 1, e)
+            except (RuntimeError, ValueError, KernelExecutionError, torch.cuda.OutOfMemoryError) as e:
+                logger.error("Retry attempt %d failed: %s", attempt + 1, e)
                 if attempt == max_retries - 1:
-                    return False
+                    # Re-raise to ensure we don't hide critical errors
+                    raise
 
         return False
 
@@ -356,9 +357,10 @@ class ErrorRecoveryManager:
                 if asyncio.iscoroutine(result):
                     await result
                 return True
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError) as e:
                 logger.error("Fallback action failed: %s", e)
-                return False
+                # Re-raise to avoid hiding errors that affect data quality
+                raise
 
         # Default fallback behavior
         if error_context.component == "kernel_executor":
@@ -444,9 +446,14 @@ class HealthMonitor:
             try:
                 await self._check_system_health()
                 await asyncio.sleep(10.0)  # Check every 10 seconds
-            except Exception as e:
-                logger.error("Health monitoring error: %s", e)
-                await asyncio.sleep(30.0)  # Back off on error
+            except asyncio.CancelledError:
+                # Allow clean shutdown
+                raise
+            except (RuntimeError, ValueError, torch.cuda.CudaError) as e:
+                logger.error("Health monitoring error: %s", e, exc_info=True)
+                # Don't continue monitoring if we can't check health - fail fast
+                self.monitoring_active = False
+                raise
 
     def stop_monitoring(self):
         """Stop health monitoring."""

@@ -24,6 +24,9 @@ from esper.execution.kasmina_layer import KasminaLayer
 from esper.execution.state_layout import KasminaStateLayout
 from esper.services.oona_client import OonaClient
 
+# Import real component fixtures
+from tests.fixtures.real_components import *  # noqa: F401,F403
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -214,8 +217,19 @@ def test_config() -> Dict[str, Any]:
 
 
 @pytest.fixture(autouse=True)
-def prevent_real_network_calls():
-    """Automatically prevent real network calls during testing."""
+def prevent_real_network_calls(request):
+    """Automatically prevent real network calls during testing.
+    
+    Can be disabled by using the 'no_auto_mock_http' marker:
+        @pytest.mark.no_auto_mock_http
+        def test_something():
+            # This test will use real HTTP client
+    """
+    # Check if the test has the no_auto_mock_http marker
+    if request.node.get_closest_marker('no_auto_mock_http'):
+        yield None
+        return
+        
     from unittest.mock import AsyncMock
     from unittest.mock import patch
 
@@ -354,6 +368,32 @@ def setup_logging():
 def disable_telemetry():
     """Disable telemetry for testing."""
     return {"telemetry_enabled": False}
+
+
+@pytest.fixture(autouse=True)
+def mock_oona_client_creation(request):
+    """Automatically mock OonaClient creation to prevent Redis connection attempts.
+    
+    Can be disabled by using the 'no_auto_mock_oona' marker:
+        @pytest.mark.no_auto_mock_oona
+        def test_something():
+            # This test will use real OonaClient
+    """
+    # Check if the test has the no_auto_mock_oona marker
+    if request.node.get_closest_marker('no_auto_mock_oona'):
+        yield None
+        return
+    
+    from unittest.mock import AsyncMock, MagicMock, patch
+    
+    # Create a mock that doesn't try to connect to Redis
+    mock_client = MagicMock(spec=OonaClient)
+    mock_client.publish_health_signal = AsyncMock()
+    mock_client.publish_adaptation_event = AsyncMock()
+    mock_client.close = AsyncMock()
+    
+    with patch('esper.execution.kasmina_layer.OonaClient', return_value=mock_client):
+        yield mock_client
 
 
 class TestModelFactory:
@@ -500,3 +540,5 @@ pytest.mark.unit = pytest.mark.unit
 pytest.mark.integration = pytest.mark.integration
 pytest.mark.performance = pytest.mark.performance
 pytest.mark.slow = pytest.mark.slow
+pytest.mark.no_auto_mock_oona = pytest.mark.no_auto_mock_oona
+pytest.mark.no_auto_mock_http = pytest.mark.no_auto_mock_http

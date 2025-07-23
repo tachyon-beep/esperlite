@@ -8,11 +8,21 @@ to original Conv2d layers, validating the <5% overhead target.
 import time
 from statistics import mean
 
+import pytest
 import torch
 import torch.nn as nn
 
 from esper.core.model_wrapper import wrap
 from esper.execution.kasmina_conv2d_layer import KasminaConv2dLayer
+
+
+@pytest.fixture(autouse=True)
+def cleanup_cuda():
+    """Ensure CUDA state is clean before and after each test."""
+    yield
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 class TestConv2dPerformance:
@@ -99,23 +109,37 @@ class TestConv2dPerformance:
         # Test input
         input_tensor = torch.randn(16, 3, 32, 32)
 
-        # Warm up
-        for _ in range(10):
+        # Warm up - more iterations to ensure stable state
+        for _ in range(20):
             _ = original_model(input_tensor)
             _ = wrapped_model(input_tensor)
+        
+        # Force garbage collection before measurement
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         # Measure original model performance
         original_times = []
         for _ in range(50):
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             start_time = time.perf_counter()
             original_output = original_model(input_tensor)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             original_times.append(time.perf_counter() - start_time)
 
         # Measure wrapped model performance
         wrapped_times = []
         for _ in range(50):
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             start_time = time.perf_counter()
             wrapped_output = wrapped_model(input_tensor)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             wrapped_times.append(time.perf_counter() - start_time)
 
         # Calculate average times

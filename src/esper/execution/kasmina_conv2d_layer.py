@@ -174,8 +174,34 @@ class KasminaConv2dLayer(KasminaLayer):
         for seed_idx in range(self.num_seeds):
             if active_seeds[seed_idx]:
                 try:
-                    # Execute morphogenetic kernel for this seed
-                    seed_output = self._execute_kernel_placeholder(x, seed_idx)
+                    # Get kernel ID and execute real kernel if available
+                    kernel_id = int(self.state_layout.active_kernel_id[seed_idx].item())
+                    if kernel_id == 0:
+                        # No kernel loaded, use default
+                        seed_output = self.default_transform(x)
+                    else:
+                        # Use parent's real kernel execution in async context
+                        import asyncio
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                # Already in async context, can't create new tasks
+                                logger.warning(
+                                    "Conv2D kernel execution in async context not yet supported, "
+                                    "using default transform"
+                                )
+                                seed_output = self.default_transform(x)
+                            else:
+                                # Run async kernel execution
+                                seed_output = loop.run_until_complete(
+                                    self._execute_kernel_real(x, seed_idx)
+                                )
+                        except RuntimeError:
+                            # No event loop available
+                            logger.warning(
+                                "No event loop for Conv2D kernel execution, using default transform"
+                            )
+                            seed_output = self.default_transform(x)
 
                     # Ensure output shape consistency
                     if seed_output.shape != default_output.shape:
@@ -213,38 +239,6 @@ class KasminaConv2dLayer(KasminaLayer):
 
         return output
 
-    def _execute_kernel_placeholder(
-        self, x: torch.Tensor, seed_idx: int
-    ) -> torch.Tensor:
-        """
-        Placeholder kernel execution for Conv2d operations.
-
-        This will be replaced with actual loaded kernels in production.
-
-        Args:
-            x: Input tensor (N, C, H, W)
-            seed_idx: Index of the seed to execute
-
-        Returns:
-            Transformed tensor maintaining Conv2d spatial semantics
-        """
-        # Apply convolution-based transformation that preserves spatial structure
-        # This is still a placeholder but maintains proper Conv2d semantics
-
-        # Create a simple perturbation based on seed index
-        seed_factor = 0.5 + seed_idx * 0.1
-
-        # Apply the default convolution with a small modification
-        # In practice, this would load and execute a compiled kernel
-        output = self.default_transform(x) * seed_factor
-
-        # Add small spatial-aware noise to simulate morphogenetic adaptation
-        if self.training:
-            noise_scale = 0.01 * (seed_idx + 1)
-            spatial_noise = torch.randn_like(output) * noise_scale
-            output += spatial_noise
-
-        return output
 
     def _adapt_output_shape(
         self, tensor: torch.Tensor, target_shape: torch.Size

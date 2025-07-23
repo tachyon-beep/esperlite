@@ -1,5 +1,5 @@
 """
-Integration tests for Phase 4: Full System Orchestration
+Integration tests for Tolaria training system orchestration.
 
 These tests validate the complete morphogenetic training system,
 including the Tolaria trainer, service orchestration, and end-to-end workflows.

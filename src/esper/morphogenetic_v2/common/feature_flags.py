@@ -48,9 +48,9 @@ class FeatureFlagManager:
                     data = json.load(f)
                     for name, config in data.items():
                         self.flags[name] = FeatureFlag(name=name, **config)
-                logger.info(f"Loaded {len(self.flags)} feature flags")
-            except Exception as e:
-                logger.error(f"Failed to load feature flags: {e}")
+                logger.info("Loaded %d feature flags", len(self.flags))
+            except (json.JSONDecodeError, IOError) as e:
+                logger.error("Failed to load feature flags: %s", e)
         else:
             # Default flags for Phase 0
             self._initialize_default_flags()
@@ -100,7 +100,7 @@ class FeatureFlagManager:
                 flag_name = key[len(prefix):].lower()
                 if flag_name in self.flags:
                     self.flags[flag_name].enabled = value.lower() == "true"
-                    logger.info(f"Overrode flag {flag_name} from env: {value}")
+                    logger.info("Overrode flag %s from env: %s", flag_name, value)
     
     def is_enabled(self, feature: str, model_id: Optional[str] = None) -> bool:
         """
@@ -114,7 +114,7 @@ class FeatureFlagManager:
             Whether the feature is enabled
         """
         if feature not in self.flags:
-            logger.warning(f"Unknown feature flag: {feature}")
+            logger.warning("Unknown feature flag: %s", feature)
             return False
             
         flag = self.flags[feature]
@@ -134,7 +134,7 @@ class FeatureFlagManager:
         # Check percentage rollout
         if flag.rollout_percentage > 0 and model_id:
             # Consistent hashing for stable rollout
-            hash_value = int(hashlib.md5(model_id.encode()).hexdigest(), 16)
+            hash_value = int(hashlib.sha256(model_id.encode()).hexdigest(), 16)
             return (hash_value % 100) < flag.rollout_percentage
             
         return False
@@ -143,20 +143,20 @@ class FeatureFlagManager:
         """Enable or disable a feature globally."""
         if feature in self.flags:
             self.flags[feature].enabled = enabled
-            logger.info(f"Set feature {feature} enabled={enabled}")
+            logger.info("Set feature %s enabled=%s", feature, enabled)
     
     def set_rollout_percentage(self, feature: str, percentage: int):
         """Set gradual rollout percentage for a feature."""
         if feature in self.flags:
             self.flags[feature].rollout_percentage = max(0, min(100, percentage))
-            logger.info(f"Set feature {feature} rollout={percentage}%")
+            logger.info("Set feature %s rollout=%d%%", feature, percentage)
     
     def add_to_allowlist(self, feature: str, model_id: str):
         """Add a model to the feature's allowlist."""
         if feature in self.flags:
             if model_id not in self.flags[feature].allowlist:
                 self.flags[feature].allowlist.append(model_id)
-                logger.info(f"Added {model_id} to {feature} allowlist")
+                logger.info("Added %s to %s allowlist", model_id, feature)
     
     def save_flags(self):
         """Persist current flag configuration."""
@@ -173,7 +173,7 @@ class FeatureFlagManager:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, 'w') as f:
             json.dump(data, f, indent=2)
-        logger.info(f"Saved feature flags to {self.config_path}")
+        logger.info("Saved feature flags to %s", self.config_path)
 
 
 class MigrationRouter:
@@ -187,8 +187,8 @@ class MigrationRouter:
         feature: str,
         legacy_fn: Callable,
         new_fn: Callable,
-        model_id: Optional[str] = None,
         *args,
+        model_id: Optional[str] = None,
         **kwargs
     ) -> Any:
         """
@@ -205,15 +205,15 @@ class MigrationRouter:
             Result from selected implementation
         """
         if self.features.is_enabled(feature, model_id):
-            logger.debug(f"Using new implementation for {feature}")
+            logger.debug("Using new implementation for %s", feature)
             try:
                 return new_fn(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"New implementation failed for {feature}: {e}")
+            except (RuntimeError, ValueError, TypeError) as e:
+                logger.error("New implementation failed for %s: %s", feature, e)
                 # Fallback to legacy on error
                 return legacy_fn(*args, **kwargs)
         else:
-            logger.debug(f"Using legacy implementation for {feature}")
+            logger.debug("Using legacy implementation for %s", feature)
             return legacy_fn(*args, **kwargs)
 
 

@@ -1,0 +1,58 @@
+{
+  "chunked_architecture": {
+    "enabled": false,
+    "rollout_percentage": 0,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 1: Enable chunked architecture with thousands of parallel seeds"
+  },
+  "triton_kernels": {
+    "enabled": false,
+    "rollout_percentage": 0,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 3: Enable GPU-optimized Triton kernels"
+  },
+  "extended_lifecycle": {
+    "enabled": false,
+    "rollout_percentage": 0,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 2: Enable full 11-state seed lifecycle"
+  },
+  "message_bus": {
+    "enabled": false,
+    "rollout_percentage": 0,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 4: Enable Oona message bus integration"
+  },
+  "neural_controller": {
+    "enabled": false,
+    "rollout_percentage": 0,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 6: Enable neural Tamiyo controller"
+  },
+  "grafting_strategies": {
+    "enabled": false,
+    "rollout_percentage": 0,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 2: Enable advanced grafting strategies"
+  },
+  "performance_monitoring": {
+    "enabled": true,
+    "rollout_percentage": 100,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 0: Performance baseline and monitoring"
+  },
+  "ab_testing": {
+    "enabled": true,
+    "rollout_percentage": 100,
+    "allowlist": [],
+    "blocklist": [],
+    "description": "Phase 0: A/B testing framework"
+  }
+}

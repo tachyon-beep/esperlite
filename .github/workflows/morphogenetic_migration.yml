@@ -1,0 +1,269 @@
+name: Morphogenetic Migration CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - RC*
+      - feature/morphogenetic-*
+    paths:
+      - 'src/esper/morphogenetic_v2/**'
+      - 'src/esper/execution/**'
+      - 'src/esper/services/tamiyo/**'
+      - 'tests/**'
+      - 'config/morphogenetic_*.yaml'
+  pull_request:
+    branches:
+      - main
+      - RC*
+    paths:
+      - 'src/esper/morphogenetic_v2/**'
+      - 'src/esper/execution/**'
+      - 'src/esper/services/tamiyo/**'
+  schedule:
+    # Run regression tests every 6 hours
+    - cron: '0 */6 * * *'
+
+env:
+  PYTHON_VERSION: '3.10'
+  CUDA_VERSION: '11.8'
+
+jobs:
+  regression-tests:
+    name: Regression Test Suite
+    runs-on: [self-hosted, gpu]
+    strategy:
+      matrix:
+        implementation: [legacy, v2]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          
+      - name: Run regression tests
+        env:
+          MORPHOGENETIC_IMPLEMENTATION: ${{ matrix.implementation }}
+        run: |
+          python -m pytest src/esper/morphogenetic_v2/tests/test_regression.py \
+            --verbose \
+            --junit-xml=test-results/regression-${{ matrix.implementation }}.xml
+            
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: regression-test-results
+          path: test-results/
+          
+  performance-benchmarks:
+    name: Performance Benchmarks
+    runs-on: [self-hosted, gpu, benchmark]
+    needs: regression-tests
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+          
+      - name: Run performance baseline
+        run: |
+          python scripts/establish_morphogenetic_baseline.py \
+            --output-dir benchmarks/ci/${{ github.run_number }}
+            
+      - name: Compare with baseline
+        run: |
+          python scripts/compare_performance.py \
+            --baseline benchmarks/baseline/phase0_baseline.json \
+            --current benchmarks/ci/${{ github.run_number }}/baseline_*.json \
+            --tolerance 0.1
+            
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmarks/ci/${{ github.run_number }}/
+          
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const results = fs.readFileSync('benchmarks/ci/${{ github.run_number }}/comparison.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: results
+            });
+            
+  ab-testing:
+    name: A/B Testing
+    runs-on: [self-hosted, gpu]
+    needs: regression-tests
+    if: github.event_name == 'push' && contains(github.ref, 'feature/morphogenetic-')
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up test environment
+        run: |
+          pip install -r requirements.txt
+          
+      - name: Run A/B tests
+        run: |
+          python -m esper.morphogenetic_v2.common.ab_testing \
+            --legacy-implementation \
+            --new-implementation \
+            --sample-size 1000 \
+            --output-dir ab-tests/${{ github.run_number }}
+            
+      - name: Check A/B test results
+        run: |
+          python scripts/check_ab_results.py \
+            --results ab-tests/${{ github.run_number }}/ab_test_*.json \
+            --fail-on-regression
+            
+  feature-flag-validation:
+    name: Feature Flag Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Validate feature flags
+        run: |
+          python scripts/validate_feature_flags.py \
+            --config config/morphogenetic_migration.yaml \
+            --phase ${{ env.MIGRATION_PHASE || '0' }}
+            
+      - name: Check rollout percentages
+        run: |
+          python scripts/check_rollout_safety.py \
+            --max-increment 10 \
+            --require-approval-above 50
+            
+  deploy-monitoring:
+    name: Deploy Monitoring
+    runs-on: ubuntu-latest
+    needs: [regression-tests, performance-benchmarks]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy Grafana dashboards
+        run: |
+          for dashboard in monitoring/dashboards/*.json; do
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.GRAFANA_API_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d @$dashboard \
+              https://grafana.example.com/api/dashboards/db
+          done
+          
+      - name: Deploy Prometheus alerts
+        run: |
+          kubectl apply -f monitoring/alerts/morphogenetic_alerts.yml
+          
+  migration-safety-checks:
+    name: Migration Safety Checks
+    runs-on: ubuntu-latest
+    needs: [regression-tests, performance-benchmarks, ab-testing]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check migration readiness
+        run: |
+          python scripts/migration_readiness_check.py \
+            --phase ${{ env.MIGRATION_PHASE || '0' }} \
+            --regression-results test-results/ \
+            --performance-results benchmarks/ci/${{ github.run_number }}/ \
+            --ab-results ab-tests/${{ github.run_number }}/
+            
+      - name: Generate migration report
+        run: |
+          python scripts/generate_migration_report.py \
+            --output migration-report-${{ github.run_number }}.html
+            
+      - name: Upload migration report
+        uses: actions/upload-artifact@v3
+        with:
+          name: migration-report
+          path: migration-report-${{ github.run_number }}.html
+          
+  rollout-gate:
+    name: Rollout Gate
+    runs-on: ubuntu-latest
+    needs: migration-safety-checks
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check rollout criteria
+        run: |
+          python scripts/rollout_gate_check.py \
+            --error-rate-threshold 0.05 \
+            --latency-regression-threshold 0.1 \
+            --memory-leak-threshold 0.1
+            
+      - name: Update feature flags
+        if: success()
+        run: |
+          python scripts/update_feature_flags.py \
+            --increment 10 \
+            --config config/morphogenetic_migration.yaml \
+            --commit "Auto-increment rollout after passing gates"
+
+# Notification on failure
+notify-on-failure:
+  name: Notify on Failure
+  runs-on: ubuntu-latest
+  needs: [regression-tests, performance-benchmarks, ab-testing, migration-safety-checks]
+  if: failure()
+  
+  steps:
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: 'Morphogenetic migration CI failed! Check the logs.'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        
+    - name: Create GitHub issue
+      if: github.ref == 'refs/heads/main'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Migration CI Failure - Run #${context.runNumber}`,
+            body: `The morphogenetic migration CI failed. [View logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            labels: ['bug', 'morphogenetic-migration', 'ci-failure']
+          })

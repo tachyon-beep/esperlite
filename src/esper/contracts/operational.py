@@ -44,6 +44,16 @@ class HealthSignal(BaseModel):
     total_seeds: int = Field(default=1, ge=1)
     timestamp: float = Field(default_factory=time.time)
 
+    # Training dynamics for morphogenetic adaptation
+    gradient_norm: float = Field(default=0.0, ge=0.0)
+    gradient_variance: float = Field(default=0.0, ge=0.0)
+    gradient_sign_stability: float = Field(default=0.0, ge=0.0, le=1.0)
+    param_norm_ratio: float = Field(default=1.0, ge=0.0)
+
+    # Performance metrics for system efficiency
+    total_executions: int = Field(default=0, ge=0)
+    cache_hit_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
     @field_validator("seed_id", "layer_id", "chunk_id", "epoch")
     @classmethod
     def _validate_ids(cls, v):

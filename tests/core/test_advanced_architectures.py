@@ -576,7 +576,7 @@ class TestAdaptationCapabilities:
         )
 
         # Check that adaptation is active
-        assert morphable_model.morphogenetic_active == True
+        assert morphable_model.morphogenetic_active
 
         # Test forward pass with adaptation
         x = torch.randn(2, 10, 128)

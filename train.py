@@ -16,7 +16,6 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 from esper.services.tolaria.config import TolariaConfig
 from esper.services.tolaria.main import TolariaService
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 def create_quick_start_config(dataset: str, output_dir: Path) -> Path:
     """Create a quick-start configuration for common scenarios."""
-    
+
     quick_configs = {
         "cifar10": {
             "run_id": "quick-cifar10",
@@ -98,20 +97,20 @@ def create_quick_start_config(dataset: str, output_dir: Path) -> Path:
             }
         }
     }
-    
+
     if dataset not in quick_configs:
         raise ValueError(f"Unknown quick-start dataset: {dataset}. Available: {list(quick_configs.keys())}")
-    
+
     config_data = quick_configs[dataset]
     config_path = output_dir / f"quick-{dataset}.yaml"
-    
+
     # Create the config file
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     import yaml
     with open(config_path, 'w') as f:
         yaml.dump(config_data, f, default_flow_style=False, indent=2)
-    
+
     logger.info("Created quick-start configuration: %s", config_path)
     return config_path
 
@@ -119,11 +118,11 @@ def create_quick_start_config(dataset: str, output_dir: Path) -> Path:
 def validate_environment() -> bool:
     """Validate that the environment is ready for training."""
     issues = []
-    
+
     # Check Python version
     if sys.version_info < (3, 8):
         issues.append("Python 3.8+ required")
-    
+
     # Check for required packages
     try:
         import torch
@@ -131,18 +130,18 @@ def validate_environment() -> bool:
             logger.warning("CUDA not available, training will use CPU")
     except ImportError:
         issues.append("PyTorch not installed")
-    
+
     try:
         import torchvision
     except ImportError:
         issues.append("torchvision not installed")
-    
+
     if issues:
         logger.error("Environment validation failed:")
         for issue in issues:
             logger.error("  - %s", issue)
         return False
-    
+
     logger.info("Environment validation passed")
     return True
 
@@ -167,7 +166,7 @@ Examples:
   python train.py --config configs/test.yaml --dry-run
         """
     )
-    
+
     # Configuration options
     config_group = parser.add_mutually_exclusive_group(required=True)
     config_group.add_argument(
@@ -181,7 +180,7 @@ Examples:
         choices=["cifar10", "cifar100"],
         help="Quick start with predefined configuration"
     )
-    
+
     # Output and logging options
     parser.add_argument(
         "--output",
@@ -199,19 +198,19 @@ Examples:
         action="store_true",
         help="Validate configuration and environment without training"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Setup logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
     setup_logging("esper-train", level=log_level)
-    
+
     logger.info("=== Esper Morphogenetic Training Platform ===")
-    
+
     # Validate environment
     if not validate_environment():
         sys.exit(1)
-    
+
     try:
         # Determine configuration path
         if args.quick_start:
@@ -222,29 +221,29 @@ Examples:
             if not config_path.exists():
                 logger.error("Configuration file not found: %s", config_path)
                 sys.exit(1)
-        
+
         # Load and validate configuration
         logger.info("Loading configuration from: %s", config_path)
         config = TolariaConfig.from_yaml(config_path)
-        
+
         logger.info("Configuration loaded successfully:")
         logger.info("  - Model: %s", config.model.architecture)
         logger.info("  - Dataset: %s", config.dataset.name)
         logger.info("  - Epochs: %d", config.max_epochs)
         logger.info("  - Device: %s", config.device)
-        
+
         if args.dry_run:
             logger.info("Dry run completed successfully - configuration is valid")
             return
-        
+
         # Create and start the training service
         logger.info("Starting Tolaria training service...")
         service = TolariaService(config)
-        
+
         await service.start()
-        
+
         logger.info("Training completed successfully!")
-        
+
     except KeyboardInterrupt:
         logger.info("Training interrupted by user")
         sys.exit(130)  # Standard exit code for SIGINT

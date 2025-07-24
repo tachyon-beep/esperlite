@@ -344,7 +344,7 @@ class TestRealKernelExecutor:
     def test_clear_cache(self):
         """Test cache clearing."""
         # Add some kernels to cache
-        kernel_artifact = create_test_kernel_artifact(10, 5)
+        create_test_kernel_artifact(10, 5)
 
         # Manually add to cache for testing
         test_module = nn.Linear(10, 5)

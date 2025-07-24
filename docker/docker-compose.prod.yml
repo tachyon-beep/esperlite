@@ -170,6 +170,9 @@ services:
     networks:
       - esper-network
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    user: "65534:65534"  # nobody user
 
   grafana:
     image: grafana/grafana:latest
@@ -188,6 +191,9 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    user: "472:472"  # grafana user
 
 networks:
   esper-network:

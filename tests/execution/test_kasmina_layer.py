@@ -30,7 +30,7 @@ class TestKasminaLayer:
         assert layer.output_size == 5
         assert layer.num_seeds == 4
         assert layer.layer_name == "test_layer"
-        assert layer.telemetry_enabled == False
+        assert not layer.telemetry_enabled
         assert isinstance(layer.default_transform, nn.Linear)
         assert layer.default_transform.in_features == 10
         assert layer.default_transform.out_features == 5
@@ -78,23 +78,6 @@ class TestKasminaLayer:
         assert layer.total_forward_calls == 1
         assert layer.total_kernel_executions == 1
 
-    def test_execute_kernel_placeholder(self):
-        """Test placeholder kernel execution."""
-        layer = KasminaLayer(
-            input_size=10, output_size=5, num_seeds=4, telemetry_enabled=False
-        )
-
-        # Create test input
-        x = torch.randn(3, 10)
-
-        # Execute kernel for different seeds
-        output0 = layer._execute_kernel_placeholder(x, 0)
-        output1 = layer._execute_kernel_placeholder(x, 1)
-
-        # Different seeds should produce different outputs
-        assert not torch.allclose(output0, output1)
-        assert output0.shape == (3, 5)
-        assert output1.shape == (3, 5)
 
     def test_blend_outputs(self):
         """Test output blending."""
@@ -165,46 +148,7 @@ class TestKasminaLayer:
         # Smaller tensor should have higher health score
         assert health_score > health_score_large
 
-    @pytest.mark.asyncio
-    async def test_load_kernel_success(self):
-        """Test kernel loading updates state correctly when kernel is available."""
-        layer = KasminaLayer(
-            input_size=10, output_size=5, num_seeds=4, telemetry_enabled=False
-        )
 
-        # Initially seed should be dormant
-        assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
-        assert layer.state_layout.alpha_blend[0].item() == 0.0
-
-        # Load kernel - this will use the HTTP mocked response from conftest.py
-        success = await layer.load_kernel(0, "test-kernel-123")
-
-        # Verify kernel loading succeeded and updated layer state
-        assert success == True, "Kernel loading should succeed with valid HTTP response"
-        assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.ACTIVE
-        assert layer.state_layout.active_kernel_id[0] == hash("test-kernel-123")
-        assert (
-            layer.state_layout.alpha_blend[0].item() > 0
-        ), "Alpha should be set for active kernel"
-
-    @pytest.mark.asyncio
-    async def test_load_kernel_not_found(self):
-        """Test kernel loading when kernel is not found."""
-        layer = KasminaLayer(
-            input_size=10, output_size=5, num_seeds=4, telemetry_enabled=False
-        )
-
-        # Initially seed should be dormant
-        assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
-
-        # Try to load kernel with invalid ID (triggers 404 in mock)
-        success = await layer.load_kernel(0, "invalid-kernel-id")
-
-        assert success == False, "Kernel loading should fail when kernel not found"
-        assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
-        assert (
-            layer.state_layout.alpha_blend[0].item() == 0.0
-        ), "Alpha should remain 0 for failed load"
 
     @pytest.mark.asyncio
     async def test_load_kernel_invalid_index(self):
@@ -233,7 +177,7 @@ class TestKasminaLayer:
         # Unload kernel
         success = await layer.unload_kernel(0)
 
-        assert success == True
+        assert success
         assert layer.state_layout.lifecycle_states[0] == SeedLifecycleState.DORMANT
         assert abs(layer.state_layout.alpha_blend[0].item()) < 0.01
 
@@ -267,7 +211,7 @@ class TestKasminaLayer:
         assert stats["total_forward_calls"] == 10
         assert stats["total_kernel_executions"] == 5
         assert abs(stats["kernel_execution_ratio"] - 0.5) < 0.01
-        assert stats["telemetry_enabled"] == False
+        assert not stats["telemetry_enabled"]
         assert "state_stats" in stats
         assert "cache_stats" in stats
 

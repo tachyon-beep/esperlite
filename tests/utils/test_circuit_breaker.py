@@ -58,7 +58,7 @@ class TestCircuitBreaker:
         assert circuit_breaker.is_closed
 
         # First two failures should keep circuit closed
-        for i in range(2):
+        for _ in range(2):
             with pytest.raises(Exception, match="Test failure"):
                 await circuit_breaker.call(failing_function)
             assert circuit_breaker.is_closed
@@ -100,7 +100,7 @@ class TestCircuitBreaker:
             return "success"
 
         # Open the circuit with failures
-        for i in range(3):
+        for _ in range(3):
             with pytest.raises(Exception):
                 await circuit_breaker.call(failing_function)
 
@@ -130,7 +130,7 @@ class TestCircuitBreaker:
             return "success"
 
         # Open the circuit
-        for i in range(3):
+        for _ in range(3):
             with pytest.raises(Exception):
                 await circuit_breaker.call(failing_function)
 
@@ -140,7 +140,7 @@ class TestCircuitBreaker:
         await asyncio.sleep(1.1)
 
         # First call should transition to HALF_OPEN
-        result = await circuit_breaker.call(successful_function)
+        _ = await circuit_breaker.call(successful_function)
         assert circuit_breaker.is_half_open
 
         # Failure should return to OPEN
@@ -255,7 +255,7 @@ class TestCircuitBreakerIntegration:
         """Test circuit breaker protecting HTTP client calls."""
 
         # Mock HTTP client that fails then succeeds
-        mock_client = Mock()
+        _ = Mock()
         call_count = 0
 
         async def mock_http_call():
@@ -275,7 +275,7 @@ class TestCircuitBreakerIntegration:
         breaker = CircuitBreaker(name="http_breaker", config=config)
 
         # First 3 calls should fail and open circuit
-        for i in range(3):
+        for _ in range(3):
             with pytest.raises(Exception, match="Network error"):
                 await breaker.call(mock_http_call)
 

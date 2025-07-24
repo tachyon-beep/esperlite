@@ -40,11 +40,23 @@ spec:
         app.kubernetes.io/component: strategic-controller
         app.kubernetes.io/part-of: esper-platform
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
       - name: tamiyo
         image: esper/tamiyo:latest
         imagePullPolicy: Always
         command: ["python", "-m", "esper.services.tamiyo.autonomous_service", "--port", "8001"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
         env:
         - name: URZA_URL
           valueFrom:
@@ -99,6 +111,10 @@ spec:
           mountPath: /app/models
         - name: logs
           mountPath: /app/logs
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /.cache
       volumes:
       - name: model-cache
         emptyDir:
@@ -106,3 +122,9 @@ spec:
       - name: logs
         emptyDir:
           sizeLimit: 1Gi
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: cache
+        emptyDir:
+          sizeLimit: 2Gi

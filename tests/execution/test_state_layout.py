@@ -38,7 +38,7 @@ class TestKasminaStateLayout:
 
         # Initially no active seeds
         active_seeds = layout.get_active_seeds()
-        assert torch.all(active_seeds == False)
+        assert torch.all(~active_seeds)
 
         # Transition one seed to active
         layout.transition_seed_state(1, SeedLifecycleState.ACTIVE)
@@ -53,7 +53,7 @@ class TestKasminaStateLayout:
 
         # Initially all dormant
         dormant_seeds = layout.get_dormant_seeds()
-        assert torch.all(dormant_seeds == True)
+        assert torch.all(dormant_seeds)
 
         # Transition one seed to active
         layout.transition_seed_state(1, SeedLifecycleState.ACTIVE)
@@ -72,7 +72,7 @@ class TestKasminaStateLayout:
         assert layout.lifecycle_states[0] == SeedLifecycleState.ACTIVE
         assert layout.active_kernel_id[0] == 12345
         assert layout.error_count[0] == 0
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
         # Test transition to error recovery
         layout.transition_seed_state(0, SeedLifecycleState.ERROR_RECOVERY)
@@ -96,17 +96,17 @@ class TestKasminaStateLayout:
         count = layout.increment_error_count(0)
         assert count == 1
         assert layout.error_count[0] == 1
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
         # Second increment
         count = layout.increment_error_count(0)
         assert count == 2
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
         # Third increment should trigger fallback
         count = layout.increment_error_count(0)
         assert count == 3
-        assert layout.fallback_active[0] == True
+        assert layout.fallback_active[0]
         assert layout.lifecycle_states[0] == SeedLifecycleState.ERROR_RECOVERY
 
     def test_increment_error_count_invalid_index(self):
@@ -192,7 +192,7 @@ class TestKasminaStateLayout:
         assert layout.last_update_epoch[0] == 0
         assert layout.exec_latency_us[0] == 0
         assert layout.error_count[0] == 0
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
     def test_reset_seed_invalid_index(self):
         """Test error handling for invalid seed index in reset."""

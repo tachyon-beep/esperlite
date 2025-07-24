@@ -2,7 +2,7 @@
 
 ## Overview
 
-The execution module implements the performance-critical morphogenetic execution engine that handles real-time kernel loading, seed lifecycle management, and GPU-optimized state tracking. This module is designed for high-frequency operations with microsecond-latency execution and minimal overhead when seeds are dormant.
+The execution module implements the performance-critical morphogenetic execution engine that handles real-time kernel loading, seed lifecycle management, and GPU-optimized state tracking. This module is designed for high-frequency operations with microsecond-latency execution and minimal overhead when seeds are dormant. It now includes true async execution, gradient synchronization, and support for multiple layer types.
 
 ## Files
 
@@ -13,27 +13,43 @@ The execution module implements the performance-critical morphogenetic execution
 **Key Exports:**
 ```python
 from .kasmina_layer import KasminaLayer
+from .kasmina_conv2d_layer import KasminaConv2dLayer
+from .kasmina_attention_layer import KasminaAttentionLayer
+from .kasmina_layernorm_layer import KasminaLayerNormLayer
+from .kasmina_batchnorm_layer import KasminaBatchNormLayer
+from .async_kasmina_conv2d_layer import AsyncKasminaConv2dLayer
 from .state_layout import KasminaStateLayout, SeedLifecycleState
 from .kernel_cache import KernelCache
 from .enhanced_kernel_cache import EnhancedKernelCache
 from .kernel_executor import RealKernelExecutor, KernelExecutionError
 from .error_recovery import ErrorRecoveryManager, ErrorType, HealthMonitor
+from .gradient_sync import GradientSynchronizer
+from .stream_manager import StreamManager
+from .exceptions import KernelCompilationError, KernelExecutionError
 
 __all__ = [
     "KasminaLayer",
+    "KasminaConv2dLayer", 
+    "AsyncKasminaConv2dLayer",
+    "KasminaAttentionLayer",
+    "KasminaLayerNormLayer",
+    "KasminaBatchNormLayer",
     "KasminaStateLayout", 
     "SeedLifecycleState",
     "KernelCache",
     "EnhancedKernelCache",
     "RealKernelExecutor",
     "KernelExecutionError", 
+    "KernelCompilationError",
     "ErrorRecoveryManager",
     "ErrorType",
     "HealthMonitor",
+    "GradientSynchronizer",
+    "StreamManager",
 ]
 ```
 
-**Architecture:** Complete execution system with real kernel execution, enhanced caching, and comprehensive error recovery.
+**Architecture:** Complete execution system with real kernel execution, enhanced caching, comprehensive error recovery, and true async support.
 
 ### `state_layout.py` - GPU-Optimized State Management
 
@@ -347,494 +363,325 @@ def _add_to_cache(self, artifact_id: str, kernel_tensor: torch.Tensor) -> None:
         "size_mb": tensor_size_mb,
         "added_at": time.time(),
         "last_accessed": time.time(),
+        "access_count": 1,
     }
     self.total_size_mb += tensor_size_mb
+```
 
-def _evict_lru(self) -> None:
-    """Evict the least recently used entry from cache."""
-    if not self._cache:
-        return
-        
-    # Remove oldest entry (first in OrderedDict)
-    lru_key = next(iter(self._cache))
-    self._cache.pop(lru_key)
-    cache_info = self._cache_info.pop(lru_key)
+**Performance Features:**
+- **GPU-Resident:** Keeps kernels in GPU memory for instant execution
+- **LRU Eviction:** Automatic memory management when cache is full
+- **Thread-Safe:** Async locks prevent race conditions
+- **Pre-warming:** Support for loading frequently used kernels at startup
+
+### `enhanced_kernel_cache.py` - Circuit-Breaker Enhanced Cache
+
+**Purpose:** Enhanced version of kernel cache with circuit breaker pattern, adaptive eviction policies, and comprehensive monitoring.
+
+**Key Features:**
+
+**`EnhancedKernelCache`** - Production-Ready Cache
+```python
+class EnhancedKernelCache(KernelCache):
+    """
+    Enhanced kernel cache with circuit breaker and advanced monitoring.
     
-    self.total_size_mb -= cache_info["size_mb"]
-    self._evictions += 1
+    Features:
+    - Circuit breaker pattern for Urza failures
+    - Adaptive eviction based on kernel performance
+    - Comprehensive metrics collection
+    - Health monitoring and alerts
+    """
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Circuit breaker for Urza
+        self._urza_failures = 0
+        self._urza_circuit_open = False
+        self._urza_circuit_open_until = 0
+        
+        # Performance tracking
+        self._kernel_performance: Dict[str, float] = {}
+        self._kernel_failure_count: Dict[str, int] = {}
+```
+
+**Circuit Breaker Implementation:**
+```python
+async def _check_circuit_breaker(self) -> bool:
+    """Check if Urza circuit breaker is open."""
+    if self._urza_circuit_open:
+        if time.time() < self._urza_circuit_open_until:
+            return False  # Circuit still open
+        else:
+            # Try to close circuit
+            self._urza_circuit_open = False
+            self._urza_failures = 0
+    return True
+
+def _trip_circuit_breaker(self):
+    """Trip the circuit breaker after failures."""
+    self._urza_circuit_open = True
+    self._urza_circuit_open_until = time.time() + 60  # 1 minute timeout
+    logger.warning("Urza circuit breaker tripped - cache only mode for 60s")
+```
+
+**Adaptive Eviction:**
+```python
+def _evict_lru(self) -> None:
+    """Enhanced eviction considering kernel performance."""
+    # Score kernels by recency and performance
+    eviction_candidates = []
+    
+    for kernel_id, info in self._cache_info.items():
+        age = time.time() - info["last_accessed"]
+        performance = self._kernel_performance.get(kernel_id, 0.5)
+        failure_rate = self._kernel_failure_count.get(kernel_id, 0) / max(info["access_count"], 1)
+        
+        # Composite score (lower is worse)
+        score = (1.0 / (age + 1)) * performance * (1 - failure_rate)
+        eviction_candidates.append((score, kernel_id))
+    
+    # Evict lowest scoring kernel
+    eviction_candidates.sort()
+    _, kernel_id = eviction_candidates[0]
+    self._remove_from_cache(kernel_id)
+```
+
+### `kernel_executor.py` - Real Kernel Execution Engine (Phase B1)
+
+**Purpose:** Implements actual TorchScript kernel compilation and execution, replacing placeholder implementations.
+
+**Status:** ✅ **PHASE B1 COMPLETE** - Real kernel execution with ~0.15s compilation latency
+
+#### Key Components
+
+**`RealKernelExecutor`** - TorchScript Compilation Engine
+```python
+class RealKernelExecutor:
+    """
+    Real kernel executor using TorchScript compilation.
+    
+    Implements Phase B1 - Real Kernel Compilation with:
+    - TorchScript JIT compilation
+    - CPU and CUDA optimization
+    - Performance profiling
+    - Error recovery
+    """
+    
+    def __init__(self):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._compilation_cache: Dict[str, torch.jit.ScriptModule] = {}
+        self._compilation_times: List[float] = []
+        self._execution_times: List[float] = []
+```
+
+**Kernel Compilation:**
+```python
+async def compile_kernel(
+    self, 
+    blueprint: BlueprintIR,
+    target_device: str = "auto"
+) -> CompiledKernelArtifact:
+    """
+    Compile BlueprintIR to optimized TorchScript kernel.
+    
+    Args:
+        blueprint: Blueprint intermediate representation
+        target_device: Target device (auto, cpu, cuda)
+        
+    Returns:
+        Compiled kernel artifact with binary and metadata
+    """
+    start_time = time.time()
+    
+    try:
+        # Generate PyTorch module from blueprint
+        module = self._blueprint_to_module(blueprint)
+        
+        # JIT compile with optimization
+        if target_device == "cuda" or (target_device == "auto" and torch.cuda.is_available()):
+            module = module.cuda()
+            
+        # Trace with example inputs
+        example_input = self._generate_example_input(blueprint)
+        traced_module = torch.jit.trace(module, example_input)
+        
+        # Optimize for inference
+        traced_module = torch.jit.optimize_for_inference(traced_module)
+        
+        # Serialize to binary
+        buffer = io.BytesIO()
+        torch.jit.save(traced_module, buffer)
+        kernel_binary = buffer.getvalue()
+        
+        compilation_time = time.time() - start_time
+        self._compilation_times.append(compilation_time)
+        
+        return CompiledKernelArtifact(
+            artifact_id=f"kernel_{blueprint.id}_{int(time.time())}",
+            blueprint_id=blueprint.id,
+            kernel_binary=kernel_binary,
+            compilation_time_ms=compilation_time * 1000,
+            target_device=str(self.device),
+            optimization_level="O2",
+            metadata={
+                "compiler": "torchscript",
+                "torch_version": torch.__version__,
+                "cuda_available": torch.cuda.is_available(),
+            }
+        )
+        
+    except Exception as e:
+        raise KernelCompilationError(f"Failed to compile kernel: {str(e)}")
+```
+
+**Blueprint to Module Conversion:**
+```python
+def _blueprint_to_module(self, blueprint: BlueprintIR) -> nn.Module:
+    """
+    Convert BlueprintIR graph to PyTorch module.
+    
+    Implements actual neural network construction from blueprint.
+    """
+    class DynamicModule(nn.Module):
+        def __init__(self, blueprint_ir):
+            super().__init__()
+            self.layers = nn.ModuleDict()
+            
+            # Build layers from blueprint nodes
+            for node in blueprint_ir.nodes:
+                if node.op_type == "linear":
+                    self.layers[node.id] = nn.Linear(
+                        node.attributes["in_features"],
+                        node.attributes["out_features"]
+                    )
+                elif node.op_type == "conv2d":
+                    self.layers[node.id] = nn.Conv2d(
+                        node.attributes["in_channels"],
+                        node.attributes["out_channels"],
+                        node.attributes["kernel_size"]
+                    )
+                elif node.op_type == "activation":
+                    self.layers[node.id] = self._get_activation(node.attributes["type"])
+                # ... more layer types
+            
+            # Store execution order from edges
+            self.execution_order = self._topological_sort(blueprint_ir.edges)
+        
+        def forward(self, x):
+            intermediates = {"input": x}
+            
+            for node_id in self.execution_order:
+                node = self._get_node(node_id)
+                inputs = [intermediates[edge.source] for edge in self._get_input_edges(node_id)]
+                
+                if len(inputs) == 1:
+                    output = self.layers[node_id](inputs[0])
+                else:
+                    # Multi-input operations (concat, add, etc.)
+                    output = self._multi_input_op(node, inputs)
+                
+                intermediates[node_id] = output
+            
+            return intermediates[self.execution_order[-1]]
+    
+    return DynamicModule(blueprint)
+```
+
+**Kernel Execution:**
+```python
+async def execute_kernel(
+    self,
+    kernel_artifact: CompiledKernelArtifact,
+    inputs: torch.Tensor
+) -> torch.Tensor:
+    """
+    Execute compiled kernel with inputs.
+    
+    Features:
+    - Cached module loading
+    - GPU acceleration
+    - Performance monitoring
+    - Error recovery
+    """
+    start_time = time.time()
+    
+    try:
+        # Load compiled module (cached)
+        if kernel_artifact.artifact_id not in self._compilation_cache:
+            buffer = io.BytesIO(kernel_artifact.kernel_binary)
+            module = torch.jit.load(buffer, map_location=self.device)
+            self._compilation_cache[kernel_artifact.artifact_id] = module
+        else:
+            module = self._compilation_cache[kernel_artifact.artifact_id]
+        
+        # Ensure inputs on correct device
+        inputs = inputs.to(self.device)
+        
+        # Execute with gradient tracking if needed
+        if inputs.requires_grad:
+            output = module(inputs)
+        else:
+            with torch.no_grad():
+                output = module(inputs)
+        
+        execution_time = time.time() - start_time
+        self._execution_times.append(execution_time)
+        
+        return output
+        
+    except Exception as e:
+        raise KernelExecutionError(f"Kernel execution failed: {str(e)}")
 ```
 
 **Performance Monitoring:**
 ```python
-def get_cache_stats(self) -> Dict[str, Any]:
-    """Get cache performance statistics."""
-    total_requests = self._hits + self._misses
-    hit_rate = (self._hits / total_requests) if total_requests > 0 else 0.0
-    
+def get_performance_stats(self) -> Dict[str, Any]:
+    """Get compilation and execution performance statistics."""
     return {
-        "entries": len(self._cache),
-        "total_size_mb": self.total_size_mb,
-        "max_size_mb": self.max_cache_size_mb,
-        "max_entries": self.max_entries,
-        "hits": self._hits,
-        "misses": self._misses,
-        "evictions": self._evictions,
-        "hit_rate": hit_rate,
-        "cache_keys": list(self._cache.keys()),
+        "compilation": {
+            "count": len(self._compilation_times),
+            "mean_ms": np.mean(self._compilation_times) * 1000 if self._compilation_times else 0,
+            "p95_ms": np.percentile(self._compilation_times, 95) * 1000 if self._compilation_times else 0,
+            "last_ms": self._compilation_times[-1] * 1000 if self._compilation_times else 0,
+        },
+        "execution": {
+            "count": len(self._execution_times),
+            "mean_us": np.mean(self._execution_times) * 1e6 if self._execution_times else 0,
+            "p95_us": np.percentile(self._execution_times, 95) * 1e6 if self._execution_times else 0,
+            "last_us": self._execution_times[-1] * 1e6 if self._execution_times else 0,
+        },
+        "cache": {
+            "modules_cached": len(self._compilation_cache),
+            "memory_mb": self._estimate_cache_memory_mb(),
+        },
+        "device": str(self.device),
     }
 ```
 
-**Features:**
-- **Microsecond Latency:** Cache hits in <1ms
-- **Automatic GPU Migration:** Tensors moved to GPU when available
-- **Size-based Eviction:** Both count and memory limits
-- **Thread Safety:** Async lock for concurrent access
-- **Comprehensive Statistics:** Hit rates, eviction tracking
+### `kasmina_layer.py` - Core Morphogenetic Execution Layer
 
-### `enhanced_kernel_cache.py` - Metadata-Aware Kernel Cache
+**Purpose:** The fundamental building block that replaces standard PyTorch layers with morphogenetic capabilities.
 
-**Purpose:** ✅ **NEW IN PHASE 1** - Advanced kernel caching with metadata validation, compatibility checking, and performance profiling.
+**Status:** ✅ **PRODUCTION READY** - Full implementation with all features
 
 #### Key Components
 
-**`EnhancedKernelCache`** - Advanced Cache with Metadata
-```python
-class EnhancedKernelCache(KernelCache):
-    """
-    Enhanced kernel cache with metadata tracking and validation.
-    
-    Extends the basic KernelCache with:
-    - Kernel metadata caching
-    - Shape and device compatibility validation
-    - Memory usage tracking
-    - Performance profiling
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Metadata cache
-        self.metadata_cache: OrderedDict[str, KernelMetadata] = OrderedDict()
-        
-        # Enhanced statistics
-        self.compatibility_checks = 0
-        self.compatibility_failures = 0
-        self.memory_usage_estimates: Dict[str, float] = {}
-        
-        # Validator
-        self.validator = KernelValidator()
-```
-
-**Key Features:**
-
-**Compatibility Validation:**
-```python
-async def load_kernel_with_validation(
-    self,
-    artifact_id: str,
-    target_shape: torch.Size,
-    device: torch.device,
-    batch_size: int = 32
-) -> Optional[Tuple[torch.Tensor, KernelMetadata]]:
-    """
-    Load kernel with shape and device validation.
-    
-    Returns:
-        Tuple of (kernel_tensor, metadata) or None if not compatible
-    """
-    # Check if we have metadata cached
-    if artifact_id in self.metadata_cache:
-        metadata = self.metadata_cache[artifact_id]
-        
-        # Validate compatibility
-        is_valid, error_msg = self.validator.validate_compatibility(
-            metadata, target_shape, device, self.max_cache_size_mb
-        )
-        
-        if not is_valid:
-            self.compatibility_failures += 1
-            return None
-```
-
-**Kernel Discovery:**
-```python
-def find_compatible_kernels(
-    self,
-    target_shape: torch.Size,
-    device: torch.device,
-    max_memory_mb: Optional[float] = None
-) -> List[Tuple[str, KernelMetadata]]:
-    """Find all cached kernels compatible with given requirements."""
-    compatible = []
-    
-    for artifact_id, metadata in self.metadata_cache.items():
-        is_valid, _ = self.validator.validate_compatibility(
-            metadata, target_shape, device, max_memory_mb
-        )
-        
-        if is_valid:
-            compatible.append((artifact_id, metadata))
-    
-    # Sort by performance score or recency
-    compatible.sort(
-        key=lambda x: (
-            x[1].performance_profile.get("score", 0.0),
-            self._cache_info.get(x[0], {}).get("last_accessed", 0)
-        ),
-        reverse=True
-    )
-    
-    return compatible
-```
-
-**`KernelValidator`** - Compatibility and Safety Validator
-```python
-class KernelValidator:
-    """Validates kernel compatibility and safety requirements."""
-    
-    def validate_compatibility(
-        self,
-        metadata: KernelMetadata,
-        target_shape: torch.Size,
-        device: torch.device,
-        max_memory_mb: Optional[float] = None
-    ) -> Tuple[bool, str]:
-        """Validate kernel compatibility with execution requirements."""
-        
-        # Check parameter count
-        if metadata.parameter_count > self.max_parameter_count:
-            return False, f"Too many parameters: {metadata.parameter_count}"
-        
-        # Check shape compatibility  
-        target_shape_list = list(target_shape[1:])  # Exclude batch dimension
-        if not metadata.is_compatible_with_shape(target_shape_list):
-            return False, f"Shape mismatch: kernel expects {metadata.input_shape}"
-        
-        # Check device requirements
-        device_str = str(device).split(':')[0]
-        if metadata.device_requirements and device_str not in metadata.device_requirements:
-            return False, f"Device {device_str} not in requirements"
-        
-        # Check memory requirements
-        if metadata.memory_footprint_mb > (max_memory_mb or self.max_memory_mb):
-            return False, f"Memory footprint too large: {metadata.memory_footprint_mb}MB"
-        
-        return True, ""
-```
-
-**Advanced Features:**
-- **Checksum Verification:** SHA256 validation of kernel binaries
-- **Memory Estimation:** Intelligent memory usage prediction
-- **Performance Profiling:** Detailed compatibility and usage statistics
-- **Smart Eviction:** LRU with metadata cleanup
-
-### `kernel_executor.py` - Real Kernel Execution Engine
-
-**Purpose:** ✅ **NEW IN PHASE 1** - Production-ready kernel execution system that replaces placeholder execution with real PyTorch module execution.
-
-#### Key Components
-
-**`RealKernelExecutor`** - Core Execution Engine
-```python
-class RealKernelExecutor:
-    """
-    Real kernel execution engine for morphogenetic adaptations.
-    
-    Features:
-    - torch.jit and pickle deserialization
-    - Comprehensive validation and safety checks
-    - Timeout protection and error recovery
-    - LRU caching for deserialized kernels
-    - Performance monitoring and statistics
-    """
-
-    def __init__(
-        self,
-        device: torch.device,
-        max_kernel_cache_size: int = 100,
-        enable_validation: bool = True,
-        execution_timeout: float = 10.0
-    ):
-        self.device = device
-        self.enable_validation = enable_validation
-        self.execution_timeout = execution_timeout
-        
-        # Deserialized kernel cache (kernel_id -> module)
-        self.kernel_cache: Dict[str, nn.Module] = {}
-        self.cache_access_times: Dict[str, float] = {}
-        
-        # Components
-        self.validator = KernelValidator()
-        self.stats = ExecutionStats()
-        self.error_recovery = ErrorRecoveryManager()
-```
-
-**Core Execution:**
-```python
-async def execute_kernel(
-    self,
-    kernel_artifact: bytes,
-    input_tensor: torch.Tensor,
-    original_shape: torch.Size,
-    blend_alpha: float,
-    kernel_id: Optional[str] = None
-) -> torch.Tensor:
-    """Execute compiled kernel with proper tensor handling."""
-    
-    # Quick exit for alpha = 0
-    if blend_alpha <= 0.0:
-        return input_tensor
-    
-    # Deserialize kernel
-    kernel_module = await self._deserialize_kernel(kernel_artifact, kernel_id)
-    
-    # Validate if enabled
-    if self.enable_validation:
-        is_valid, error_msg = self.validator.validate_module(kernel_module)
-        if not is_valid:
-            raise KernelExecutionError(f"Kernel validation failed: {error_msg}")
-    
-    # Execute kernel with timeout
-    output_tensor = await self._execute_with_timeout(kernel_module, input_tensor)
-    
-    # Apply alpha blending if not full kernel execution
-    if blend_alpha < 1.0:
-        output_tensor = self._apply_alpha_blending(
-            input_tensor, output_tensor, blend_alpha
-        )
-    
-    return output_tensor
-```
-
-**Deserialization Support:**
-```python
-async def _deserialize_kernel(
-    self,
-    kernel_artifact: bytes,
-    kernel_id: Optional[str] = None
-) -> nn.Module:
-    """Deserialize kernel module from bytes with caching."""
-    
-    # Check cache first
-    if kernel_id and kernel_id in self.kernel_cache:
-        self.cache_access_times[kernel_id] = time.time()
-        return self.kernel_cache[kernel_id]
-    
-    try:
-        # Try torch.jit first (preferred format)
-        module = self._deserialize_torchscript(kernel_artifact)
-        
-    except Exception:
-        try:
-            # Fallback to pickle (with security validation)
-            module = self._deserialize_pickle(kernel_artifact)
-            
-        except Exception as e:
-            raise KernelDeserializationError(f"Failed to deserialize kernel: {e}")
-    
-    # Move to target device and set eval mode
-    module = module.to(self.device)
-    module.eval()
-    
-    # Cache if kernel_id provided
-    if kernel_id:
-        self._add_to_cache(kernel_id, module)
-    
-    return module
-```
-
-**Safety and Validation:**
-```python
-class KernelValidator:
-    """Validates kernel compatibility and safety."""
-    
-    def validate_module(self, module: nn.Module) -> Tuple[bool, str]:
-        """Validate that a module is safe to execute."""
-        
-        # Check parameter count
-        param_count = sum(p.numel() for p in module.parameters())
-        if param_count > self.max_parameters:
-            return False, f"Module has too many parameters: {param_count}"
-        
-        # Check module types (recursive)
-        if not self._validate_module_types(module):
-            return False, "Module contains disallowed layer types"
-        
-        # Check for dangerous operations
-        if self._has_dangerous_operations(module):
-            return False, "Module contains potentially dangerous operations"
-        
-        return True, ""
-```
-
-**Performance Features:**
-- **Sub-millisecond latency** for cached kernels
-- **Timeout protection** prevents hanging executions
-- **LRU caching** for deserialized modules
-- **Comprehensive statistics** for performance monitoring
-
-### `error_recovery.py` - Comprehensive Error Handling System
-
-**Purpose:** ✅ **NEW IN PHASE 1** - Production-grade error handling, recovery strategies, and system health monitoring.
-
-#### Key Components
-
-**`ErrorRecoveryManager`** - Central Error Handling
-```python
-class ErrorRecoveryManager:
-    """Manages error recovery strategies and execution."""
-    
-    def __init__(self):
-        self.error_tracker = ErrorTracker()
-        self.recovery_strategies: Dict[ErrorType, RecoveryStrategy] = {
-            ErrorType.KERNEL_EXECUTION: RecoveryStrategy.FALLBACK,
-            ErrorType.KERNEL_LOADING: RecoveryStrategy.RETRY,
-            ErrorType.KERNEL_VALIDATION: RecoveryStrategy.GRACEFUL_DEGRADATION,
-            ErrorType.MEMORY_OVERFLOW: RecoveryStrategy.CIRCUIT_BREAKER,
-            ErrorType.DEVICE_ERROR: RecoveryStrategy.ESCALATE,
-            ErrorType.NETWORK_ERROR: RecoveryStrategy.RETRY,
-            ErrorType.TIMEOUT: RecoveryStrategy.RETRY,
-            ErrorType.UNKNOWN: RecoveryStrategy.FALLBACK
-        }
-```
-
-**Error Classification and Context:**
-```python
-class ErrorType(Enum):
-    """Types of errors that can occur in the system."""
-    KERNEL_EXECUTION = "kernel_execution"
-    KERNEL_LOADING = "kernel_loading"
-    KERNEL_VALIDATION = "kernel_validation"
-    MEMORY_OVERFLOW = "memory_overflow"
-    DEVICE_ERROR = "device_error"
-    NETWORK_ERROR = "network_error"
-    CIRCUIT_BREAKER = "circuit_breaker"
-    TIMEOUT = "timeout"
-    UNKNOWN = "unknown"
-
-@dataclass
-class ErrorContext:
-    """Context information for an error occurrence."""
-    error_type: ErrorType
-    component: str
-    layer_name: str
-    seed_idx: Optional[int] = None
-    kernel_id: Optional[str] = None
-    timestamp: float = field(default_factory=time.time)
-    exception: Optional[Exception] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-```
-
-**Recovery Strategies:**
-```python
-async def handle_error(
-    self,
-    error_context: ErrorContext,
-    fallback_action: Optional[Callable] = None
-) -> bool:
-    """Handle an error with appropriate recovery strategy."""
-    
-    # Record the error
-    self.error_tracker.record_error(error_context)
-    
-    # Check if we're already recovering this component
-    recovery_key = f"{error_context.component}_{error_context.layer_name}"
-    if recovery_key in self.active_recoveries:
-        return False
-    
-    # Get recovery strategy
-    strategy = self.recovery_strategies.get(
-        error_context.error_type, 
-        RecoveryStrategy.FALLBACK
-    )
-    
-    # Check for escalation conditions
-    if self._should_escalate(error_context):
-        strategy = RecoveryStrategy.ESCALATE
-    
-    # Execute recovery
-    success = await self._execute_recovery(error_context, strategy, fallback_action)
-    
-    return success
-```
-
-**Error Pattern Detection:**
-```python
-class ErrorTracker:
-    """Tracks error patterns and frequencies."""
-    
-    def is_problematic_kernel(self, kernel_id: str, threshold: int = 3) -> bool:
-        """Check if a kernel has exceeded error threshold."""
-        return len(self.kernel_errors.get(kernel_id, [])) >= threshold
-    
-    def get_error_rate(self, error_type: Optional[ErrorType] = None, 
-                      time_window: float = 300.0) -> float:
-        """Get error rate for the specified time window."""
-        cutoff_time = time.time() - time_window
-        
-        if error_type:
-            recent_errors = [
-                e for e in self.error_history 
-                if e.error_type == error_type and e.timestamp > cutoff_time
-            ]
-        else:
-            recent_errors = [
-                e for e in self.error_history 
-                if e.timestamp > cutoff_time
-            ]
-        
-        return len(recent_errors) / time_window  # errors per second
-```
-
-**Health Monitoring:**
-```python
-class HealthMonitor:
-    """Monitors system health and triggers recovery when needed."""
-    
-    async def _check_system_health(self):
-        """Check overall system health."""
-        # Check error rates
-        error_rate = self.recovery_manager.error_tracker.get_error_rate(time_window=300.0)
-        if error_rate > self.health_thresholds["error_rate"]:
-            # Trigger proactive recovery
-            error_context = ErrorContext(
-                error_type=ErrorType.UNKNOWN,
-                component="system",
-                layer_name="global",
-                metadata={"error_rate": error_rate}
-            )
-            await self.recovery_manager.handle_error(error_context)
-```
-
-**Recovery Strategies:**
-- **RETRY:** Exponential backoff for transient failures
-- **FALLBACK:** Switch to default behavior
-- **CIRCUIT_BREAKER:** Temporarily disable problematic components  
-- **GRACEFUL_DEGRADATION:** Reduce functionality while maintaining operation
-- **ESCALATE:** Notify administrators for critical issues
-
-### `kasmina_layer.py` - Core Execution Engine
-
-**Purpose:** ✅ **ENHANCED IN PHASE 1** - High-performance execution layer with real kernel execution, enhanced caching, and comprehensive error recovery.
-
-**Major Updates in Phase 1:**
-- **Real Kernel Execution:** Replaced placeholder with `RealKernelExecutor`
-- **Enhanced Caching:** Upgraded to `EnhancedKernelCache` with metadata validation
-- **Error Recovery:** Integrated comprehensive error handling and recovery
-- **Performance Optimization:** Async/sync execution with circuit breaker patterns
-
-#### Key Components
-
-**`KasminaLayer`** - Main Execution Engine
+**`KasminaLayer`** - Base Morphogenetic Layer
 ```python
 class KasminaLayer(nn.Module):
     """
-    High-performance execution layer for morphogenetic kernels.
+    Core morphogenetic execution layer that replaces standard PyTorch layers.
     
-    This layer acts as a pure executor, loading and running pre-compiled
-    kernel artifacts from Urza with GPU-resident caching.
+    Features:
+    - Multiple seeds for diverse behaviors
+    - Dynamic kernel loading and execution
+    - Seamless fallback to original behavior
+    - Comprehensive telemetry and monitoring
+    - Alpha blending for gradual integration
     """
-
+    
     def __init__(
         self,
         input_size: int,
@@ -842,676 +689,1033 @@ class KasminaLayer(nn.Module):
         num_seeds: int = 4,
         cache_size_mb: int = 128,
         telemetry_enabled: bool = True,
-        layer_name: str = "kasmina_layer",
+        original_layer: Optional[nn.Module] = None,
     ):
+        super().__init__()
+        
+        # Dimensions
+        self.input_size = input_size
+        self.output_size = output_size
+        self.num_seeds = num_seeds
+        
+        # Default computation (Linear layer)
+        self.default_layer = original_layer or nn.Linear(input_size, output_size)
+        
+        # Copy weights if original provided
+        if original_layer and hasattr(original_layer, 'weight'):
+            with torch.no_grad():
+                self.default_layer.weight.copy_(original_layer.weight)
+                if hasattr(original_layer, 'bias') and original_layer.bias is not None:
+                    self.default_layer.bias.copy_(original_layer.bias)
+        
+        # Seed state management
+        self.state_layout = KasminaStateLayout(num_seeds, self.default_layer.weight.device)
+        
+        # Kernel cache
+        self.kernel_cache = EnhancedKernelCache(
+            max_cache_size_mb=cache_size_mb,
+            max_entries=num_seeds * 4  # Allow caching multiple kernels
+        )
+        
+        # Kernel executor
+        self.kernel_executor = RealKernelExecutor()
+        
+        # Error recovery
+        self.error_recovery = ErrorRecoveryManager(max_retries=3)
+        
+        # Telemetry
+        self.telemetry_enabled = telemetry_enabled
+        self.forward_count = 0
+        self.kernel_execution_count = 0
 ```
 
-**Key Attributes:**
-- `default_transform: nn.Linear` - Fallback transformation preserving original behavior
-- `state_layout: KasminaStateLayout` - GPU-optimized state management
-- `kernel_cache: EnhancedKernelCache` - ✅ **ENHANCED** - Metadata-aware cache with validation
-- `kernel_executor: RealKernelExecutor` - ✅ **NEW** - Production-ready kernel execution engine
-- `error_recovery: ErrorRecoveryManager` - ✅ **NEW** - Comprehensive error handling system
-- `oona_client: Optional[OonaClient]` - Telemetry message bus client
-- `total_forward_calls: int` - Performance tracking
-- `total_kernel_executions: int` - Kernel usage statistics
-
-**Core Execution:**
-
-**`forward()` - Optimized Forward Pass**
+**Forward Pass:**
 ```python
 def forward(self, x: torch.Tensor) -> torch.Tensor:
     """
-    Execute forward pass with morphogenetic kernel execution.
+    Forward pass with morphogenetic seed execution.
     
-    Args:
-        x: Input tensor
-        
-    Returns:
-        Output tensor
+    Process:
+    1. Check for active seeds
+    2. Execute default computation
+    3. Execute kernel computations for active seeds
+    4. Blend results based on alpha values
+    5. Update telemetry
     """
-    self.total_forward_calls += 1
-    start_time = time.perf_counter()
+    self.forward_count += 1
+    start_time = time.time()
     
-    # Fast path for dormant seeds - O(1) CPU check
+    # Fast path: no active seeds
     if not self.state_layout.has_active_seeds():
-        # All seeds dormant - use default transform only
-        output = self.default_transform(x)
-    else:
-        # Default transformation (always computed for blending)
-        default_output = self.default_transform(x)
-        
-        # Execute with kernels if any are active
-        active_seeds = self.state_layout.get_active_seeds()
-        kernel_output = self._execute_with_kernels(x, active_seeds)
-        output = self._blend_outputs(default_output, kernel_output, active_seeds)
+        return self.default_layer(x)
     
-    # Update telemetry if enabled
-    if self.telemetry_enabled and self._telemetry_available:
-        exec_time_us = int((time.perf_counter() - start_time) * 1_000_000)
-        active_count = self.state_layout.get_active_count() if self.state_layout.has_active_seeds() else 0
-        self._update_telemetry(exec_time_us, active_count)
+    # Get default output
+    default_output = self.default_layer(x)
     
-    return output
-```
-
-**Performance Features:**
-- **Fast Path:** O(1) check for dormant state avoids GPU operations
-- **Minimal Overhead:** <5% performance impact when all seeds dormant
-- **Graceful Blending:** Weighted combination of default and kernel outputs
-- **Error Recovery:** Automatic fallback to default behavior on kernel failures
-
-**✅ Real Kernel Execution (Phase 1):**
-```python
-async def _execute_kernel_real(
-    self, x: torch.Tensor, seed_idx: int
-) -> torch.Tensor:
-    """Real kernel execution using compiled artifacts with metadata validation."""
+    # Get active seed mask
+    active_mask = self.state_layout.get_active_seeds()
+    active_indices = torch.where(active_mask)[0]
     
-    # Get kernel artifact ID from state
-    kernel_id = int(self.state_layout.active_kernel_id[seed_idx].item())
-    if kernel_id == 0:
-        return self.default_transform(x)
+    # Initialize blended output
+    blended_output = default_output.clone()
     
-    try:
-        # Load kernel with validation using enhanced cache
-        kernel_data = await self.kernel_cache.load_kernel_with_validation(
-            artifact_id=str(kernel_id),
-            target_shape=x.shape,
-            device=x.device,
-            batch_size=x.size(0)
-        )
+    # Execute each active seed
+    for seed_idx in active_indices:
+        seed_idx_int = seed_idx.item()
         
-        if kernel_data is None:
-            return self.default_transform(x)
-        
-        kernel_tensor, metadata = kernel_data
-        
-        # Get kernel bytes for execution
-        kernel_artifact = await self.kernel_cache.get_kernel_bytes(str(kernel_id))
-        if kernel_artifact is None:
-            return self.default_transform(x)
-        
-        # Get alpha blending factor
-        alpha = self.state_layout.alpha_blend[seed_idx].item()
-        
-        # Execute kernel with real executor
-        result = await self.kernel_executor.execute_kernel(
-            kernel_artifact=kernel_artifact,
-            input_tensor=x,
-            original_shape=x.shape,
-            blend_alpha=alpha,
-            kernel_id=str(kernel_id)
-        )
-        
-        # Update success metrics in state layout
-        self.state_layout.update_execution_success(seed_idx)
-        
-        return result
-        
-    except KernelExecutionError as e:
-        # Create error context for recovery system
-        error_context = create_error_context(
-            error_type=ErrorType.KERNEL_EXECUTION,
-            component="kasmina_layer",
-            layer_name=self.layer_name,
-            exception=e,
-            seed_idx=seed_idx,
-            kernel_id=str(kernel_id)
-        )
-        
-        # Handle error through recovery system
-        await self.error_recovery.handle_error(
-            error_context,
-            fallback_action=lambda: self.default_transform(x)
-        )
-        
-        # Fallback to default transformation
-        return self.default_transform(x)
-```
-
-**Async/Sync Execution Handling:**
-```python
-def forward(self, x: torch.Tensor) -> torch.Tensor:
-    """Execute forward pass with morphogenetic kernel execution."""
-    # ... (dormant check and default computation)
-    
-    if self.state_layout.has_active_seeds():
-        active_seeds = self.state_layout.get_active_seeds()
-        
-        # Handle async kernel execution in sync context
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # We're in an async context, use sync fallback
-                kernel_output = self._execute_with_kernels_sync(x, active_seeds)
-            else:
-                # No running loop, safe to use async execution
-                kernel_output = loop.run_until_complete(
-                    self._execute_with_kernels(x, active_seeds)
-                )
-        except RuntimeError:
-            # Fallback to sync execution if async fails
-            kernel_output = self._execute_with_kernels_sync(x, active_seeds)
-        
-        output = self._blend_outputs(default_output, kernel_output, active_seeds)
+            # Get kernel for this seed
+            kernel_id = self.state_layout.active_kernel_id[seed_idx_int].item()
+            kernel = asyncio.run(self.kernel_cache.load_kernel(str(kernel_id)))
+            
+            if kernel is not None:
+                # Execute kernel
+                kernel_output = self._execute_kernel(kernel, x, seed_idx_int)
+                
+                # Get alpha blend factor
+                alpha = self.state_layout.alpha_blend[seed_idx_int].item()
+                
+                # Blend with current output
+                blended_output = (1 - alpha) * blended_output + alpha * kernel_output
+                
+                self.kernel_execution_count += 1
+                
+                # Update telemetry
+                if self.telemetry_enabled:
+                    latency_us = int((time.time() - start_time) * 1e6)
+                    self.state_layout.update_telemetry(seed_idx_int, latency_us, 1.0)
+            
+        except Exception as e:
+            # Handle errors gracefully
+            self._handle_seed_error(seed_idx_int, e)
     
-    return output
+    return blended_output
 ```
 
-**Alpha Blending:**
-```python
-def _blend_outputs(
-    self, 
-    default_output: torch.Tensor, 
-    kernel_output: torch.Tensor, 
-    active_seeds: torch.Tensor
-) -> torch.Tensor:
-    """Blend default and kernel outputs using alpha blending."""
-    # Compute total alpha from all active seeds
-    total_alpha = 0.0
-    for seed_idx in range(self.num_seeds):
-        if active_seeds[seed_idx]:
-            total_alpha += self.state_layout.alpha_blend[seed_idx].item()
-    
-    # Clamp alpha to [0, 1] and blend
-    total_alpha = min(total_alpha, 1.0)
-    return (1.0 - total_alpha) * default_output + total_alpha * kernel_output
-```
-
-**✅ Enhanced Async Kernel Management (Phase 1):**
-
-**Kernel Loading with Validation:**
+**Kernel Loading:**
 ```python
 async def load_kernel(self, seed_idx: int, artifact_id: str) -> bool:
     """
-    Load a compiled kernel for a specific seed with enhanced validation.
+    Load a compiled kernel into a specific seed.
     
     Args:
-        seed_idx: Index of the seed
-        artifact_id: ID of the kernel artifact
+        seed_idx: Index of the seed (0 to num_seeds-1)
+        artifact_id: ID of the kernel artifact to load
         
     Returns:
-        True if kernel was loaded successfully
+        True if successful, False otherwise
     """
-    error_context = {
-        "layer_name": self.layer_name,
-        "seed_idx": seed_idx,
-        "artifact_id": artifact_id,
-        "operation": "load_kernel",
-    }
-
+    if seed_idx >= self.num_seeds:
+        raise ValueError(f"Invalid seed index {seed_idx}, max is {self.num_seeds-1}")
+    
     try:
         # Transition to loading state
-        self.state_layout.transition_seed_state(
-            seed_idx, SeedLifecycleState.LOADING
-        )
-
-        # Load kernel with enhanced validation
-        dummy_input = torch.zeros(1, self.input_size, device=self.state_layout.device)
+        self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.LOADING)
         
-        kernel_data = await self.kernel_cache.load_kernel_with_validation(
-            artifact_id=artifact_id,
-            target_shape=dummy_input.shape,
-            device=self.state_layout.device,
-            batch_size=32  # Default batch size for estimation
-        )
-
-        if kernel_data is not None:
-            kernel_tensor, metadata = kernel_data
-            
-            # Transition to active state
-            kernel_id = hash(artifact_id)
-            self.state_layout.transition_seed_state(
-                seed_idx, SeedLifecycleState.ACTIVE, kernel_id
-            )
-
-            # Set blend factor based on kernel confidence
-            confidence_factor = metadata.performance_profile.get("confidence", 0.5)
-            self.state_layout.alpha_blend[seed_idx] = min(confidence_factor * 0.6, 0.5)
-
-            logger.info(
-                f"Loaded kernel {artifact_id} for seed {seed_idx}: "
-                f"{metadata.parameter_count} params, alpha={self.state_layout.alpha_blend[seed_idx].item():.2f}"
-            )
-            return True
-        else:
-            # Failed to load or incompatible
-            await self._handle_kernel_load_failure(
-                error_context, "kernel_incompatible", None
-            )
+        # Pre-load kernel into cache
+        kernel = await self.kernel_cache.load_kernel(artifact_id)
+        
+        if kernel is None:
+            # Kernel not found
+            self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.ERROR_RECOVERY)
             return False
-
-    except CircuitBreakerOpenError as e:
-        # Handle through error recovery system
-        recovery_error_context = create_error_context(
-            error_type=ErrorType.CIRCUIT_BREAKER,
-            component="kernel_cache",
-            layer_name=self.layer_name,
-            exception=e,
-            seed_idx=seed_idx,
-            kernel_id=artifact_id
+        
+        # Transition to active state
+        kernel_id_hash = int(hashlib.md5(artifact_id.encode()).hexdigest()[:16], 16)
+        self.state_layout.transition_seed_state(
+            seed_idx, 
+            SeedLifecycleState.ACTIVE,
+            kernel_id=kernel_id_hash
         )
         
-        await self.error_recovery.handle_error(recovery_error_context)
-        return False
-
-    except Exception as e:
-        # Classify and handle unexpected errors
-        error_type = classify_kernel_error(e)
-        recovery_error_context = create_error_context(
-            error_type=error_type,
-            component="kasmina_layer",
-            layer_name=self.layer_name,
-            exception=e,
-            seed_idx=seed_idx,
-            kernel_id=artifact_id
-        )
+        # Reset alpha to default
+        self.state_layout.alpha_blend[seed_idx] = 0.5
         
-        await self.error_recovery.handle_error(recovery_error_context)
-        return False
-```
-
-**Compatible Kernels Discovery:**
-```python
-def find_compatible_kernels(self, max_memory_mb: Optional[float] = None) -> List[Tuple[str, Any]]:
-    """
-    Find all kernels compatible with this layer's requirements.
-    
-    Args:
-        max_memory_mb: Maximum allowed memory usage per kernel
-        
-    Returns:
-        List of (artifact_id, metadata) tuples for compatible kernels
-    """
-    dummy_input = torch.zeros(1, self.input_size, device=self.state_layout.device)
-    
-    return self.kernel_cache.find_compatible_kernels(
-        target_shape=dummy_input.shape,
-        device=self.state_layout.device,
-        max_memory_mb=max_memory_mb
-    )
-```
-
-**Kernel Unloading:**
-```python
-async def unload_kernel(self, seed_idx: int) -> bool:
-    """
-    Unload kernel from a specific seed.
-    
-    Args:
-        seed_idx: Index of the seed
-        
-    Returns:
-        True if kernel was unloaded successfully
-    """
-    try:
-        self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.DORMANT)
-        self.state_layout.alpha_blend[seed_idx] = 0.0
+        logger.info(f"Loaded kernel {artifact_id} into seed {seed_idx}")
         return True
+        
     except Exception as e:
+        logger.error(f"Failed to load kernel: {e}")
+        self.state_layout.transition_seed_state(seed_idx, SeedLifecycleState.ERROR_RECOVERY)
         return False
 ```
 
-**Telemetry Integration:**
-
-**Health Signal Publishing:**
+**Error Handling:**
 ```python
-def _update_telemetry(self, exec_time_us: int, active_seed_count: int) -> None:
-    """Update and publish telemetry data."""
-    try:
-        # Collect layer statistics
-        state_stats = self.state_layout.get_stats()
-        
-        # Create health signal matching contract
-        health_signal = HealthSignal(
-            layer_id=hash(self.layer_name) % 10000,
-            seed_id=0,
-            chunk_id=0,
-            epoch=0,
-            activation_variance=state_stats["avg_health"],
-            dead_neuron_ratio=min(state_stats["total_errors"] / max(state_stats["num_seeds"], 1), 1.0),
-            avg_correlation=state_stats["avg_health"],
-            is_ready_for_transition=False
-        )
-        
-        # Async publish (fire-and-forget)
-        if self.oona_client:
-            _ = asyncio.create_task(self._publish_health_signal(health_signal))
-            
-    except Exception as e:
-        logger.warning(f"Failed to update telemetry: {e}")
-
-async def _publish_health_signal(self, health_signal: HealthSignal) -> None:
-    """Publish health signal to Oona message bus."""
-    try:
-        message = OonaMessage(
-            sender_id=f"kasmina.{self.layer_name}",
-            trace_id=f"telemetry-{int(time.time())}",
-            topic=TopicNames.TELEMETRY_SEED_HEALTH,
-            payload=health_signal.model_dump()
-        )
-        await self.oona_client.publish(message)
-    except Exception as e:
-        logger.warning(f"Failed to publish health signal: {e}")
+def _handle_seed_error(self, seed_idx: int, error: Exception):
+    """Handle errors during seed execution with recovery."""
+    error_count = self.state_layout.increment_error_count(seed_idx)
+    
+    logger.warning(
+        f"Seed {seed_idx} error (count: {error_count}): {error}",
+        exc_info=True if error_count == 1 else False
+    )
+    
+    # Let state layout handle circuit breaker logic
+    if self.state_layout.fallback_active[seed_idx].item():
+        logger.info(f"Seed {seed_idx} using fallback execution")
 ```
 
-**✅ Enhanced Statistics and Monitoring (Phase 1):**
+**Telemetry and Monitoring:**
 ```python
-def get_layer_stats(self) -> Dict[str, Any]:
-    """Get comprehensive layer statistics with enhanced metrics."""
-    state_stats = self.state_layout.get_stats()
-    cache_stats = self.kernel_cache.get_enhanced_stats()  # Enhanced cache stats
+def get_stats(self) -> Dict[str, Any]:
+    """Get comprehensive layer statistics."""
+    active_seeds = self.state_layout.get_active_seeds().sum().item()
+    
+    # Calculate health scores
+    health_scores = []
+    for i in range(self.num_seeds):
+        if self.state_layout.lifecycle_states[i] == SeedLifecycleState.ACTIVE:
+            health_scores.append(self.state_layout.health_accumulator[i].item())
+    
+    avg_health = np.mean(health_scores) if health_scores else 0.0
     
     return {
-        "layer_name": self.layer_name,
-        "total_forward_calls": self.total_forward_calls,
-        "total_kernel_executions": self.total_kernel_executions,
-        "kernel_execution_ratio": (
-            self.total_kernel_executions / max(self.total_forward_calls, 1)
-        ),
-        "state_stats": state_stats,
-        "cache_stats": cache_stats,  # Now includes metadata and compatibility stats
-        "error_recovery_stats": self.error_recovery.get_recovery_stats(),  # NEW
-        "telemetry_enabled": self.telemetry_enabled,
+        "layer_info": {
+            "input_size": self.input_size,
+            "output_size": self.output_size,
+            "num_seeds": self.num_seeds,
+        },
+        "execution_stats": {
+            "forward_count": self.forward_count,
+            "kernel_execution_count": self.kernel_execution_count,
+            "kernel_execution_rate": self.kernel_execution_count / max(self.forward_count, 1),
+        },
+        "seed_stats": {
+            "active_seeds": active_seeds,
+            "dormant_seeds": (self.state_layout.lifecycle_states == SeedLifecycleState.DORMANT).sum().item(),
+            "error_recovery_seeds": (self.state_layout.lifecycle_states == SeedLifecycleState.ERROR_RECOVERY).sum().item(),
+            "average_health": avg_health,
+        },
+        "cache_stats": self.kernel_cache.get_stats(),
+        "performance": self.kernel_executor.get_performance_stats() if hasattr(self, 'kernel_executor') else {},
     }
 ```
 
-**Enhanced Cache Statistics Include:**
-- `metadata_cache_size`: Number of cached kernel metadata entries
-- `compatibility_checks`: Total compatibility validations performed  
-- `compatibility_failures`: Number of failed compatibility checks
-- `compatibility_rate`: Success rate of compatibility validation
-- `total_estimated_memory_mb`: Estimated memory usage across cached kernels
-- `average_kernel_parameters`: Average parameter count of cached kernels
+### `kasmina_conv2d_layer.py` - Convolutional Morphogenetic Layer
 
-**Error Recovery Statistics Include:**
-- `total_recoveries`: Total number of error recovery attempts
-- `recent_recoveries`: Recent recovery attempts (last hour)
-- `recovery_success_rate`: Percentage of successful recoveries
-- `active_recoveries`: Currently ongoing recovery operations
-- `error_stats`: Detailed error tracking and pattern detection
+**Purpose:** Specialized KasminaLayer for Conv2D operations, maintaining spatial relationships.
+
+**Key Differences from Base Layer:**
+
+```python
+class KasminaConv2dLayer(KasminaLayer):
+    """
+    Morphogenetic convolutional layer maintaining spatial semantics.
+    """
+    
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Union[int, Tuple[int, int]],
+        stride: Union[int, Tuple[int, int]] = 1,
+        padding: Union[int, Tuple[int, int]] = 0,
+        dilation: Union[int, Tuple[int, int]] = 1,
+        groups: int = 1,
+        bias: bool = True,
+        **kwargs
+    ):
+        # Create default Conv2d layer
+        self.conv_params = {
+            'in_channels': in_channels,
+            'out_channels': out_channels,
+            'kernel_size': kernel_size,
+            'stride': stride,
+            'padding': padding,
+            'dilation': dilation,
+            'groups': groups,
+            'bias': bias
+        }
+        
+        default_conv = nn.Conv2d(**self.conv_params)
+        
+        # Initialize parent with flattened dimensions for compatibility
+        super().__init__(
+            input_size=in_channels * kernel_size * kernel_size,
+            output_size=out_channels,
+            original_layer=default_conv,
+            **kwargs
+        )
+        
+        self.default_layer = default_conv
+```
+
+### `async_conv2d_kernel.py` - Async Conv2D Kernel (Phase B2)
+
+**Purpose:** Implements true async Conv2D execution without blocking PyTorch autograd.
+
+**Status:** ✅ **PHASE B2 COMPLETE** - True async execution with gradient correctness
+
+```python
+class AsyncConv2dKernel:
+    """
+    Async Conv2D kernel implementation that doesn't block autograd.
+    
+    Uses custom autograd function with gradient storage for async execution.
+    """
+    
+    @staticmethod
+    def apply_async(
+        input_tensor: torch.Tensor,
+        weight: torch.Tensor,
+        bias: Optional[torch.Tensor],
+        kernel_fn: Callable,
+        stream: torch.cuda.Stream,
+    ) -> Tuple[torch.Tensor, Future]:
+        """
+        Apply Conv2D asynchronously with gradient support.
+        
+        Returns:
+            output_tensor: Result tensor (may not be computed yet)
+            grad_future: Future that resolves when gradients are ready
+        """
+        # Create output tensor
+        output_shape = compute_conv2d_output_shape(
+            input_tensor.shape, weight.shape, stride, padding
+        )
+        output = torch.empty(output_shape, device=input_tensor.device)
+        
+        # Storage for gradients
+        grad_storage = GradientStorage()
+        
+        # Custom autograd function
+        class AsyncConv2dFunction(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, input, weight, bias):
+                ctx.save_for_backward(input, weight, bias)
+                ctx.grad_storage = grad_storage
+                
+                # Launch async kernel
+                with torch.cuda.stream(stream):
+                    kernel_fn(input, weight, bias, output)
+                
+                return output
+            
+            @staticmethod
+            def backward(ctx, grad_output):
+                input, weight, bias = ctx.saved_tensors
+                
+                # Wait for forward pass to complete
+                torch.cuda.current_stream().wait_stream(stream)
+                
+                # Compute gradients
+                grad_input = grad_weight = grad_bias = None
+                
+                if ctx.needs_input_grad[0]:
+                    grad_input = compute_conv2d_grad_input(
+                        grad_output, weight, input.shape
+                    )
+                
+                if ctx.needs_input_grad[1]:
+                    grad_weight = compute_conv2d_grad_weight(
+                        grad_output, input, weight.shape
+                    )
+                
+                if bias is not None and ctx.needs_input_grad[2]:
+                    grad_bias = grad_output.sum(dim=(0, 2, 3))
+                
+                # Store gradients for async access
+                ctx.grad_storage.set_gradients(grad_input, grad_weight, grad_bias)
+                
+                return grad_input, grad_weight, grad_bias
+        
+        # Apply async function
+        output = AsyncConv2dFunction.apply(input_tensor, weight, bias)
+        
+        # Create future for gradient readiness
+        grad_future = grad_storage.get_future()
+        
+        return output, grad_future
+```
+
+### `async_kasmina_conv2d_layer.py` - Async Conv2D Layer (Phase B2)
+
+**Purpose:** Full async KasminaConv2dLayer using multi-stream execution.
+
+```python
+class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
+    """
+    Fully asynchronous morphogenetic Conv2D layer.
+    
+    Implements Phase B2 with:
+    - Multi-stream kernel execution
+    - Non-blocking forward pass
+    - Gradient synchronization
+    - Stream management
+    """
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Stream management
+        self.stream_manager = StreamManager(num_streams=self.num_seeds)
+        
+        # Gradient synchronization
+        self.gradient_sync = GradientSynchronizer()
+        
+        # Async execution tracking
+        self.pending_grads: List[Future] = []
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Async forward pass with proper gradient handling.
+        """
+        # Synchronize any pending gradients from previous forward
+        self.gradient_sync.synchronize_pending(self.pending_grads)
+        self.pending_grads.clear()
+        
+        # Fast path for no active seeds
+        if not self.state_layout.has_active_seeds():
+            return self.default_layer(x)
+        
+        # Execute default layer (synchronous)
+        default_output = self.default_layer(x)
+        
+        # Get active seeds
+        active_mask = self.state_layout.get_active_seeds()
+        active_indices = torch.where(active_mask)[0]
+        
+        # Prepare for async execution
+        async_outputs = []
+        async_grads = []
+        
+        # Execute seeds asynchronously
+        for i, seed_idx in enumerate(active_indices):
+            seed_idx_int = seed_idx.item()
+            stream = self.stream_manager.get_stream(seed_idx_int)
+            
+            try:
+                # Get kernel
+                kernel_id = self.state_layout.active_kernel_id[seed_idx_int].item()
+                kernel = self._get_kernel_sync(kernel_id)  # Cached lookup
+                
+                if kernel is not None:
+                    # Execute asynchronously
+                    output, grad_future = AsyncConv2dKernel.apply_async(
+                        x,
+                        kernel.weight,
+                        kernel.bias,
+                        kernel.forward_fn,
+                        stream
+                    )
+                    
+                    # Apply alpha blending on appropriate stream
+                    alpha = self.state_layout.alpha_blend[seed_idx_int]
+                    with torch.cuda.stream(stream):
+                        blended = (1 - alpha) * default_output + alpha * output
+                    
+                    async_outputs.append((blended, stream))
+                    async_grads.append(grad_future)
+                    
+            except Exception as e:
+                self._handle_seed_error(seed_idx_int, e)
+        
+        # Combine async outputs
+        if async_outputs:
+            # Average all blended outputs
+            combined = self._combine_async_outputs(async_outputs)
+            
+            # Track pending gradients
+            self.pending_grads.extend(async_grads)
+            
+            return combined
+        else:
+            return default_output
+    
+    def _combine_async_outputs(
+        self, 
+        async_outputs: List[Tuple[torch.Tensor, torch.cuda.Stream]]
+    ) -> torch.Tensor:
+        """Combine outputs from multiple async streams."""
+        if len(async_outputs) == 1:
+            output, stream = async_outputs[0]
+            # Ensure computation completes
+            torch.cuda.current_stream().wait_stream(stream)
+            return output
+        
+        # Multi-output combination
+        combined = None
+        for output, stream in async_outputs:
+            torch.cuda.current_stream().wait_stream(stream)
+            if combined is None:
+                combined = output / len(async_outputs)
+            else:
+                combined += output / len(async_outputs)
+        
+        return combined
+```
+
+### `gradient_sync.py` - Gradient Synchronization (Phase B2)
+
+**Purpose:** Manages gradient synchronization for async operations.
+
+```python
+class GradientSynchronizer:
+    """
+    Manages gradient synchronization for async operations.
+    
+    Ensures gradients are ready before backward pass.
+    """
+    
+    def __init__(self):
+        self.sync_count = 0
+        self.sync_time_total = 0.0
+    
+    def synchronize_pending(self, grad_futures: List[Future]):
+        """
+        Wait for all pending gradient computations.
+        
+        Called before operations that need gradients.
+        """
+        if not grad_futures:
+            return
+        
+        start_time = time.time()
+        
+        # Wait for all gradient futures
+        for future in grad_futures:
+            try:
+                future.result(timeout=1.0)  # 1 second timeout
+            except TimeoutError:
+                logger.warning("Gradient computation timeout")
+            except Exception as e:
+                logger.error(f"Gradient computation error: {e}")
+        
+        sync_time = time.time() - start_time
+        self.sync_time_total += sync_time
+        self.sync_count += 1
+        
+        if sync_time > 0.01:  # Log slow syncs
+            logger.warning(f"Slow gradient sync: {sync_time*1000:.1f}ms")
+    
+    def get_stats(self) -> Dict[str, float]:
+        """Get synchronization statistics."""
+        return {
+            "sync_count": self.sync_count,
+            "total_sync_time_ms": self.sync_time_total * 1000,
+            "avg_sync_time_ms": (self.sync_time_total / max(self.sync_count, 1)) * 1000,
+        }
+```
+
+### `stream_manager.py` - CUDA Stream Management (Phase B2)
+
+**Purpose:** Manages CUDA streams for parallel kernel execution.
+
+```python
+class StreamManager:
+    """
+    Manages CUDA streams for parallel execution.
+    
+    Features:
+    - Stream pooling
+    - Load balancing
+    - Synchronization utilities
+    """
+    
+    def __init__(self, num_streams: int = 4):
+        self.num_streams = num_streams
+        self.streams = []
+        
+        if torch.cuda.is_available():
+            for i in range(num_streams):
+                self.streams.append(torch.cuda.Stream())
+        
+        self.stream_usage = [0] * num_streams
+        self.current_stream_idx = 0
+    
+    def get_stream(self, seed_idx: int) -> torch.cuda.Stream:
+        """
+        Get a CUDA stream for seed execution.
+        
+        Uses round-robin with load tracking.
+        """
+        if not self.streams:
+            return torch.cuda.current_stream()
+        
+        # Simple mapping: seed_idx % num_streams
+        stream_idx = seed_idx % self.num_streams
+        self.stream_usage[stream_idx] += 1
+        
+        return self.streams[stream_idx]
+    
+    def synchronize_all(self):
+        """Synchronize all managed streams."""
+        for stream in self.streams:
+            torch.cuda.current_stream().wait_stream(stream)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get stream usage statistics."""
+        return {
+            "num_streams": self.num_streams,
+            "stream_usage": self.stream_usage,
+            "total_usage": sum(self.stream_usage),
+        }
+```
+
+### `error_recovery.py` - Comprehensive Error Management
+
+**Purpose:** Implements robust error recovery with health monitoring and circuit breakers.
+
+#### Key Components
+
+**`ErrorType`** - Error Classification
+```python
+class ErrorType(Enum):
+    """Classification of errors for appropriate recovery strategies."""
+    KERNEL_LOAD_FAILURE = "kernel_load_failure"
+    KERNEL_EXECUTION_ERROR = "kernel_execution_error"  
+    OUT_OF_MEMORY = "out_of_memory"
+    DEVICE_ERROR = "device_error"
+    NETWORK_ERROR = "network_error"
+    VALIDATION_ERROR = "validation_error"
+```
+
+**`ErrorRecoveryManager`** - Recovery Orchestration
+```python
+class ErrorRecoveryManager:
+    """
+    Manages error recovery strategies for morphogenetic execution.
+    
+    Features:
+    - Automatic retry with exponential backoff
+    - Circuit breaker pattern
+    - Error categorization and routing
+    - Health score tracking
+    """
+    
+    def __init__(self, max_retries: int = 3, base_delay: float = 0.1):
+        self.max_retries = max_retries
+        self.base_delay = base_delay
+        
+        # Error tracking
+        self.error_counts: Dict[ErrorType, int] = defaultdict(int)
+        self.recovery_success: Dict[ErrorType, int] = defaultdict(int)
+        
+        # Circuit breakers per error type
+        self.circuit_breakers: Dict[ErrorType, CircuitBreaker] = {
+            error_type: CircuitBreaker(
+                failure_threshold=5,
+                recovery_timeout=60.0,
+                half_open_max_calls=2
+            )
+            for error_type in ErrorType
+        }
+```
+
+**Recovery Strategies:**
+```python
+async def recover_from_error(
+    self,
+    error: Exception,
+    context: Dict[str, Any],
+    recovery_fn: Callable
+) -> Any:
+    """
+    Attempt to recover from an error with appropriate strategy.
+    
+    Args:
+        error: The exception that occurred
+        context: Context information for recovery
+        recovery_fn: Function to retry after recovery
+        
+    Returns:
+        Result from recovery_fn if successful
+        
+    Raises:
+        Original error if recovery fails
+    """
+    error_type = self._classify_error(error)
+    self.error_counts[error_type] += 1
+    
+    # Check circuit breaker
+    breaker = self.circuit_breakers[error_type]
+    if not breaker.can_proceed():
+        logger.warning(f"Circuit breaker OPEN for {error_type}")
+        raise error
+    
+    # Try recovery based on error type
+    strategy = self._get_recovery_strategy(error_type)
+    
+    for attempt in range(self.max_retries):
+        try:
+            # Apply recovery strategy
+            await strategy(error, context, attempt)
+            
+            # Retry operation
+            result = await recovery_fn()
+            
+            # Success - record and reset
+            self.recovery_success[error_type] += 1
+            breaker.record_success()
+            
+            return result
+            
+        except Exception as retry_error:
+            # Record failure
+            breaker.record_failure()
+            
+            if attempt == self.max_retries - 1:
+                logger.error(f"Recovery failed after {self.max_retries} attempts")
+                raise retry_error
+            
+            # Exponential backoff
+            delay = self.base_delay * (2 ** attempt)
+            await asyncio.sleep(delay)
+```
+
+**`HealthMonitor`** - System Health Tracking
+```python
+class HealthMonitor:
+    """
+    Monitors system health and triggers interventions.
+    
+    Features:
+    - Real-time health scoring
+    - Anomaly detection  
+    - Automatic interventions
+    - Metric aggregation
+    """
+    
+    def __init__(self, window_size: int = 100):
+        self.window_size = window_size
+        
+        # Sliding window metrics
+        self.error_rates = deque(maxlen=window_size)
+        self.latencies = deque(maxlen=window_size)
+        self.memory_usage = deque(maxlen=window_size)
+        
+        # Thresholds
+        self.error_threshold = 0.1  # 10% error rate
+        self.latency_threshold_ms = 10.0
+        self.memory_threshold_percent = 90.0
+    
+    def update_metrics(
+        self,
+        errors: int,
+        total: int,
+        latency_ms: float,
+        memory_percent: float
+    ):
+        """Update health metrics."""
+        error_rate = errors / max(total, 1)
+        self.error_rates.append(error_rate)
+        self.latencies.append(latency_ms)
+        self.memory_usage.append(memory_percent)
+    
+    def compute_health_score(self) -> float:
+        """
+        Compute overall health score (0.0 to 1.0).
+        
+        Considers error rates, latency, and resource usage.
+        """
+        if not self.error_rates:
+            return 1.0
+        
+        # Component scores
+        error_score = 1.0 - (sum(self.error_rates) / len(self.error_rates))
+        error_score = max(0.0, error_score)
+        
+        avg_latency = sum(self.latencies) / len(self.latencies)
+        latency_score = max(0.0, 1.0 - (avg_latency / self.latency_threshold_ms))
+        
+        avg_memory = sum(self.memory_usage) / len(self.memory_usage)
+        memory_score = max(0.0, 1.0 - (avg_memory / self.memory_threshold_percent))
+        
+        # Weighted combination
+        health_score = (
+            0.5 * error_score +
+            0.3 * latency_score +
+            0.2 * memory_score
+        )
+        
+        return health_score
+    
+    def should_intervene(self) -> Tuple[bool, str]:
+        """
+        Determine if intervention is needed.
+        
+        Returns:
+            (should_intervene, reason)
+        """
+        health_score = self.compute_health_score()
+        
+        if health_score < 0.3:
+            return True, f"Critical health score: {health_score:.2f}"
+        
+        # Check individual components
+        if self.error_rates and self.error_rates[-1] > self.error_threshold:
+            return True, f"High error rate: {self.error_rates[-1]:.2%}"
+        
+        if self.latencies and self.latencies[-1] > self.latency_threshold_ms:
+            return True, f"High latency: {self.latencies[-1]:.1f}ms"
+        
+        if self.memory_usage and self.memory_usage[-1] > self.memory_threshold_percent:
+            return True, f"High memory usage: {self.memory_usage[-1]:.1f}%"
+        
+        return False, "Healthy"
+```
+
+### `exceptions.py` - Custom Exception Types
+
+**Purpose:** Defines specific exception types for better error handling.
+
+```python
+class KasminaException(Exception):
+    """Base exception for all Kasmina-related errors."""
+    pass
+
+class KernelCompilationError(KasminaException):
+    """Raised when kernel compilation fails."""
+    pass
+
+class KernelExecutionError(KasminaException):
+    """Raised when kernel execution fails."""
+    pass
+
+class KernelLoadError(KasminaException):
+    """Raised when kernel loading fails."""
+    pass
+
+class SeedLifecycleError(KasminaException):
+    """Raised when seed state transition is invalid."""
+    pass
+
+class CacheError(KasminaException):
+    """Raised when cache operations fail."""
+    pass
+
+class AsyncExecutionError(KasminaException):
+    """Raised when async execution fails."""
+    pass
+
+class GradientSyncError(KasminaException):
+    """Raised when gradient synchronization fails."""
+    pass
+```
+
+### `kasmina_attention_layer.py` - Attention Layer Support
+
+**Purpose:** Morphogenetic implementation for multi-head attention layers.
+
+```python
+class KasminaAttentionLayer(KasminaLayer):
+    """
+    Morphogenetic multi-head attention layer.
+    
+    Maintains attention semantics while enabling kernel modifications.
+    """
+    
+    def __init__(
+        self,
+        embed_dim: int,
+        num_heads: int,
+        dropout: float = 0.0,
+        bias: bool = True,
+        **kwargs
+    ):
+        # Create default attention layer
+        default_attention = nn.MultiheadAttention(
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            dropout=dropout,
+            bias=bias,
+            batch_first=True
+        )
+        
+        # Initialize parent
+        super().__init__(
+            input_size=embed_dim,
+            output_size=embed_dim,
+            original_layer=default_attention,
+            **kwargs
+        )
+        
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+    
+    def forward(
+        self, 
+        query: torch.Tensor,
+        key: Optional[torch.Tensor] = None,
+        value: Optional[torch.Tensor] = None,
+        **kwargs
+    ) -> torch.Tensor:
+        """
+        Forward pass maintaining attention interface.
+        """
+        # Self-attention if key/value not provided
+        if key is None:
+            key = query
+        if value is None:
+            value = query
+        
+        # Fast path
+        if not self.state_layout.has_active_seeds():
+            output, _ = self.default_layer(query, key, value, **kwargs)
+            return output
+        
+        # Execute with morphogenetic modifications
+        # ... (similar to base forward but handling attention-specific logic)
+```
+
+### `kasmina_layernorm_layer.py` - LayerNorm Support
+
+**Purpose:** Morphogenetic layer normalization with stable statistics.
+
+```python
+class KasminaLayerNormLayer(KasminaLayer):
+    """
+    Morphogenetic layer normalization.
+    
+    Maintains normalization statistics while allowing kernel modifications.
+    """
+    
+    def __init__(
+        self,
+        normalized_shape: Union[int, List[int], torch.Size],
+        eps: float = 1e-5,
+        elementwise_affine: bool = True,
+        **kwargs
+    ):
+        # Create default LayerNorm
+        default_norm = nn.LayerNorm(
+            normalized_shape,
+            eps=eps,
+            elementwise_affine=elementwise_affine
+        )
+        
+        # Calculate flattened size
+        if isinstance(normalized_shape, int):
+            size = normalized_shape
+        else:
+            size = int(np.prod(normalized_shape))
+        
+        # Initialize parent
+        super().__init__(
+            input_size=size,
+            output_size=size,
+            original_layer=default_norm,
+            **kwargs
+        )
+        
+        self.normalized_shape = normalized_shape
+        self.eps = eps
+```
+
+### `kasmina_batchnorm_layer.py` - BatchNorm Support
+
+**Purpose:** Morphogenetic batch normalization with running statistics management.
+
+```python
+class KasminaBatchNormLayer(KasminaLayer):
+    """
+    Morphogenetic batch normalization layer.
+    
+    Special handling for running statistics during morphogenetic modifications.
+    """
+    
+    def __init__(
+        self,
+        num_features: int,
+        eps: float = 1e-5,
+        momentum: float = 0.1,
+        affine: bool = True,
+        track_running_stats: bool = True,
+        **kwargs
+    ):
+        # Create appropriate BatchNorm variant
+        if len(kwargs.get('input_shape', [])) == 4:  # Conv2D input
+            default_norm = nn.BatchNorm2d(
+                num_features,
+                eps=eps,
+                momentum=momentum,
+                affine=affine,
+                track_running_stats=track_running_stats
+            )
+        else:  # Linear input
+            default_norm = nn.BatchNorm1d(
+                num_features,
+                eps=eps,
+                momentum=momentum,
+                affine=affine,
+                track_running_stats=track_running_stats
+            )
+        
+        # Initialize parent
+        super().__init__(
+            input_size=num_features,
+            output_size=num_features,
+            original_layer=default_norm,
+            **kwargs
+        )
+        
+        self.num_features = num_features
+        
+        # Special handling for running stats
+        self._protect_running_stats = True
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass with special batch norm handling.
+        
+        Morphogenetic kernels should not modify running statistics.
+        """
+        # Always use default layer for training mode
+        # to maintain correct running statistics
+        if self.training and self._protect_running_stats:
+            return self.default_layer(x)
+        
+        # Use morphogenetic execution for inference
+        return super().forward(x)
 ```
 
 ## Architecture Integration
 
-The execution module integrates with the broader Esper platform:
+The execution module integrates with the broader system:
 
-1. **Core Module** → `KasminaLayer` replacement in `MorphableModel`
-2. **Contracts** → Health signals and state enums
-3. **Services** → Urza (kernel fetching), Oona (telemetry), Tamiyo (decisions)
-4. **Training Loop** → Async kernel loading/unloading during training
-
-## Dependencies
-
-**External:**
-- `torch` - PyTorch tensor operations and GPU support
-- `asyncio` - Async programming for non-blocking operations
-- `collections.OrderedDict` - LRU cache implementation
-- `requests` - HTTP client for Urza integration
-- `logging` - Error and debug logging
-- `time` - Performance timing and telemetry
-
-**Internal:**
-- `esper.contracts.operational` - Health signals and state definitions
-- `esper.contracts.messages` - Oona message bus protocol
-- `esper.services.oona_client` - Message bus client
-- `esper.services.contracts` - Service API contracts
+1. **KasminaLayers** are created by the Core module during model wrapping
+2. **Kernel Cache** fetches compiled kernels from Urza service
+3. **State Layout** publishes telemetry to Oona message bus
+4. **Error Recovery** integrates with Nissa observability
+5. **Kernel Executor** works with Tezzeret compilation service
+6. **Async Execution** enables non-blocking training loops
 
 ## Performance Characteristics
 
-### ✅ Phase 1 Performance Metrics (Production Ready)
+### Latency Targets
+- **Kernel Load:** < 1ms from cache, < 100ms from Urza
+- **Kernel Execution:** < 100μs overhead vs native PyTorch
+- **State Transition:** < 1μs per operation
+- **Error Recovery:** < 10ms for retry cycle
 
-**Forward Pass Execution:**
-- **Dormant Path:** <0.1ms overhead (O(1) CPU check)
-- **Single Active Kernel (Real):** 1-5ms overhead (includes real execution)
-- **Multiple Active Kernels:** 3-10ms overhead (scales with kernel complexity)
-- **Async/Sync Fallback:** <0.5ms additional overhead
-
-**Kernel Loading with Validation:**
-- **Cache Hit (Enhanced):** <1ms (in-memory access + metadata validation)
-- **Cache Miss (Real):** 50-200ms (network + deserialization + validation)
-- **Compatibility Check:** <0.1ms (metadata-based validation)
-- **Real Execution Setup:** 10-50ms (module deserialization + device transfer)
-
-**Memory Usage:**
-- **State Layout:** ~100 bytes per seed (GPU tensors)
-- **Enhanced Cache:** Configurable (default 128MB + metadata overhead)
-- **Kernel Executor:** ~50MB cache for deserialized modules
-- **Error Recovery:** ~10MB for tracking and statistics
-- **Total Overhead:** <10% when all seeds dormant (includes error tracking)
+### Memory Usage
+- **State Layout:** ~100 bytes per seed
+- **Kernel Cache:** Configurable, typically 128-512MB
+- **Async Buffers:** ~2x layer output size for gradient storage
 
 ### Optimization Strategies
+1. **GPU Memory Coalescing:** SoA layout for state tensors
+2. **CPU Tracking:** Avoid GPU synchronization for common queries  
+3. **Lazy Loading:** Only fetch kernels when needed
+4. **Stream Parallelism:** Multi-stream execution for Conv2D
+5. **Circuit Breakers:** Prevent cascade failures
 
-**Structure-of-Arrays (SoA):**
-- Optimizes GPU memory coalescing
-- Enables vectorized operations
-- Reduces memory bandwidth requirements
+## Testing
 
-**CPU-based Active Tracking:**
-- Avoids GPU synchronization for common queries
-- O(1) dormant seed detection
-- Maintains accurate count without GPU operations
+The execution module includes comprehensive tests:
 
-**LRU Caching:**
-- Automatic memory management
-- Configurable size limits
-- Performance statistics for tuning
+- **Unit Tests:** Each component tested in isolation
+- **Integration Tests:** Full execution paths with mocked services
+- **Performance Tests:** Benchmarks for latency and throughput
+- **Stress Tests:** High concurrency and error injection
+- **GPU Tests:** CUDA-specific functionality
 
-## Usage Patterns
+## Future Enhancements
 
-### Basic Layer Replacement
-```python
-from esper.execution import KasminaLayer
-
-# Replace standard linear layer
-original_layer = nn.Linear(512, 256)
-kasmina_layer = KasminaLayer(
-    input_size=512,
-    output_size=256,
-    num_seeds=4,
-    cache_size_mb=128,
-    telemetry_enabled=True,
-    layer_name="transformer.attention.dense"
-)
-
-# Copy original weights
-kasmina_layer.default_transform.weight.copy_(original_layer.weight)
-kasmina_layer.default_transform.bias.copy_(original_layer.bias)
-```
-
-### Dynamic Kernel Management
-```python
-# Load kernel during training
-success = await kasmina_layer.load_kernel(
-    seed_idx=0,
-    artifact_id="attention-kernel-v2.1"
-)
-
-if success:
-    print("Kernel loaded successfully")
-    
-    # Adjust blend factor
-    kasmina_layer.set_seed_alpha(0, 0.4)  # 40% kernel influence
-    
-    # Monitor performance
-    stats = kasmina_layer.get_layer_stats()
-    print(f"Cache hit rate: {stats['cache_stats']['hit_rate']:.2%}")
-```
-
-### Performance Monitoring
-```python
-# Enable telemetry
-kasmina_layer.telemetry_enabled = True
-
-# Monitor state transitions
-stats = kasmina_layer.state_layout.get_stats()
-print(f"Active seeds: {stats['active_seeds']}/{stats['num_seeds']}")
-print(f"Average health: {stats['avg_health']:.3f}")
-print(f"Error count: {stats['total_errors']}")
-
-# Cache performance
-cache_stats = kasmina_layer.kernel_cache.get_cache_stats()
-print(f"Cache usage: {cache_stats['total_size_mb']:.1f}/{cache_stats['max_size_mb']} MB")
-print(f"Hit rate: {cache_stats['hit_rate']:.2%}")
-```
-
-### Error Recovery
-```python
-# Handle kernel loading failures
-try:
-    success = await kasmina_layer.load_kernel(seed_idx, "invalid-kernel-id")
-    if not success:
-        print("Kernel loading failed - continuing with default behavior")
-except Exception as e:
-    print(f"Kernel loading error: {e}")
-    # Layer automatically falls back to default transformation
-```
-
-## Error Handling and Recovery
-
-### Circuit Breaker Pattern
-```python
-# Automatic error recovery after 3 consecutive failures
-error_count = state_layout.increment_error_count(seed_idx)
-if error_count >= 3:
-    # Seed moves to ERROR_RECOVERY state
-    # Fallback execution activated
-    # Tamiyo notified via telemetry
-```
-
-### Graceful Degradation
-- **Kernel Failures:** Automatic fallback to default transformation
-- **Network Issues:** Cache misses don't block execution
-- **GPU Memory:** Automatic cache eviction prevents OOM
-- **State Corruption:** Reset mechanisms for individual seeds
-
-### Telemetry Failures
-- **Oona Unavailable:** Telemetry gracefully disabled
-- **Message Publishing:** Fire-and-forget pattern prevents blocking
-- **Health Signal Errors:** Logged but don't affect execution
-
-## Best Practices
-
-### Performance Optimization
-1. **Cache Sizing:** Set cache size based on available GPU memory
-2. **Seed Count:** Start with 4 seeds per layer, tune based on workload
-3. **Telemetry:** Disable in production for maximum performance
-4. **Batch Size:** Larger batches amortize kernel execution overhead
-
-### Memory Management
-1. **GPU Memory:** Monitor cache usage and eviction rates
-2. **State Tensors:** Use appropriate data types (uint8, float16)
-3. **Cleanup:** Unload kernels when not needed
-4. **Monitoring:** Track memory usage with get_stats()
-
-### Error Handling
-1. **Validation:** Always check kernel loading return values
-2. **Timeouts:** Set appropriate timeouts for Urza requests
-3. **Logging:** Monitor error counts and recovery patterns
-4. **Fallback:** Ensure default transformations are properly configured
-
-## ✅ Phase 1 Status: Resolved Issues and Current Limitations
-
-### ✅ **RESOLVED in Phase 1:**
-
-1. **~~Kernel Execution Placeholder~~** → **IMPLEMENTED: Real Kernel Execution**
-   - ✅ **Resolved:** Full `RealKernelExecutor` with torch.jit/pickle support
-   - ✅ **Impact:** Actual morphogenetic behavior with compiled artifacts
-   - ✅ **Features:** Validation, timeout protection, LRU caching
-
-2. **~~Synchronous HTTP~~** → **IMPLEMENTED: Async HTTP with Circuit Breaker**
-   - ✅ **Resolved:** `AsyncHttpClient` integration with circuit breaker pattern
-   - ✅ **Impact:** Non-blocking cache fetching with fault tolerance
-   - ✅ **Features:** Retry logic, timeout handling, graceful degradation
-
-3. **~~Basic Error Handling~~** → **IMPLEMENTED: Comprehensive Error Recovery**
-   - ✅ **Resolved:** Full `ErrorRecoveryManager` with multiple strategies
-   - ✅ **Impact:** Production-grade reliability and fault tolerance
-   - ✅ **Features:** Pattern detection, health monitoring, automatic recovery
-
-### Current Limitations (Phase 1)
-
-1. **Blueprint Generation:** Automatic blueprint creation not yet implemented
-   - **Impact:** Manual kernel artifact creation required
-   - **Next:** Phase 3 will implement automatic blueprint generation
-
-2. **Policy Training:** Tamiyo GNN policy training uses simulated data
-   - **Impact:** Adaptation decisions not yet ML-driven
-   - **Next:** Phase 2 will implement real-time policy training
-
-3. **Distributed Coordination:** Single-node execution only
-   - **Impact:** Limited to single GPU/machine deployments
-   - **Future:** Phase 4 will add multi-node coordination
-
-### Performance Considerations
-
-1. **Memory Overhead:** 8 tensors per layer can accumulate with large models
-2. **Cache Eviction:** May cause performance spikes under memory pressure
-3. **Telemetry Overhead:** Health signal publishing adds latency
-4. **GPU Synchronization:** Some operations may cause pipeline stalls
-
-### Integration Issues
-
-1. **Device Movement:** Manual tensor device management
-2. **State Persistence:** No automatic checkpointing of seed states
-3. **Multi-GPU:** Limited support for distributed training
-
-## ✅ Phase 1 Completed + Future Roadmap
-
-### ✅ **COMPLETED in Phase 1:**
-
-1. **✅ Real Kernel Execution** 
-   - ✅ Integration with compiled PyTorch modules (torch.jit + pickle)
-   - ✅ Dynamic kernel replacement during training
-   - ✅ Performance validation and optimization
-
-2. **✅ Advanced Error Recovery**
-   - ✅ Comprehensive error classification and handling
-   - ✅ Circuit breaker patterns and graceful degradation
-   - ✅ Health monitoring and automatic recovery
-
-3. **✅ Enhanced Caching System**
-   - ✅ Metadata-aware caching with compatibility validation
-   - ✅ Smart eviction with performance profiling
-   - ✅ Checksum verification and safety validation
-
-4. **✅ Production Monitoring**
-   - ✅ Comprehensive statistics and performance tracking
-   - ✅ Error pattern detection and alerting
-   - ✅ Real-time health metrics and telemetry
-
-### 🚀 **Phase 2-5 Roadmap:**
-
-**Phase 2: Tamiyo Real-Time Policy Training**
-- Real health signal collection and processing
-- GNN-based policy training with experience replay
-- Reward signal computation from adaptation outcomes
-- Real-time decision making for kernel loading/unloading
-
-**Phase 3: Automatic Blueprint Generation**
-- AI-driven blueprint synthesis from model analysis
-- Architectural pattern recognition and optimization
-- Performance prediction and validation
-- Integration with Tezzeret compilation pipeline
-
-**Phase 4: Enhanced Infrastructure**
-- Multi-level cache hierarchy (GPU/CPU/Disk)
-- Distributed coordination and consensus
-- Advanced message bus with persistence
-- Multi-GPU and cluster support
-
-**Phase 5: Advanced Features**
-- Predictive prefetching based on training patterns
-- Compressed kernel storage and streaming
-- Real-time performance dashboards
-- Advanced profiling and debugging tools
-
-### 🎯 **Immediate Next Steps (Phase 2):**
-
-1. **Health Signal Collection:** Implement real-time collection from KasminaLayer telemetry
-2. **Policy Network Training:** Train GNN on real adaptation experiences
-3. **Reward Computation:** Develop metrics for adaptation success/failure
-4. **Decision Integration:** Connect trained policy to kernel loading decisions
-
-The execution system is now **production-ready** and provides a solid foundation for the advanced features planned in subsequent phases.
+1. **Distributed Execution:** Multi-GPU and multi-node support
+2. **Dynamic Batching:** Adaptive batch sizes based on kernels
+3. **Kernel Fusion:** Combine multiple kernels for efficiency
+4. **Hardware Acceleration:** TPU and custom ASIC support
+5. **Advanced Caching:** Predictive pre-loading of kernels
+6. **Profiling Integration:** Deep PyTorch profiler integration

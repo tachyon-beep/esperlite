@@ -1,0 +1,38 @@
+---
+engines:
+  duplication:
+    enabled: true
+    config:
+      languages:
+        - python
+  metrics:
+    enabled: true
+  coverage:
+    enabled: true
+    exclude_paths:
+      - "tests/"
+      - "**/test_*.py"
+      - "**/*_test.py"
+      - "docs/"
+      - "examples/"
+      - "scripts/"
+
+exclude_paths:
+  - ".github/**"
+  - "docs/**"
+  - "tests/**"
+  - "htmlcov/**"
+  - "**/__pycache__/**"
+  - "**/venv/**"
+  - "**/env/**"
+  - "dist/**"
+  - "build/**"
+  - "*.egg-info/**"
+  - ".pytest_cache/**"
+  - ".coverage"
+  - "coverage.xml"
+  - "coverage.json"
+
+languages:
+  python:
+    python_version: 3

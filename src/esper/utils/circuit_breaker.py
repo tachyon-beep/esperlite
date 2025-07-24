@@ -85,7 +85,7 @@ class CircuitBreaker:
         # Lock for thread safety
         self._lock = asyncio.Lock()
 
-        logger.info(f"Circuit breaker '{self.name}' initialized")
+        logger.info("Circuit breaker '%s' initialized", self.name)
 
     async def call(
         self,
@@ -116,7 +116,7 @@ class CircuitBreaker:
 
             # Fail fast if circuit is open
             if self.state == CircuitBreakerState.OPEN:
-                logger.warning(f"Circuit breaker '{self.name}' is OPEN, failing fast")
+                logger.warning("Circuit breaker '%s' is OPEN, failing fast", self.name)
                 raise CircuitBreakerOpenError(f"Circuit breaker '{self.name}' is open")
 
         # Execute the function call with timeout
@@ -144,7 +144,7 @@ class CircuitBreaker:
         except Exception as e:
             async with self._lock:
                 await self._record_failure()
-            logger.warning(f"Circuit breaker '{self.name}' failure: {e}")
+            logger.warning("Circuit breaker '%s' failure: %s", self.name, e)
             raise
 
     async def _check_state_transition(self) -> None:
@@ -213,7 +213,7 @@ class CircuitBreaker:
         self.failure_count = 0
         self.success_count = 0
 
-        logger.info(f"Circuit breaker '{self.name}' CLOSED, service recovered")
+        logger.info("Circuit breaker '%s' CLOSED, service recovered", self.name)
 
     def get_stats(self) -> dict:
         """
@@ -250,7 +250,7 @@ class CircuitBreaker:
         self.last_failure_time = 0.0
         self.last_state_change = time.time()
 
-        logger.info(f"Circuit breaker '{self.name}' reset to CLOSED state")
+        logger.info("Circuit breaker '%s' reset to CLOSED state", self.name)
 
     @property
     def is_closed(self) -> bool:

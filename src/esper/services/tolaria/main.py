@@ -48,7 +48,7 @@ class TolariaService:
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
 
-        def signal_handler(signum: int, frame) -> None:
+        def signal_handler(signum: int, _frame) -> None:
             logger.info("Received shutdown signal %d", signum)
             self._shutdown_event.set()
 

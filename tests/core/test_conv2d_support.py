@@ -242,8 +242,8 @@ class TestConv2dSupport:
 
         # Check layer types
         conv_layer = wrapped_model.kasmina_layers["0"]
-        linear_layer1 = wrapped_model.kasmina_layers["4"]
-        linear_layer2 = wrapped_model.kasmina_layers["6"]
+        _ = wrapped_model.kasmina_layers["4"]
+        _ = wrapped_model.kasmina_layers["6"]
 
         assert isinstance(conv_layer, KasminaConv2dLayer)
         assert conv_layer.in_channels == 3

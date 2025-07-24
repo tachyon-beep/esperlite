@@ -160,3 +160,12 @@ results/
 
 # Archive
 .archive/
+
+# Checkpoint directories
+demo_checkpoints/
+checkpoint_data/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+

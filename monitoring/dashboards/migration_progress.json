@@ -1,0 +1,225 @@
+{
+  "dashboard": {
+    "title": "Morphogenetic Migration Progress",
+    "uid": "migration-progress", 
+    "version": 1,
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Migration Phase Progress",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6},
+        "targets": [
+          {
+            "expr": "morphogenetic_migration_phase",
+            "instant": true
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "mappings": [
+          {"value": 0, "text": "Phase 0: Foundation"},
+          {"value": 1, "text": "Phase 1: Logical/Physical"},
+          {"value": 2, "text": "Phase 2: Extended Lifecycle"},
+          {"value": 3, "text": "Phase 3: Performance"},
+          {"value": 4, "text": "Phase 4: Message Bus"},
+          {"value": 5, "text": "Phase 5: Advanced Features"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Feature Flag Status",
+        "type": "table",
+        "gridPos": {"x": 8, "y": 0, "w": 16, "h": 6},
+        "targets": [
+          {
+            "expr": "morphogenetic_feature_flag_enabled",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true
+              },
+              "indexByName": {
+                "feature": 0,
+                "Value": 1
+              },
+              "renameByName": {
+                "feature": "Feature",
+                "Value": "Enabled"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Performance Comparison",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 6, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "morphogenetic_forward_pass_p99_ms{implementation=\"legacy\"}",
+            "legendFormat": "Legacy P99"
+          },
+          {
+            "expr": "morphogenetic_forward_pass_p99_ms{implementation=\"v2\"}",
+            "legendFormat": "V2 P99"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ms",
+            "label": "Latency (ms)",
+            "logBase": 1
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Rollout Percentage",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 6, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "morphogenetic_rollout_percentage",
+            "instant": true
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 50},
+            {"color": "red", "value": 100}
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "title": "Regression Test Results",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 14, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "morphogenetic_regression_tests_passed / morphogenetic_regression_tests_total",
+            "instant": true
+          }
+        ],
+        "unit": "percentunit",
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 0.95},
+            {"color": "green", "value": 1.0}
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "A/B Test Winners",
+        "type": "piechart",
+        "gridPos": {"x": 6, "y": 14, "w": 6, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (winner) (morphogenetic_ab_test_results)",
+            "legendFormat": "{{winner}}"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Migration Timeline",
+        "type": "state-timeline",
+        "gridPos": {"x": 12, "y": 14, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "morphogenetic_phase_timeline",
+            "legendFormat": "{{phase_name}}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Risk Score Trend",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 18, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "morphogenetic_risk_score",
+            "legendFormat": "Overall Risk"
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 15,
+            "color": "red",
+            "op": "gt"
+          },
+          {
+            "value": 10,
+            "color": "yellow",
+            "op": "gt"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Budget Burn Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 22, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "morphogenetic_budget_spent",
+            "legendFormat": "Actual Spend"
+          },
+          {
+            "expr": "morphogenetic_budget_planned",
+            "legendFormat": "Planned Spend"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "currencyUSD",
+            "label": "Budget"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Team Velocity",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 22, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "morphogenetic_story_points_completed",
+            "legendFormat": "Completed"
+          },
+          {
+            "expr": "morphogenetic_story_points_planned",
+            "legendFormat": "Planned"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-7d",
+      "to": "now"
+    },
+    "refresh": "1m"
+  }
+}

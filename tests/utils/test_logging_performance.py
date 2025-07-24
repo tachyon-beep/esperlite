@@ -247,7 +247,7 @@ class TestLoggingPerformance:
 
         start_time = time.perf_counter()
         for i in range(10000):  # 10x higher frequency
-            logger.debug(f"High frequency message {i}")
+            logger.debug("High frequency message %d", i)
         elapsed = time.perf_counter() - start_time
 
         # Should handle 10k messages in reasonable time
@@ -272,7 +272,7 @@ class TestLoggingPerformance:
 
         # Log 10,000 messages
         for i in range(10000):
-            logger.info(f"Memory test message {i}")
+            logger.info("Memory test message %d", i)
 
         # Force garbage collection and measure final memory
         gc.collect()
@@ -303,7 +303,7 @@ class TestLoggingPerformance:
             """Worker function for concurrent logging."""
             start = time.perf_counter()
             for i in range(message_count):
-                logger.info(f"Worker {worker_id} message {i}")
+                logger.info("Worker %d message %d", worker_id, i)
             return time.perf_counter() - start
 
         # Test with 4 concurrent workers, 250 messages each
@@ -341,9 +341,9 @@ class TestLoggingPerformance:
 
         start_time = time.perf_counter()
         for i, message in enumerate(test_messages):
-            logger.info(f"Cross-platform test {i}: {message}")
-            logger.warning(f"Warning {i}: {message}")
-            logger.error(f"Error {i}: {message}")
+            logger.info("Cross-platform test %d: %s", i, message)
+            logger.warning("Warning %d: %s", i, message)
+            logger.error("Error %d: %s", i, message)
 
         elapsed = time.perf_counter() - start_time
 
@@ -450,7 +450,7 @@ class TestLoggingPerformance:
         # Performance should still meet targets
         start_time = time.perf_counter()
         for i in range(100):
-            logger.info(f"Regression test message {i}")
+            logger.info("Regression test message %d", i)
         elapsed = time.perf_counter() - start_time
 
         # Should be faster than 0.1ms per call
@@ -473,7 +473,7 @@ class TestLoggingPerformance:
         message_count = 50000
 
         for i in range(message_count):
-            logger.info(f"Extended stability message {i}")
+            logger.info("Extended stability message %d", i)
 
             # Periodic performance check
             if i % 10000 == 0 and i > 0:

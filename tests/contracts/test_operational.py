@@ -348,13 +348,24 @@ class TestAdaptationDecision:
             assert decision.adaptation_type == adaptation_type
 
         # Test invalid adaptation type
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError, match="String should match pattern"):
             AdaptationDecision(
                 layer_name="test_layer",
                 adaptation_type="invalid_type",
                 confidence=0.8,
                 urgency=0.5,
             )
+        
+        # Test old adaptation types that tests were using (should fail)
+        old_invalid_types = ["add_neurons", "remove_neurons", "add_layer"]
+        for invalid_type in old_invalid_types:
+            with pytest.raises(ValidationError, match="String should match pattern"):
+                AdaptationDecision(
+                    layer_name="test_layer",
+                    adaptation_type=invalid_type,
+                    confidence=0.8,
+                    urgency=0.5,
+                )
 
     def test_adaptation_decision_computed_properties(self):
         """Test AdaptationDecision computed property methods."""
@@ -391,6 +402,36 @@ class TestAdaptationDecision:
         assert low_priority.decision_priority() == "Low"
         assert low_priority.should_execute_immediately() is False
 
+    def test_adaptation_decision_forbidden_fields(self):
+        """Test that forbidden fields from old schema are rejected."""
+        # Test that extra fields are forbidden (extra="forbid" in model config)
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            AdaptationDecision(
+                layer_name="test_layer",
+                adaptation_type="add_seed",
+                confidence=0.8,
+                urgency=0.5,
+                decision_id="test_001",  # Forbidden field
+            )
+        
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            AdaptationDecision(
+                layer_name="test_layer",
+                adaptation_type="add_seed",
+                confidence=0.8,
+                urgency=0.5,
+                parameters={"num_seeds": 2},  # Forbidden field
+            )
+        
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            AdaptationDecision(
+                layer_name="test_layer",
+                adaptation_type="add_seed",
+                confidence=0.8,
+                urgency=0.5,
+                reasoning="Test reasoning",  # Forbidden field
+            )
+    
     def test_adaptation_decision_timestamp(self):
         """Test AdaptationDecision timestamp functionality."""
         # Record time before creating decision

@@ -1,0 +1,4 @@
+# Benchmark dependencies
+matplotlib>=3.8.0
+seaborn>=0.13.0
+psutil>=5.9.0

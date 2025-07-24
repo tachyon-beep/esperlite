@@ -110,7 +110,7 @@ class TamiyoService:
                 await asyncio.sleep(self.analysis_interval)
 
             except Exception as e:
-                logger.error(f"Error in Tamiyo control loop: {e}")
+                logger.error("Error in Tamiyo control loop: %s", e)
                 await asyncio.sleep(self.analysis_interval)
 
     async def _health_monitoring_loop(self) -> None:
@@ -125,7 +125,7 @@ class TamiyoService:
                 await asyncio.sleep(1.0)  # Check health frequently
 
             except Exception as e:
-                logger.error(f"Error in health monitoring: {e}")
+                logger.error("Error in health monitoring: %s", e)
                 await asyncio.sleep(1.0)
 
     async def _learning_loop(self) -> None:
@@ -139,7 +139,7 @@ class TamiyoService:
                 await asyncio.sleep(60.0)  # learning_update_interval
 
             except Exception as e:
-                logger.error(f"Error in learning loop: {e}")
+                logger.error("Error in learning loop: %s", e)
                 await asyncio.sleep(60.0)  # learning_update_interval
 
     async def _evaluate_adaptations(self) -> None:
@@ -163,7 +163,7 @@ class TamiyoService:
         last_adaptation = self.last_adaptation_time.get(decision.layer_name, 0)
 
         if current_time - last_adaptation < self.adaptation_cooldown:
-            logger.debug(f"Adaptation for {decision.layer_name} on cooldown")
+            logger.debug("Adaptation for %s on cooldown", decision.layer_name)
             return
 
         # Execute adaptation
@@ -196,7 +196,7 @@ class TamiyoService:
 
             # Send to Urza for blueprint creation
             # (This is a placeholder for the actual implementation)
-            logger.info(f"Sending blueprint request: {blueprint_request}")
+            logger.info("Sending blueprint request: %s", blueprint_request)
 
             # Simulate async operation
             await asyncio.sleep(0.01)
@@ -205,7 +205,7 @@ class TamiyoService:
             # await self.urza_client.create_blueprint(blueprint_request)
 
         except Exception as e:
-            logger.error(f"Failed to execute adaptation {decision}: {e}")
+            logger.error("Failed to execute adaptation %s: %s", decision, e)
 
     async def _collect_health_signals(self) -> None:
         """Collect health signals from active KasminaLayers."""
@@ -247,7 +247,7 @@ class TamiyoService:
 
         # For MVP, just log the update
         # In a full implementation, this would perform actual policy gradient updates
-        logger.info(f"Policy update with batch size: {len(batch)}")
+        logger.info("Policy update with batch size: %d", len(batch))
 
         # Simulate async operation
         await asyncio.sleep(0.01)

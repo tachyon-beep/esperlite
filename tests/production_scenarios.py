@@ -77,6 +77,17 @@ class ProductionHealthSignalFactory:
             health_score=np.random.uniform(0.8, 1.0),  # Excellent health
             error_count=np.random.poisson(0.1),  # Very few errors
             is_ready_for_transition=False,
+            execution_latency=np.random.uniform(1.0, 5.0),  # Low latency
+            active_seeds=5,
+            total_seeds=10,
+            # Healthy gradient metrics
+            gradient_norm=np.random.lognormal(-2, 0.5),  # Low, stable gradients
+            gradient_variance=np.random.exponential(0.1),  # Low variance
+            gradient_sign_stability=min(1.0, np.random.uniform(0.8, 0.95)),  # High stability
+            param_norm_ratio=np.random.uniform(0.9, 1.1),  # Near 1.0
+            # Good performance metrics
+            total_executions=np.random.randint(1000, 10000),
+            cache_hit_rate=np.random.uniform(0.7, 0.9),  # High cache hits
         )
 
     @staticmethod
@@ -105,6 +116,17 @@ class ProductionHealthSignalFactory:
             health_score=min(1.0, max(0.0, base_health + np.random.normal(0, 0.05))),
             error_count=max(0, base_errors + np.random.poisson(severity)),
             is_ready_for_transition=severity > 0.7,
+            execution_latency=5.0 + severity * 20.0,  # Higher latency with severity
+            active_seeds=max(1, int(10 * (1 - severity))),
+            total_seeds=10,
+            # Degraded gradient metrics based on severity
+            gradient_norm=np.random.lognormal(severity * 2, 1.0),  # Higher with severity
+            gradient_variance=np.random.exponential(severity),  # More variance
+            gradient_sign_stability=max(0.0, min(1.0, 1.0 - severity + np.random.normal(0, 0.1))),
+            param_norm_ratio=1.0 + severity * np.random.choice([-1, 1]) * 0.5,
+            # Poor performance metrics
+            total_executions=np.random.randint(100, 1000),
+            cache_hit_rate=max(0.0, 0.9 - severity),  # Lower cache hits
         )
 
     @staticmethod
@@ -113,7 +135,7 @@ class ProductionHealthSignalFactory:
     ) -> List[HealthSignal]:
         """Create time series of health signals showing various trends."""
         signals = []
-        base_time = time.time()
+        _ = time.time()
 
         for i in range(num_signals):
             if trend == "degrading":

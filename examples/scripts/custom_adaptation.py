@@ -9,8 +9,10 @@ This script demonstrates advanced usage of Esper, including:
 """
 
 import torch
-from torch import nn, optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch import nn
+from torch import optim
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
 
 from esper import wrap
 

@@ -140,7 +140,7 @@ class TestMainFunctionIntegration:
     @patch("train.TolariaConfig")
     @patch("sys.argv")
     async def test_main_with_config_file(
-        self, mock_argv, mock_tolaria_config, mock_tolaria_service, mock_validate_env
+        self, mock_argv, mock_tolaria_config, mock_tolaria_service, _mock_validate_env
     ):
         """Test main function with configuration file."""
         # Setup mocks
@@ -176,7 +176,7 @@ class TestMainFunctionIntegration:
         mock_tolaria_config,
         mock_tolaria_service,
         mock_create_quick_start,
-        mock_validate_env,
+        _mock_validate_env,
     ):
         """Test main function with quick-start option."""
         # Setup mocks
@@ -209,7 +209,7 @@ class TestMainFunctionIntegration:
     @pytest.mark.asyncio
     @patch("train.validate_environment", return_value=True)
     @patch("train.TolariaConfig")
-    async def test_main_with_dry_run(self, mock_tolaria_config, mock_validate_env):
+    async def test_main_with_dry_run(self, mock_tolaria_config, _mock_validate_env):
         """Test main function with dry-run option."""
         # Setup mocks
         mock_config_instance = mock_tolaria_config.from_yaml.return_value
@@ -259,7 +259,7 @@ class TestErrorHandling:
     @patch("train.TolariaService")
     @patch("train.TolariaConfig")
     async def test_training_failure_handling(
-        self, mock_tolaria_config, mock_tolaria_service, mock_validate_env
+        self, mock_tolaria_config, mock_tolaria_service, _mock_validate_env
     ):
         """Test handling of training failures."""
         # Setup mocks
@@ -284,7 +284,7 @@ class TestErrorHandling:
     @patch("train.validate_environment", return_value=True)
     @patch("train.TolariaConfig")
     async def test_keyboard_interrupt_handling(
-        self, mock_tolaria_config, mock_validate_env
+        self, mock_tolaria_config, _mock_validate_env
     ):
         """Test handling of keyboard interrupt (Ctrl+C)."""
         # Setup mocks

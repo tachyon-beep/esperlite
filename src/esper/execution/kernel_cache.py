@@ -100,12 +100,12 @@ class KernelCache:
                 self._cache_info[artifact_id]["last_accessed"] = time.time()
                 self._hits += 1
 
-                logger.debug(f"Cache hit for kernel {artifact_id}")
+                logger.debug("Cache hit for kernel %s", artifact_id)
                 return kernel_tensor
 
             # Cache miss - fetch from Urza
             self._misses += 1
-            logger.debug(f"Cache miss for kernel {artifact_id}, fetching from Urza")
+            logger.debug("Cache miss for kernel %s, fetching from Urza", artifact_id)
 
             kernel_tensor = await self._fetch_from_urza(artifact_id)
             if kernel_tensor is not None:
@@ -137,7 +137,7 @@ class KernelCache:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to fetch kernel {artifact_id}: {e}")
+            logger.error("Failed to fetch kernel %s: %s", artifact_id, e)
             return None
 
     async def _fetch_from_urza_impl(self, artifact_id: str) -> Optional[torch.Tensor]:
@@ -161,7 +161,7 @@ class KernelCache:
             # Fetch kernel metadata from Urza API
             response = await client.get(f"{urza_url}/kernels/{artifact_id}")
             if response.status == 404:
-                logger.warning(f"Kernel {artifact_id} not found in Urza")
+                logger.warning("Kernel %s not found in Urza", artifact_id)
                 return None
 
             kernel_metadata = await response.json()
@@ -169,7 +169,7 @@ class KernelCache:
             # Extract S3 binary reference
             binary_ref = kernel_metadata.get("kernel_binary_ref")
             if not binary_ref:
-                logger.error(f"No binary reference found for kernel {artifact_id}")
+                logger.error("No binary reference found for kernel %s", artifact_id)
                 return None
 
             # Download actual kernel binary from S3
@@ -185,7 +185,7 @@ class KernelCache:
         if torch.cuda.is_available():
             kernel_tensor = kernel_tensor.cuda()
 
-        logger.debug(f"Successfully fetched kernel {artifact_id} from Urza")
+        logger.debug("Successfully fetched kernel %s from Urza", artifact_id)
         return kernel_tensor
 
     def _add_to_cache(self, artifact_id: str, kernel_tensor: torch.Tensor) -> None:
@@ -217,7 +217,7 @@ class KernelCache:
         }
         self.total_size_mb += tensor_size_mb
 
-        logger.debug(f"Cached kernel {artifact_id} ({tensor_size_mb:.2f} MB)")
+        logger.debug("Cached kernel %s (%.2f MB)", artifact_id, tensor_size_mb)
 
     def _evict_lru(self) -> None:
         """Evict the least recently used entry from cache."""
@@ -232,7 +232,7 @@ class KernelCache:
         self.total_size_mb -= cache_info["size_mb"]
         self._evictions += 1
 
-        logger.debug(f"Evicted kernel {lru_key} ({cache_info['size_mb']:.2f} MB)")
+        logger.debug("Evicted kernel %s (%.2f MB)", lru_key, cache_info['size_mb'])
 
     async def preload_kernels(self, artifact_ids: list[str]) -> None:
         """
@@ -301,7 +301,7 @@ class KernelCache:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to fetch kernel bytes {artifact_id}: {e}")
+            logger.error("Failed to fetch kernel bytes %s: %s", artifact_id, e)
             return None
 
     async def _get_kernel_bytes_impl(self, artifact_id: str) -> Optional[bytes]:
@@ -325,7 +325,7 @@ class KernelCache:
             # Fetch kernel metadata from Urza API
             response = await client.get(f"{urza_url}/kernels/{artifact_id}")
             if response.status == 404:
-                logger.warning(f"Kernel {artifact_id} not found in Urza")
+                logger.warning("Kernel %s not found in Urza", artifact_id)
                 return None
 
             kernel_metadata = await response.json()
@@ -333,14 +333,14 @@ class KernelCache:
             # Extract S3 binary reference
             binary_ref = kernel_metadata.get("kernel_binary_ref")
             if not binary_ref:
-                logger.error(f"No binary reference found for kernel {artifact_id}")
+                logger.error("No binary reference found for kernel %s", artifact_id)
                 return None
 
             # Download actual kernel binary from S3
             s3_response = await client.get(binary_ref)
             kernel_bytes = await s3_response.read()
 
-            logger.debug(f"Successfully fetched kernel bytes {artifact_id} from Urza")
+            logger.debug("Successfully fetched kernel bytes %s from Urza", artifact_id)
             return kernel_bytes
 
     def remove_kernel(self, artifact_id: str) -> bool:
@@ -358,7 +358,7 @@ class KernelCache:
             cache_info = self._cache_info.pop(artifact_id)
             self.total_size_mb -= cache_info["size_mb"]
 
-            logger.debug(f"Removed kernel {artifact_id} from cache")
+            logger.debug("Removed kernel %s from cache", artifact_id)
             return True
 
         return False

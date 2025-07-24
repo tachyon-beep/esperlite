@@ -84,7 +84,7 @@ class ServiceConfig:
     def __post_init__(self):
         """Validate configuration after initialization."""
         self.validate()
-        logger.info(f"ServiceConfig initialized for environment: {self.environment}")
+        logger.info("ServiceConfig initialized for environment: %s", self.environment)
 
     def validate(self) -> None:
         """
@@ -118,7 +118,7 @@ class ServiceConfig:
         # Validate log level
         valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if self.log_level.upper() not in valid_log_levels:
-            logger.warning(f"Invalid log level '{self.log_level}', using INFO")
+            logger.warning("Invalid log level '%s', using INFO", self.log_level)
             self.log_level = "INFO"
 
         # Warn about production readiness
@@ -173,7 +173,7 @@ class ServiceConfig:
 
         # Log all warnings
         for warning in warnings:
-            logger.warning(f"Production config warning: {warning}")
+            logger.warning("Production config warning: %s", warning)
 
     def get_urza_api_url(self, endpoint: str = "") -> str:
         """Get full Urza API URL with optional endpoint."""
@@ -250,7 +250,7 @@ def init_service_config(**overrides) -> ServiceConfig:
         if hasattr(config, key):
             setattr(config, key, value)
         else:
-            logger.warning(f"Unknown configuration key: {key}")
+            logger.warning("Unknown configuration key: %s", key)
 
     # Validate after overrides
     config.validate()

@@ -319,6 +319,10 @@ class ChunkedKasminaLayerV2(nn.Module):
         Returns:
             Success status
         """
+        # Input validation
+        if not isinstance(seed_id, int) or seed_id < 0:
+            logger.error("Invalid seed_id: must be non-negative integer")
+            return False
         if seed_id >= self.num_seeds:
             logger.error("Invalid seed_id %d (max: %d)", seed_id, self.num_seeds - 1)
             return False
@@ -331,6 +335,15 @@ class ChunkedKasminaLayerV2(nn.Module):
         # Create blueprint if needed
         if blueprint_id is None:
             blueprint_id = self._create_default_blueprint(seed_id)
+        
+        # Validate grafting strategy
+        valid_strategies = ['linear', 'drift_controlled', 'momentum', 'adaptive', 'stability']
+        if grafting_strategy not in valid_strategies:
+            logger.warning(
+                "Invalid grafting_strategy '%s', using 'linear'. Valid options: %s",
+                grafting_strategy, valid_strategies
+            )
+            grafting_strategy = 'linear'
         
         # Map strategy name to ID
         strategy_map = {

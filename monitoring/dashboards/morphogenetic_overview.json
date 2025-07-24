@@ -1,0 +1,168 @@
+{
+  "dashboard": {
+    "title": "Morphogenetic System Overview",
+    "uid": "morph-overview",
+    "version": 1,
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Forward Pass Latency",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, morphogenetic_forward_pass_duration_seconds_bucket)",
+            "legendFormat": "P99 Latency"
+          },
+          {
+            "expr": "histogram_quantile(0.95, morphogenetic_forward_pass_duration_seconds_bucket)",
+            "legendFormat": "P95 Latency"
+          },
+          {
+            "expr": "histogram_quantile(0.50, morphogenetic_forward_pass_duration_seconds_bucket)",
+            "legendFormat": "P50 Latency"
+          }
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [0.1],
+                "type": "gt"
+              },
+              "query": {
+                "params": ["A", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "avg"
+              },
+              "type": "query"
+            }
+          ],
+          "name": "High Forward Pass Latency",
+          "message": "Forward pass P99 latency exceeds 100ms target"
+        }
+      },
+      {
+        "id": 2,
+        "title": "GPU Utilization",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "morphogenetic_gpu_utilization_percent",
+            "legendFormat": "GPU {{gpu_id}} Utilization"
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 80,
+            "color": "green",
+            "op": "gt"
+          },
+          {
+            "value": 50,
+            "color": "yellow",
+            "op": "gt"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Active Seeds per Layer",
+        "type": "heatmap",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "morphogenetic_active_seeds_per_layer",
+            "format": "heatmap"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "morphogenetic_gpu_memory_allocated_mb",
+            "legendFormat": "GPU Allocated"
+          },
+          {
+            "expr": "morphogenetic_gpu_memory_reserved_mb",
+            "legendFormat": "GPU Reserved"
+          },
+          {
+            "expr": "morphogenetic_cpu_memory_mb",
+            "legendFormat": "CPU Memory"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Adaptation Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "rate(morphogenetic_adaptation_success_total[5m]) / rate(morphogenetic_adaptation_attempts_total[5m])",
+            "instant": true
+          }
+        ],
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 0.9},
+            {"color": "green", "value": 0.95}
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "Throughput (samples/sec)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "rate(morphogenetic_samples_processed_total[1m])",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Seed Lifecycle Distribution",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (state) (morphogenetic_seed_lifecycle_state)",
+            "legendFormat": "{{state}}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Error Rate by Layer",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 4},
+        "targets": [
+          {
+            "expr": "topk(10, rate(morphogenetic_layer_errors_total[5m]) > 0)",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}

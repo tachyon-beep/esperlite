@@ -16,6 +16,9 @@ This folder contains all documentation and planning materials for migrating the 
 ### Migration Planning
 - `KASMINA_MIGRATION_PLAN.md` - Phased 11.5-month migration strategy
 - `NEXT_STEPS.md` - Immediate action items and priorities
+- `COMPREHENSIVE_MIGRATION_PLAN.md` - Complete execution plan with technical specs, risks, and resources
+- `EXECUTIVE_SUMMARY.md` - High-level summary for leadership approval
+- `TECHNICAL_DEEP_DIVE.md` - Implementation details for engineering teams
 
 ## Key Findings
 
@@ -59,7 +62,18 @@ The current implementation represents a functional but significantly simplified 
 5. **Testable**: Comprehensive validation
 
 ## Quick Links
-- [Kasmina Migration Plan](KASMINA_MIGRATION_PLAN.md)
-- [Next Steps](NEXT_STEPS.md)
-- [Original Kasmina Design](kasmina_design_v0.1a.md)
-- [Original Tamiyo Design](tamiyo_design_v0.1a.md)
+
+### For Executives
+- [Executive Summary](EXECUTIVE_SUMMARY.md) - Start here for high-level overview
+- [Comprehensive Migration Plan](COMPREHENSIVE_MIGRATION_PLAN.md) - Full plan with ROI analysis
+
+### For Technical Teams
+- [Technical Deep Dive](TECHNICAL_DEEP_DIVE.md) - Implementation patterns and code examples
+- [Kasmina Migration Plan](KASMINA_MIGRATION_PLAN.md) - Detailed phase breakdown
+- [Next Steps](NEXT_STEPS.md) - Immediate action items
+
+### Reference Documents
+- [Original Kasmina Design](kasmina_design_v0.1a.md) - Target architecture
+- [Original Tamiyo Design](tamiyo_design_v0.1a.md) - Target controller design
+- [Kasmina Alignment Assessment](KASMINA_ALIGNMENT_ASSESSMENT.md) - Current state analysis
+- [Tamiyo Alignment Assessment](TAMIYO_ALIGNMENT_ASSESSMENT.md) - Current state analysis

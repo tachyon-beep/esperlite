@@ -2,7 +2,24 @@
 
 This directory contains the working documentation for AI-assisted development of the Esper platform.
 
-## Current Status: Remediation Plan Beta - 100% Complete ✅
+## 🚀 Active Development: Morphogenetic Migration
+
+**Location**: `/working_memory/morphogenetic_migration/`
+
+The morphogenetic migration project is actively implementing the full Kasmina/Tamiyo architecture with 11-state lifecycle, GPU optimization, and advanced features.
+
+**Current Status**: Phase 2 Complete (Extended Lifecycle)
+- ✅ Phase 0: Foundation
+- ✅ Phase 1: Logical/Physical Separation  
+- ✅ Phase 2: Extended Lifecycle with Security Hardening
+- 🚧 Phase 3: GPU Optimization with Triton (Next)
+- ⏳ Phases 4-10: Message Bus, Neural Controller, Distributed Execution
+
+[**→ View Active Morphogenetic Migration Docs**](/working_memory/morphogenetic_migration/)
+
+---
+
+## ✅ Completed: Remediation Plan Beta - 100% Complete
 
 We have successfully completed Remediation Plan Beta, addressing all critical missing functionality. All five phases are now complete, and the system is production-ready.
 

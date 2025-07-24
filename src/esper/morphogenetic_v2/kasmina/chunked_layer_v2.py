@@ -377,14 +377,37 @@ class ChunkedKasminaLayerV2(nn.Module):
         """Request state transition through lifecycle manager."""
         current_state = ExtendedLifecycle(self.extended_state.get_state(torch.tensor([seed_id])).item())
         
-        # Use lifecycle manager to validate transition
-        result = self.lifecycle_manager.request_transition(
+        # Create transition context
+        from ..lifecycle import TransitionContext
+        
+        # Get current performance metrics
+        perf_metrics = self.extended_state.performance_metrics[seed_id]
+        
+        context = TransitionContext(
             seed_id=seed_id,
-            from_state=current_state,
-            to_state=target_state
+            current_state=current_state,
+            target_state=target_state,
+            epochs_in_state=self.extended_state.state_tensor[seed_id, self.extended_state.EPOCHS_IN_STATE].item(),
+            performance_metrics={
+                'loss': perf_metrics[0].item(),
+                'accuracy': perf_metrics[1].item(),
+                'stability': perf_metrics[2].item(),
+                'efficiency': perf_metrics[3].item()
+            },
+            error_count=self.extended_state.state_tensor[seed_id, self.extended_state.ERROR_COUNT].item(),
+            timestamp=time.time(),
+            metadata={'layer_id': self.layer_id}
         )
         
-        if result.approved:
+        # Use lifecycle manager to validate transition
+        approved, reason = self.lifecycle_manager.request_transition(
+            seed_id=seed_id,
+            from_state=current_state,
+            to_state=target_state,
+            context=context
+        )
+        
+        if approved:
             self.extended_state.set_state(
                 torch.tensor([seed_id]),
                 torch.tensor([target_state.value])
@@ -393,7 +416,7 @@ class ChunkedKasminaLayerV2(nn.Module):
         else:
             logger.warning(
                 "Transition denied for seed %d: %s -> %s (%s)",
-                seed_id, current_state.name, target_state.name, result.reason
+                seed_id, current_state.name, target_state.name, reason
             )
             return False
     

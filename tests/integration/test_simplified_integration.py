@@ -5,6 +5,7 @@ This module contains realistic integration tests that validate actual behavior
 without excessive mocking or testing implementation details.
 """
 
+import os
 import pytest
 import torch
 import torch.nn as nn
@@ -172,6 +173,10 @@ class TestCoreIntegration:
             assert "state_stats" in stats
             assert "cache_stats" in stats
 
+    @pytest.mark.skipif(
+        not os.environ.get("REDIS_AVAILABLE", False),
+        reason="Redis not available for telemetry testing"
+    )
     def test_telemetry_enable_disable(self):
         """Test telemetry enable/disable functionality."""
         model = nn.Sequential(nn.Linear(32, 16), nn.Linear(16, 8))

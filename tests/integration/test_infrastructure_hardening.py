@@ -3,6 +3,7 @@ Integration tests for Phase B5: Infrastructure Hardening.
 """
 
 import asyncio
+import os
 import pytest
 import tempfile
 import time
@@ -32,6 +33,10 @@ from esper.services.urza.kernel_manager import KernelManager
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not os.environ.get("TEST_DB_SETUP", False),
+    reason="Test database not configured"
+)
 class TestPersistentKernelCache:
     """Test persistent kernel cache implementation."""
     
@@ -165,6 +170,10 @@ class TestPersistentKernelCache:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not os.environ.get("TEST_DB_SETUP", False),
+    reason="Test database not configured"
+)
 class TestAssetLifecycleManagement:
     """Test asset repository and lifecycle management."""
     
@@ -288,6 +297,10 @@ class TestAssetLifecycleManagement:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not os.environ.get("TEST_DB_SETUP", False),
+    reason="Test database not configured"
+)
 class TestCheckpointRecovery:
     """Test checkpoint and recovery system."""
     
@@ -561,6 +574,10 @@ class TestNissaObservability:
 class TestIntegratedInfrastructure:
     """Test integrated infrastructure components."""
     
+    @pytest.mark.skipif(
+        not os.environ.get("TEST_DB_SETUP", False),
+        reason="Test database not configured"
+    )
     async def test_kernel_manager_integration(self):
         """Test KernelManager with persistent cache."""
         # This test demonstrates the integration but would need

@@ -219,15 +219,13 @@ def test_config() -> Dict[str, Any]:
 @pytest.fixture
 def mock_http_client():
     """Mock HTTP client for tests that need to avoid real network calls.
-    
+
     This is an opt-in fixture. Use it explicitly in tests that need HTTP mocking:
         def test_something(mock_http_client):
             # Test with mocked HTTP
-    
+
     For tests that need real HTTP, simply don't use this fixture.
     """
-        
-    from unittest.mock import AsyncMock
     from unittest.mock import patch
 
     with patch("esper.utils.http_client.AsyncHttpClient") as mock_http_client:
@@ -367,26 +365,7 @@ def disable_telemetry():
     return {"telemetry_enabled": False}
 
 
-@pytest.fixture
-def mock_oona_client():
-    """Mock OonaClient for tests that need to avoid Redis connections.
-    
-    This is an opt-in fixture. Use it explicitly in tests that need OonaClient mocking:
-        def test_something(mock_oona_client):
-            # Test with mocked OonaClient
-    
-    For tests that can use real OonaClient, use real_oona_client_optional from real_components.
-    """
-    
-    from unittest.mock import AsyncMock, MagicMock
-    
-    # Create a mock that doesn't try to connect to Redis
-    mock_client = MagicMock(spec=OonaClient)
-    mock_client.publish_health_signal = AsyncMock()
-    mock_client.publish_adaptation_event = AsyncMock()
-    mock_client.close = AsyncMock()
-    
-    return mock_client
+# Duplicate mock_oona_client fixture removed - using the one defined earlier
 
 
 class TestModelFactory:

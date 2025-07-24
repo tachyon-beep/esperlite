@@ -47,7 +47,10 @@ class FeatureFlagManager:
                 with open(self.config_path) as f:
                     data = json.load(f)
                     for name, config in data.items():
-                        self.flags[name] = FeatureFlag(name=name, **config)
+                        # Filter out extra fields like 'description'
+                        valid_fields = {'enabled', 'rollout_percentage', 'allowlist', 'blocklist'}
+                        filtered_config = {k: v for k, v in config.items() if k in valid_fields}
+                        self.flags[name] = FeatureFlag(name=name, **filtered_config)
                 logger.info("Loaded %d feature flags", len(self.flags))
             except (json.JSONDecodeError, IOError) as e:
                 logger.error("Failed to load feature flags: %s", e)

@@ -88,6 +88,16 @@ class FeatureFlagManager:
                 enabled=False,
                 rollout_percentage=0
             ),
+            "performance_monitoring": FeatureFlag(
+                name="performance_monitoring",
+                enabled=True,
+                rollout_percentage=100
+            ),
+            "ab_testing": FeatureFlag(
+                name="ab_testing",
+                enabled=True,
+                rollout_percentage=100
+            ),
         }
         self.flags.update(defaults)
         

@@ -216,19 +216,16 @@ def test_config() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture(autouse=True)
-def prevent_real_network_calls(request):
-    """Automatically prevent real network calls during testing.
+@pytest.fixture
+def mock_http_client():
+    """Mock HTTP client for tests that need to avoid real network calls.
     
-    Can be disabled by using the 'no_auto_mock_http' marker:
-        @pytest.mark.no_auto_mock_http
-        def test_something():
-            # This test will use real HTTP client
+    This is an opt-in fixture. Use it explicitly in tests that need HTTP mocking:
+        def test_something(mock_http_client):
+            # Test with mocked HTTP
+    
+    For tests that need real HTTP, simply don't use this fixture.
     """
-    # Check if the test has the no_auto_mock_http marker
-    if request.node.get_closest_marker('no_auto_mock_http'):
-        yield None
-        return
         
     from unittest.mock import AsyncMock
     from unittest.mock import patch
@@ -357,7 +354,7 @@ def prevent_real_network_calls(request):
         yield mock_http_instance
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def setup_logging():
     """Setup logging for tests."""
     logging.getLogger("esper").setLevel(logging.WARNING)
@@ -370,21 +367,18 @@ def disable_telemetry():
     return {"telemetry_enabled": False}
 
 
-@pytest.fixture(autouse=True)
-def mock_oona_client_creation(request):
-    """Automatically mock OonaClient creation to prevent Redis connection attempts.
+@pytest.fixture
+def mock_oona_client():
+    """Mock OonaClient for tests that need to avoid Redis connections.
     
-    Can be disabled by using the 'no_auto_mock_oona' marker:
-        @pytest.mark.no_auto_mock_oona
-        def test_something():
-            # This test will use real OonaClient
+    This is an opt-in fixture. Use it explicitly in tests that need OonaClient mocking:
+        def test_something(mock_oona_client):
+            # Test with mocked OonaClient
+    
+    For tests that can use real OonaClient, use real_oona_client_optional from real_components.
     """
-    # Check if the test has the no_auto_mock_oona marker
-    if request.node.get_closest_marker('no_auto_mock_oona'):
-        yield None
-        return
     
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, MagicMock
     
     # Create a mock that doesn't try to connect to Redis
     mock_client = MagicMock(spec=OonaClient)
@@ -392,8 +386,7 @@ def mock_oona_client_creation(request):
     mock_client.publish_adaptation_event = AsyncMock()
     mock_client.close = AsyncMock()
     
-    with patch('esper.execution.kasmina_layer.OonaClient', return_value=mock_client):
-        yield mock_client
+    return mock_client
 
 
 class TestModelFactory:
@@ -540,5 +533,5 @@ pytest.mark.unit = pytest.mark.unit
 pytest.mark.integration = pytest.mark.integration
 pytest.mark.performance = pytest.mark.performance
 pytest.mark.slow = pytest.mark.slow
-pytest.mark.no_auto_mock_oona = pytest.mark.no_auto_mock_oona
-pytest.mark.no_auto_mock_http = pytest.mark.no_auto_mock_http
+pytest.mark.real_components = pytest.mark.real_components  # Uses real components, no mocks
+pytest.mark.external_services = pytest.mark.external_services  # Requires external services

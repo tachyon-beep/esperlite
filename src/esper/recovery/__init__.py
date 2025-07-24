@@ -6,11 +6,12 @@ automated checkpointing and fast state restoration.
 """
 
 from .checkpoint_manager import CheckpointManager, CheckpointConfig
-from .state_snapshot import StateSnapshot, ComponentState
+from .state_snapshot import StateSnapshot, ComponentState, ComponentType
 
 __all__ = [
     "CheckpointManager",
     "CheckpointConfig",
     "StateSnapshot",
     "ComponentState",
+    "ComponentType",
 ]

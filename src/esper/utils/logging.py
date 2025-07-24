@@ -49,47 +49,59 @@ class OptimizedStructuredFormatter(logging.Formatter):
 class AsyncEsperLogger:
     """High-performance async logger for production workloads with <0.1ms target."""
 
-    def __init__(self, service_name: str, level: int = logging.INFO):
-        self.service_name = service_name
-        self.log_queue: queue.Queue = queue.Queue(maxsize=10000)  # Prevent memory bloat
-        self.queue_handler = QueueHandler(self.log_queue)
+    def __init__(self, name: str, level: int = logging.INFO, queue_size: int = 10000):
+        self.name = name
+        self.level = level
+        self.queue_size = queue_size
 
-        # Setup async processing with minimal overhead
-        self.executor = ThreadPoolExecutor(
-            max_workers=1,  # Single worker for ordering
-            thread_name_prefix=f"esper-log-{service_name}",
-        )
-        self._setup_async_handler(level)
-        self._active = True
+        # Create queue and handler
+        self.queue = queue.Queue(maxsize=queue_size)
+        self.queue_handler = QueueHandler(self.queue)
 
-    def _setup_async_handler(self, level: int):
-        """Setup asynchronous log processing."""
-        stream_handler = EsperStreamHandler(sys.stdout, self.service_name)
+        # Get logger instance
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(level)
+        self.logger.addHandler(self.queue_handler)
+
+        # Background thread for queue processing
+        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"esper-log-{name}")
+        self.listener = None
+
+    def start(self):
+        """Start async logger processing."""
+        if self.listener:
+            return
+
+        # Setup stream handler with formatter
+        stream_handler = EsperStreamHandler(sys.stdout, self.name)
         formatter = OptimizedStructuredFormatter(
-            f"%(asctime)s - {self.service_name} - %(levelname)s - [%(name)s:%(lineno)s] - %(message)s"
+            f"%(asctime)s - {self.name} - %(levelname)s - [%(name)s:%(lineno)s] - %(message)s"
         )
         stream_handler.setFormatter(formatter)
-        stream_handler.setLevel(level)
 
-        self.queue_listener = QueueListener(
-            self.log_queue, stream_handler, respect_handler_level=True
-        )
-        self.queue_listener.start()
+        # Create and start queue listener
+        self.listener = QueueListener(self.queue, stream_handler, respect_handler_level=True)
+        self.listener.start()
 
-    def shutdown(self):
-        """Clean shutdown of async logger."""
-        if hasattr(self, "queue_listener"):
-            self.queue_listener.stop()
-        if hasattr(self, "executor"):
-            self.executor.shutdown(wait=True)
-        self._active = False
+    def stop(self):
+        """Stop async logger processing."""
+        if self.listener:
+            self.listener.stop()
+            self.listener = None
+        self.executor.shutdown(wait=True)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
 
 
 def setup_logging(service_name: str, level: int = logging.INFO) -> logging.Logger:
     """Configures structured logging for a service."""
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
-
     # Check if we already have a handler for this service
     service_handler_exists = any(
         isinstance(h, EsperStreamHandler) and h.esper_service == service_name
@@ -130,3 +142,19 @@ def setup_high_performance_logging(
         root_logger.addHandler(handler)
 
     return logging.getLogger(service_name)
+
+
+def get_logger(name: str) -> logging.Logger:
+    """
+    Get a logger instance for the given name.
+    
+    This is a simple wrapper around logging.getLogger to maintain
+    compatibility with modules expecting this function.
+    
+    Args:
+        name: Logger name (typically __name__)
+        
+    Returns:
+        Logger instance
+    """
+    return logging.getLogger(name)

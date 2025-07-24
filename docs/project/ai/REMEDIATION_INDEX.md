@@ -1,91 +1,81 @@
-# Remediation Plan Beta - Documentation Index
+# Remediation Plans Index
 
-This index provides quick access to all remediation-related documentation for the Esper Morphogenetic Training Platform.
+This document tracks all remediation plans for the Esper Morphogenetic Training Platform.
 
-## Primary Documents
+## Active Plans
 
-### 📊 [REMEDIATION_BETA_STATUS.md](./REMEDIATION_BETA_STATUS.md)
-**Final Status Report** - Executive summary of completed remediation plan.
-- Overall progress: 100% complete ✅ (5/5 phases)
-- All functionality implemented
-- Production-ready system
+### 📊 [Remediation Plan Charlie](./REMEDIATION_PLAN_CHARLIE.md)
+**Status**: ACTIVE
+**Created**: 2025-07-23
+**Focus**: Test Suite Alignment
+**Duration**: 1-2 weeks
 
-### 📋 [REMEDIATION_PLAN_BETA.md](./REMEDIATION_PLAN_BETA.md)
-**Master Plan Document** - Detailed remediation plan with all phases (B1-B5).
-- Phase definitions and objectives
-- Success criteria and deliverables
-- Implementation roadmap
+Addresses critical deviations between test expectations and implementation:
+- Contract-implementation mismatches
+- API surface inconsistencies  
+- Schema evolution without test updates
+- Async/sync pattern violations
 
-### 🔍 [MISSING_FUNCTIONALITY.md](./MISSING_FUNCTIONALITY.md)
-**Gap Analysis (ALL RESOLVED)** - Historical record of addressed functionality.
-- All items completed (✅)
-- No remaining gaps
-- System production-ready
+#### Phase Status
+- Phase C1: Contract-Implementation Alignment ⏳
+- Phase C2: Test Schema Updates ⏳
+- Phase C3: Async Pattern Refinement ✅
+- Phase C4: API Surface Completion ✅
+- Phase C5: Test Suite Modernization ⏳
+- Phase C6: Documentation and Standards ⏳
 
-## Phase-Specific Documentation
+## Completed Plans
 
-### Phase B1: Real Kernel Compilation ✅
-- [Phase B1 Implementation Summary](./phases/PHASE_B1_IMPLEMENTATION_SUMMARY.md)
-- Location: `src/esper/services/tezzeret/`
-- Key achievement: 0.15s compilation latency
+### 📋 [Remediation Plan Beta](./archive/remediation_beta/)
+**Status**: COMPLETED ✅
+**Completed**: 2025-07-24
+**Focus**: Missing Core Functionality
+**Duration**: 2 days (vs 3 weeks estimated)
 
-### Phase B2: Async Conv2D Support ✅
-- [Phase B2 Implementation Summary](./modules/PHASE_B2_IMPLEMENTATION_SUMMARY.md)
-- Location: `src/esper/execution/`
-- Key achievement: Zero synchronous fallbacks
+Successfully implemented all missing functionality:
+- Phase B1: Real Kernel Compilation Pipeline ✅
+- Phase B2: Async Support for Conv2D Layers ✅
+- Phase B3: Intelligent Seed Selection ✅
+- Phase B4: Dynamic Architecture Modification ✅
+- Phase B5: Infrastructure Hardening ✅
 
-### Phase B3: Intelligent Seed Selection ✅
-- [Phase B3 Implementation Summary](./phases/PHASE_B3_IMPLEMENTATION_SUMMARY.md)
-- Location: `src/esper/services/tamiyo/`
-- Key achievement: < 1ms selection latency
+### Remediation Plan Alpha
+**Status**: Unknown (not found in codebase)
+**Focus**: Unknown
+**Document**: Not available
 
-### Phase B4: Dynamic Architecture Modification ✅
-- [Phase B4 Implementation Summary](./phases/PHASE_B4_IMPLEMENTATION_SUMMARY.md)
-- Location: `src/esper/core/seed_orchestrator.py`
-- Key achievement: Seed orchestration (not model surgery)
+## Plan Naming Convention
 
-### Phase B5: Infrastructure Hardening ✅
-- [Phase B5 Implementation Summary](./phases/PHASE_B5_IMPLEMENTATION_SUMMARY.md)
-- [Phase B5 Detailed Plan](./phases/PHASE_B5_DETAILED_PLAN.md)
-- Location: `src/esper/storage/`, `src/esper/recovery/`, `src/esper/services/nissa/`
-- Key achievements: 98% cache hit rate, <30s recovery, <5% overhead
+Plans are named alphabetically (Alpha, Beta, Charlie, Delta, etc.) and focus on specific areas:
+- **Alpha**: Initial remediation (status unknown)
+- **Beta**: Core missing functionality (completed)
+- **Charlie**: Test suite quality and alignment (active)
+- **Delta**: Reserved for future use
 
-## Integration Documentation
+## Quick Navigation
 
-### 📖 [LLM_CODEBASE_GUIDE.md](./LLM_CODEBASE_GUIDE.md)
-Comprehensive guide with full implementation status:
-- All features from B1-B5 completed
-- No critical limitations remaining
-- Production-ready status
+### Current Work
+- [Remediation Plan Charlie](./REMEDIATION_PLAN_CHARLIE.md) - Active test suite remediation
+- [Test Deviation Analysis](../../tests/TEST_DEVIATION_ANALYSIS.md) - Detailed findings
+- [Test Suite Deviation Report](../../tests/TEST_SUITE_DEVIATION_REPORT.md) - Executive summary
 
-## Quick Links
+### Archived Plans
+- [Remediation Beta Status](./archive/remediation_beta/REMEDIATION_BETA_STATUS.md) - Completion report
+- [Remediation Beta Plan](./archive/remediation_beta/REMEDIATION_PLAN_BETA.md) - Original plan
 
-### Source Code Locations
-- **Compilation Pipeline**: `src/esper/services/tezzeret/`
-- **Async Conv2D**: `src/esper/execution/async_*.py`
-- **Seed Selection**: `src/esper/services/tamiyo/seed_selector.py`
-- **Architecture Modification**: `src/esper/core/seed_orchestrator.py`
-- **Infrastructure**: `src/esper/storage/`, `src/esper/recovery/`, `src/esper/services/nissa/`
-- **Tests**: `tests/` (comprehensive coverage)
+### Project Status
+- [Current Status](./CURRENT_STATUS.md) - Overall project status
+- [Working Memory](./WORKING_MEMORY.md) - Active development tracking
+- [Missing Functionality](./MISSING_FUNCTIONALITY.md) - Gap analysis (all resolved)
 
-### Key Classes
-- `BlueprintCompiler` - TorchScript compilation
-- `AsyncConv2dKernel` - Async Conv2D execution
-- `SeedSelector` - Intelligent seed selection
-- `SeedOrchestrator` - Dynamic architecture modification
-- `PersistentKernelCache` - Multi-tier caching
-- `CheckpointManager` - State recovery
-- `NissaService` - Observability
+### Architecture References
+- [HLD Key Concepts](./HLD_KEY_CONCEPTS.md)
+- [Architecture Principles](./HLD_ARCHITECTURE_PRINCIPLES.md)
+- [LLM Codebase Guide](./LLM_CODEBASE_GUIDE.md)
 
-## How to Use This Index
+## Progress Summary
 
-1. **For Current Status**: Start with [REMEDIATION_BETA_STATUS.md](./REMEDIATION_BETA_STATUS.md)
-2. **For Technical Details**: Read phase-specific summaries
-3. **For Implementation**: Check [REMEDIATION_PLAN_BETA.md](./REMEDIATION_PLAN_BETA.md)
-4. **For Context**: Review [LLM_CODEBASE_GUIDE.md](./LLM_CODEBASE_GUIDE.md)
-
-## Progress Tracking
-
+### Remediation Beta (Completed)
 ```
 Phase B1 [████████████████████] 100% ✅
 Phase B2 [████████████████████] 100% ✅
@@ -96,13 +86,54 @@ Phase B5 [████████████████████] 100% ✅
 Overall: [████████████████████] 100% Complete 🎉
 ```
 
-## Production Readiness
+### Remediation Charlie (Active)
+```
+Phase C1 [                    ]   0% ⏳
+Phase C2 [                    ]   0% ⏳
+Phase C3 [████████████████████] 100% ✅
+Phase C4 [████████████████████] 100% ✅
+Phase C5 [                    ]   0% ⏳
+Phase C6 [                    ]   0% ⏳
 
-- ✅ All critical functionality implemented
-- ✅ Infrastructure hardened with persistence
-- ✅ Comprehensive observability in place
-- ✅ Fault tolerance and recovery tested
-- ✅ Performance targets achieved
-- ✅ Ready for deployment
+Overall: [██████              ]  33% In Progress
+```
 
-Last Updated: 2025-07-24
+## Key Achievements
+
+### From Remediation Beta
+- Real kernel compilation with 0.15s latency
+- True async execution without blocking
+- Intelligent seed selection with <1ms overhead
+- Dynamic architecture via seed orchestration
+- Production-ready infrastructure
+
+### From Remediation Charlie (In Progress)
+- AsyncHttpClient lazy initialization ✅
+- Missing API exports added ✅
+- Contract-implementation alignment (pending)
+- Test schema modernization (pending)
+
+## Next Actions
+
+1. **Immediate** (Phase C1)
+   - Fix seed_orchestrator adaptation type handling
+   - Update tests to use valid contract values
+
+2. **This Week** (Phase C2)
+   - Update all tests to current AdaptationDecision schema
+   - Remove forbidden fields from test data
+
+3. **Next Week** (Phase C5-C6)
+   - Reduce mock usage in tests
+   - Create development standards documentation
+
+## How to Use This Index
+
+1. **For Active Work**: Start with [Remediation Plan Charlie](./REMEDIATION_PLAN_CHARLIE.md)
+2. **For Context**: Review completed [Remediation Beta](./archive/remediation_beta/)
+3. **For Architecture**: Check [LLM Codebase Guide](./LLM_CODEBASE_GUIDE.md)
+4. **For Testing**: See [Test Deviation Analysis](../../tests/TEST_DEVIATION_ANALYSIS.md)
+
+---
+
+Last Updated: 2025-07-23

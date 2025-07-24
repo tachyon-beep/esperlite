@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 import asyncio
+import time
 
 from esper.core.seed_orchestrator import (
     SeedOrchestrator, SeedStrategy, SeedOrchestratorConfig,
@@ -19,6 +20,13 @@ from esper.contracts.operational import AdaptationDecision, ModelGraphState
 from esper.execution.kasmina_layer import KasminaLayer
 from esper.services.tamiyo.performance_tracker import PerformanceTracker
 from esper.blueprints.registry import BlueprintRegistry
+from tests.helpers import create_valid_adaptation_decision
+from tests.fixtures.test_infrastructure import (
+    real_performance_tracker,
+    real_blueprint_registry,
+    real_seed_orchestrator_components,
+    create_test_blueprint
+)
 
 
 class TestModel(nn.Module):
@@ -40,31 +48,9 @@ class TestSeedOrchestrator:
     """Test suite for seed orchestrator functionality."""
     
     @pytest.fixture
-    def mock_components(self):
-        """Create mock components for testing."""
-        performance_tracker = Mock(spec=PerformanceTracker)
-        blueprint_registry = Mock(spec=BlueprintRegistry)
-        oona_client = AsyncMock()
-        urza_url = "http://test-urza:8000"
-        
-        # Mock performance tracker methods
-        performance_tracker.get_seed_metrics = AsyncMock(return_value={
-            "accuracy_trend": 0.7,
-            "loss_trend": 0.3,
-            "efficiency": 0.8
-        })
-        
-        return {
-            "performance_tracker": performance_tracker,
-            "blueprint_registry": blueprint_registry,
-            "oona_client": oona_client,
-            "urza_url": urza_url
-        }
-    
-    @pytest.fixture
-    def orchestrator(self, mock_components):
-        """Create seed orchestrator instance."""
-        return SeedOrchestrator(**mock_components)
+    def orchestrator(self, real_seed_orchestrator_components):
+        """Create seed orchestrator instance with real components."""
+        return SeedOrchestrator(**real_seed_orchestrator_components)
     
     @pytest.fixture
     def test_model(self):
@@ -74,18 +60,13 @@ class TestSeedOrchestrator:
     @pytest.fixture
     def adaptation_decision(self):
         """Create test adaptation decision."""
-        return AdaptationDecision(
-            decision_id="test_001",
+        return create_valid_adaptation_decision(
             layer_name="layer1",
-            adaptation_type="add_neurons",
+            adaptation_type="add_seed",  # Use valid type
             confidence=0.85,
+            urgency=0.7,
             parameters={"num_seeds": 2},
-            reasoning="Layer showing high activation variance",
-            model_graph_state=ModelGraphState(
-                graph_data={"nodes": [], "edges": []},
-                metrics={}
-            ),
-            epoch=10
+            reasoning="Layer showing high activation variance"
         )
     
     def test_initialization(self, orchestrator):
@@ -120,11 +101,19 @@ class TestSeedOrchestrator:
         assert layer is None
     
     @pytest.mark.asyncio
-    async def test_analyze_seed_performance(self, orchestrator, test_model):
-        """Test seed performance analysis."""
+    async def test_analyze_seed_performance(self, orchestrator, test_model, real_performance_tracker):
+        """Test seed performance analysis with real tracker."""
         layer = test_model.layer1
         
-        # Mock state layout methods
+        # Set up real performance data
+        await real_performance_tracker.record_seed_metrics(
+            "layer1", 0, {"accuracy_trend": 0.8, "loss_trend": 0.2, "efficiency": 0.9}
+        )
+        await real_performance_tracker.record_seed_metrics(
+            "layer1", 1, {"accuracy_trend": 0.6, "loss_trend": 0.4, "efficiency": 0.7}
+        )
+        
+        # Mock state layout methods (this is internal to layer)
         layer.state_layout.is_seed_active = Mock(side_effect=lambda idx: idx < 2)
         layer.state_layout.alpha_blend = torch.tensor([0.5, 0.3, 0.0, 0.0])
         
@@ -132,15 +121,17 @@ class TestSeedOrchestrator:
         
         assert len(analysis) == 4  # 4 seeds
         
-        # Check seed 0 (active)
+        # Check seed 0 (active) with real metrics
         assert analysis[0]["is_active"] == True
         assert analysis[0]["blend_factor"] == 0.5
-        assert "accuracy_score" in analysis[0]
-        assert "composite_score" in analysis[0]
+        assert analysis[0]["accuracy_score"] == 0.8
+        assert analysis[0]["loss_score"] == 0.8  # 1.0 - 0.2
+        assert analysis[0]["efficiency_score"] == 0.9
         
-        # Check seed 2 (inactive)
+        # Check seed 2 (inactive) with default metrics
         assert analysis[2]["is_active"] == False
         assert analysis[2]["blend_factor"] == 0.0
+        assert analysis[2]["accuracy_score"] == 0.5  # Default
     
     def test_create_diversify_plan(self, orchestrator, test_model):
         """Test creation of diversify strategy plan."""
@@ -152,11 +143,11 @@ class TestSeedOrchestrator:
             3: {"is_active": False, "composite_score": 0.0, "blend_factor": 0.0}
         }
         
-        decision = AdaptationDecision(
-            decision_id="test_div",
+        decision = create_valid_adaptation_decision(
             layer_name="layer1",
-            adaptation_type="add_neurons",
+            adaptation_type="add_seed",  # Mapped from add_neurons
             confidence=0.8,
+            urgency=0.6,
             parameters={"num_seeds": 2},
             reasoning="Diversify capacity"
         )
@@ -179,11 +170,11 @@ class TestSeedOrchestrator:
             3: {"is_active": True, "composite_score": 0.2, "blend_factor": 0.1}   # Worst
         }
         
-        decision = AdaptationDecision(
-            decision_id="test_spec",
+        decision = create_valid_adaptation_decision(
             layer_name="layer1",
-            adaptation_type="remove_neurons",
+            adaptation_type="remove_seed",  # Mapped from remove_neurons
             confidence=0.8,
+            urgency=0.5,
             parameters={},
             reasoning="Consolidate to best performers"
         )
@@ -208,11 +199,11 @@ class TestSeedOrchestrator:
             3: {"is_active": True, "composite_score": 0.6, "blend_factor": 0.4}
         }
         
-        decision = AdaptationDecision(
-            decision_id="test_ens",
+        decision = create_valid_adaptation_decision(
             layer_name="layer1",
-            adaptation_type="add_layer",
+            adaptation_type="modify_architecture",  # Mapped from add_layer
             confidence=0.8,
+            urgency=0.6,
             parameters={},
             reasoning="Create ensemble"
         )
@@ -245,16 +236,24 @@ class TestSeedOrchestrator:
             layer_name="layer1",
             strategy=SeedStrategy.DIVERSIFY,
             seed_modifications={
-                0: {"action": "load_diverse_kernel", "initial_blend": 0.3},
-                1: {"action": "adjust_blend", "new_blend": 0.5},
-                2: {"action": "unload_kernel"}
+                0: {"action": "load_diverse_kernel", "initial_blend": 0.3, "reasoning": "Load diverse kernel"},
+                1: {"action": "adjust_blend", "new_blend": 0.5, "reasoning": "Adjust blend factor"},
+                2: {"action": "unload_kernel", "reasoning": "Unload underperforming kernel"}
             },
             expected_improvement=0.4,
             risk_score=0.3,
             reasoning="Test plan"
         )
         
-        model_state = ModelGraphState(graph_data={}, metrics={})
+        # Create proper ModelGraphState with required fields
+        model_state = ModelGraphState(
+            topology=None,  # Mock topology
+            health_signals={},
+            health_trends={},
+            problematic_layers=set(),
+            overall_health=0.8,
+            analysis_timestamp=time.time()
+        )
         success = await orchestrator._execute_modification_plan(layer, plan, model_state)
         
         assert success == True
@@ -265,40 +264,44 @@ class TestSeedOrchestrator:
         layer.unload_kernel.assert_called_once_with(2)  # Unload seed 2
     
     @pytest.mark.asyncio
-    async def test_apply_architecture_modification_success(self, orchestrator, test_model, adaptation_decision):
-        """Test successful architecture modification."""
-        # Mock methods
-        orchestrator._analyze_seed_performance = AsyncMock(return_value={
-            0: {"is_active": True, "composite_score": 0.7, "blend_factor": 0.5},
-            1: {"is_active": False, "composite_score": 0.0, "blend_factor": 0.0},
-            2: {"is_active": False, "composite_score": 0.0, "blend_factor": 0.0},
-            3: {"is_active": False, "composite_score": 0.0, "blend_factor": 0.0}
-        })
+    async def test_apply_architecture_modification_with_real_components(
+        self, orchestrator, test_model, adaptation_decision, real_performance_tracker
+    ):
+        """Test architecture modification with real components."""
+        # Set up real performance data that will trigger modification
+        await real_performance_tracker.record_seed_metrics(
+            "layer1", 0, {"accuracy_trend": 0.2, "loss_trend": 0.8, "efficiency": 0.3}
+        )
         
+        # Mock only the execution part since it involves external calls
         orchestrator._execute_modification_plan = AsyncMock(return_value=True)
         
+        # Apply real modification logic
         success, details = await orchestrator.apply_architecture_modification(
             test_model, adaptation_decision
         )
         
         assert success == True
-        assert "strategy" in details
-        assert "modified_seeds" in details
-        assert "expected_improvement" in details
-        assert "duration_ms" in details
+        assert details["strategy"] == "diversify"  # Should diversify due to add_seed
+        assert details["modified_seeds"] >= 1
+        assert details["expected_improvement"] > 0
+        assert details["duration_ms"] > 0
         
-        # Check that modification was recorded
+        # Verify real modification history
         assert len(orchestrator.modification_history) == 1
-        assert orchestrator.modification_history[0]["success"] == True
+        record = orchestrator.modification_history[0]
+        assert record["success"] == True
+        assert record["layer_name"] == "layer1"
+        assert record["adaptation_type"] == "add_seed"
     
     @pytest.mark.asyncio
     async def test_apply_architecture_modification_non_kasmina_layer(self, orchestrator, test_model):
         """Test handling of non-Kasmina layer."""
-        decision = AdaptationDecision(
-            decision_id="test_002",
+        decision = create_valid_adaptation_decision(
             layer_name="layer2",  # This is nn.Linear, not KasminaLayer
-            adaptation_type="add_neurons",
+            adaptation_type="add_seed",
             confidence=0.8,
+            urgency=0.5,
             parameters={},
             reasoning="Test"
         )
@@ -361,16 +364,16 @@ class TestSeedStrategies:
         """Test that correct strategy is chosen based on adaptation type."""
         config = SeedOrchestratorConfig()
         
-        # Map adaptation types to expected strategies
+        # Map adaptation types to expected strategies using valid contract types
         adaptation_strategy_map = {
-            "add_neurons": SeedStrategy.DIVERSIFY,
-            "remove_neurons": SeedStrategy.SPECIALIZE,
-            "add_layer": SeedStrategy.ENSEMBLE,
-            "unknown_type": SeedStrategy.REPLACE
+            "add_seed": SeedStrategy.DIVERSIFY,
+            "remove_seed": SeedStrategy.SPECIALIZE,
+            "modify_architecture": SeedStrategy.ENSEMBLE,
+            "optimize_parameters": SeedStrategy.REPLACE
         }
         
         for adaptation_type, expected_strategy in adaptation_strategy_map.items():
             # This tests the logic in _create_modification_plan
             # which we can't directly test without creating full orchestrator
-            assert adaptation_type in ["add_neurons", "remove_neurons", "add_layer", "unknown_type"]
+            assert adaptation_type in ["add_seed", "remove_seed", "modify_architecture", "optimize_parameters"]
             assert expected_strategy in SeedStrategy

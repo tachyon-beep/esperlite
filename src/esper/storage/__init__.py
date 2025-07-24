@@ -8,7 +8,7 @@ This module provides persistent storage capabilities including:
 """
 
 from .kernel_cache import PersistentKernelCache, CacheConfig
-from .asset_repository import AssetRepository, AssetQuery
+from .asset_repository import AssetRepository, AssetQuery, AssetMetadata
 from .cache_backends import RedisBackend, PostgreSQLBackend
 
 __all__ = [
@@ -16,6 +16,7 @@ __all__ = [
     "CacheConfig",
     "AssetRepository", 
     "AssetQuery",
+    "AssetMetadata",
     "RedisBackend",
     "PostgreSQLBackend",
 ]

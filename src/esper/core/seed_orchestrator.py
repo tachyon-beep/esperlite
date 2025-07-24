@@ -95,7 +95,10 @@ class SeedOrchestrator:
         self.last_modification_epoch: Dict[str, int] = {}  # layer -> epoch
 
     async def apply_architecture_modification(
-        self, model: nn.Module, decision: AdaptationDecision
+        self,
+        model: nn.Module,
+        decision: AdaptationDecision,
+        model_state: Optional[Any] = None
     ) -> Tuple[bool, Dict[str, Any]]:
         """
         Apply architecture modification through seed orchestration.
@@ -103,6 +106,7 @@ class SeedOrchestrator:
         Args:
             model: Model containing Kasmina layers
             decision: Adaptation decision from Tamiyo
+            model_state: Optional model state for adaptation pipeline
 
         Returns:
             (success, details) tuple
@@ -129,7 +133,7 @@ class SeedOrchestrator:
 
             # 4. Execute the plan
             success = await self._execute_modification_plan(
-                kasmina_layer, plan, decision.model_graph_state
+                kasmina_layer, plan, model_state
             )
 
             # 5. Record the modification
@@ -182,7 +186,8 @@ class SeedOrchestrator:
             efficiency_score = metrics.get("efficiency", 0.5)
 
             # Check if seed is active
-            is_active = kasmina_layer.state_layout.is_seed_active(seed_idx)
+            active_seeds_mask = kasmina_layer.state_layout.get_active_seeds()
+            is_active = active_seeds_mask[seed_idx].item()
 
             analysis[seed_idx] = {
                 "is_active": is_active,
@@ -204,25 +209,29 @@ class SeedOrchestrator:
         """Create a plan for modifying seeds based on decision and analysis."""
 
         # Determine strategy based on adaptation type and current state
-        if decision.adaptation_type == "add_neurons":
-            # Interpret as "add diversity" - load different kernels
-            strategy = SeedStrategy.DIVERSIFY
+        # Using contract-valid adaptation types from operational.py
+        if decision.adaptation_type == "add_seed":
+            # Add diversity by loading different kernels into new/inactive seeds
             plan = self._create_diversify_plan(kasmina_layer, seed_analysis, decision)
 
-        elif decision.adaptation_type == "remove_neurons":
-            # Interpret as "consolidate" - reduce active seeds
-            strategy = SeedStrategy.SPECIALIZE
+        elif decision.adaptation_type == "remove_seed":
+            # Consolidate by reducing active seeds and specializing remaining ones
             plan = self._create_specialize_plan(kasmina_layer, seed_analysis, decision)
 
-        elif decision.adaptation_type == "add_layer":
-            # Interpret as "ensemble" - activate all seeds with different kernels
-            strategy = SeedStrategy.ENSEMBLE
+        elif decision.adaptation_type == "modify_architecture":
+            # Create ensemble by activating all seeds with different kernels
             plan = self._create_ensemble_plan(kasmina_layer, seed_analysis, decision)
 
-        else:
-            # Default: replace underperforming seeds
-            strategy = SeedStrategy.REPLACE
+        elif decision.adaptation_type == "optimize_parameters":
+            # Replace underperforming seeds with better alternatives
             plan = self._create_replace_plan(kasmina_layer, seed_analysis, decision)
+
+        else:
+            # This should never happen due to Pydantic validation
+            raise ValueError(
+                f"Invalid adaptation type: {decision.adaptation_type}. "
+                f"Valid types are: add_seed, remove_seed, modify_architecture, optimize_parameters"
+            )
 
         return plan
 
@@ -248,7 +257,9 @@ class SeedOrchestrator:
         candidates.sort(key=lambda x: x[1])
 
         # Plan to load diverse kernels into top candidates
-        num_to_modify = min(len(candidates), decision.parameters.get("num_seeds", 2))
+        # Get parameters from metadata (not direct parameters field)
+        params = decision.metadata.get("parameters", {})
+        num_to_modify = min(len(candidates), params.get("num_seeds", 2))
         for i in range(num_to_modify):
             seed_idx = candidates[i][0]
             modifications[seed_idx] = {
@@ -411,18 +422,22 @@ class SeedOrchestrator:
                     "replace_kernel",
                 ]:
                     # Request blueprint compilation and load kernel
+                    # Using correct schema - no decision_id, parameters/reasoning in metadata
                     decision = AdaptationDecision(
-                        decision_id=f"{plan.layer_name}_seed{seed_idx}_{time.time()}",
                         layer_name=plan.layer_name,
-                        adaptation_type="kernel_selection",
+                        adaptation_type="optimize_parameters",  # Valid type for kernel optimization
                         confidence=0.8,
-                        parameters={
-                            "category_preference": modification.get(
-                                "category_preference", 0
-                            ),
-                            "seed_idx": seed_idx,
-                        },
-                        reasoning=modification["reasoning"],
+                        urgency=0.5,  # Required field
+                        metadata={
+                            "parameters": {
+                                "category_preference": modification.get(
+                                    "category_preference", 0
+                                ),
+                                "seed_idx": seed_idx,
+                            },
+                            "reasoning": modification["reasoning"],
+                            "action": action,
+                        }
                     )
 
                     # Execute adaptation pipeline
@@ -475,21 +490,24 @@ class SeedOrchestrator:
     ) -> None:
         """Record modification in history."""
         record = {
-            "timestamp": time.time(),
-            "decision_id": decision.decision_id,
+            "timestamp": decision.timestamp,  # Use timestamp from decision
             "layer_name": decision.layer_name,
+            "adaptation_type": decision.adaptation_type,
             "strategy": plan.strategy.value,
             "num_seeds_modified": len(plan.seed_modifications),
             "expected_improvement": plan.expected_improvement,
             "risk_score": plan.risk_score,
+            "confidence": decision.confidence,
+            "urgency": decision.urgency,
             "success": success,
             "duration_ms": duration_ms,
+            "metadata": decision.metadata,
         }
 
         self.modification_history.append(record)
 
-        if success:
-            self.last_modification_epoch[decision.layer_name] = decision.epoch
+        # Note: epoch tracking moved to caller since AdaptationDecision doesn't have epoch
+        # The caller should track epochs separately if needed
 
     def can_modify_layer(self, layer_name: str, current_epoch: int) -> bool:
         """Check if layer can be modified based on cooldown period."""

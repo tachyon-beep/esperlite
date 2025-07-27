@@ -47,7 +47,6 @@ class TestModelWrapperIntegration(RealComponentTestBase):
         assert not model_stats["morphogenetic_active"]
         assert model_stats["total_seeds"] > 0
 
-    @pytest.mark.xfail(reason="Kernel execution doesn't work in sync fallback mode")
     @pytest.mark.asyncio
     async def test_model_with_real_kernel_loading(self, simple_linear_model):
         """Test model with actual kernel loading and execution."""

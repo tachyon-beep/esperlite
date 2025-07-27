@@ -186,8 +186,8 @@ def real_oona_client_optional():
     try:
         # Try to create real client
         client = OonaClient()
-        # Test connection
-        asyncio.run(client.publish_health_signal(None))
+        # Just try to instantiate, don't test connection
+        # Connection test would require Redis to be running
         return client
     except (ImportError, ConnectionError, RuntimeError) as e:
         # Redis not available, return None

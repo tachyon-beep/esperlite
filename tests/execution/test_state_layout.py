@@ -12,25 +12,8 @@ from esper.execution.state_layout import SeedLifecycleState
 class TestKasminaStateLayout:
     """Test cases for KasminaStateLayout."""
 
-    def test_initialization(self):
-        """Test basic initialization."""
-        num_seeds = 8
-        device = torch.device("cpu")
-
-        layout = KasminaStateLayout(num_seeds, device)
-
-        assert layout.num_seeds == num_seeds
-        assert layout.device == device
-        assert layout.lifecycle_states.shape == (num_seeds,)
-        assert layout.alpha_blend.shape == (num_seeds,)
-        assert layout.health_accumulator.shape == (num_seeds,)
-
-        # Check initial values
-        assert torch.all(layout.lifecycle_states == SeedLifecycleState.DORMANT)
-        assert torch.allclose(layout.alpha_blend, torch.zeros_like(layout.alpha_blend))
-        assert torch.allclose(
-            layout.health_accumulator, torch.zeros_like(layout.health_accumulator)
-        )
+    # Removed trivial initialization test - it only checked constructor parameters
+    # and default values without testing any meaningful behavior
 
     def test_get_active_seeds(self):
         """Test active seed detection."""

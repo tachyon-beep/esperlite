@@ -8,7 +8,7 @@ import torch.nn as nn
 
 from esper.morphogenetic_v2.kasmina.triton_chunked_layer import TritonChunkedKasminaLayer
 from esper.morphogenetic_v2.lifecycle.extended_lifecycle import ExtendedLifecycle
-from esper.morphogenetic_v2.common.feature_flags import FeatureFlags
+from esper.morphogenetic_v2.common.feature_flags import FeatureFlag
 
 
 class TestTritonIntegration:

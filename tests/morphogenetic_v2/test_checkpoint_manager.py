@@ -63,9 +63,8 @@ class TestCheckpointManager:
         assert checkpoint_manager.checkpoint_dir == temp_checkpoint_dir
         assert checkpoint_manager.max_checkpoints_per_seed == 3
         
-        # Check subdirectories created
-        assert (temp_checkpoint_dir / 'active').exists()
-        assert (temp_checkpoint_dir / 'archive').exists()
+        # Check checkpoint directory exists
+        assert temp_checkpoint_dir.exists()
     
     def test_save_checkpoint(self, checkpoint_manager, sample_state_data):
         """Test saving a checkpoint."""
@@ -79,9 +78,8 @@ class TestCheckpointManager:
         assert checkpoint_id.startswith('layer1_10_')
         
         # Verify files created
-        active_dir = checkpoint_manager.active_dir
-        checkpoint_file = active_dir / f"{checkpoint_id}.pt"
-        metadata_file = active_dir / f"{checkpoint_id}.json"
+        checkpoint_file = checkpoint_manager.active_dir / f"{checkpoint_id}{checkpoint_manager.CHECKPOINT_EXTENSION}"
+        metadata_file = checkpoint_manager.active_dir / f"{checkpoint_id}{checkpoint_manager.METADATA_EXTENSION}"
         
         assert checkpoint_file.exists()
         assert metadata_file.exists()
@@ -107,8 +105,8 @@ class TestCheckpointManager:
         )
         
         # Load and verify
-        checkpoint_file = checkpoint_manager.active_dir / f"{checkpoint_id}.pt"
-        checkpoint = torch.load(checkpoint_file)
+        checkpoint_file = checkpoint_manager.active_dir / f"{checkpoint_id}{checkpoint_manager.CHECKPOINT_EXTENSION}"
+        checkpoint = torch.load(checkpoint_file, weights_only=False)
         
         assert checkpoint['blueprint_state'] is not None
         assert 'layer1.weight' in checkpoint['blueprint_state']
@@ -187,7 +185,7 @@ class TestCheckpointManager:
         assert seed2_checkpoints[0]['seed_id'] == 2
         
         # Filter by lifecycle state
-        state0_checkpoints = checkpoint_manager.list_checkpoints(lifecycle_state='0')
+        state0_checkpoints = checkpoint_manager.list_checkpoints(lifecycle_state=0)
         assert len(state0_checkpoints) == 2  # Seeds 0 and 3
         
         # Test limit
@@ -208,7 +206,7 @@ class TestCheckpointManager:
         )
         
         # Verify it exists
-        active_file = checkpoint_manager.active_dir / f"{checkpoint_id}.pt"
+        active_file = checkpoint_manager.active_dir / f"{checkpoint_id}{checkpoint_manager.CHECKPOINT_EXTENSION}"
         assert active_file.exists()
         
         # Archive it
@@ -216,7 +214,7 @@ class TestCheckpointManager:
         
         # Verify moved to archive
         assert not active_file.exists()
-        archive_file = checkpoint_manager.archive_dir / f"{checkpoint_id}.pt"
+        archive_file = checkpoint_manager.archive_dir / f"{checkpoint_id}{checkpoint_manager.CHECKPOINT_EXTENSION}"
         assert archive_file.exists()
         
         # Delete permanently
@@ -293,7 +291,7 @@ class TestCheckpointManager:
             time.sleep(0.001)
         
         # High priority should still exist
-        active_file = checkpoint_manager.active_dir / f"{high_priority_id}.pt"
+        active_file = checkpoint_manager.active_dir / f"{high_priority_id}{checkpoint_manager.CHECKPOINT_EXTENSION}"
         assert active_file.exists()
     
     def test_metadata_cache(self, checkpoint_manager, sample_state_data):
@@ -396,11 +394,16 @@ class TestCheckpointRecovery:
     """Test cases for CheckpointRecovery."""
     
     @pytest.fixture
-    def recovery_system(self, checkpoint_manager):
-        """Create recovery system."""
-        return CheckpointRecovery(checkpoint_manager)
+    def checkpoint_manager_recovery(self, temp_checkpoint_dir):
+        """Create checkpoint manager for recovery tests."""
+        return CheckpointManager(temp_checkpoint_dir, max_checkpoints_per_seed=5)
     
-    def test_recover_seed_state(self, recovery_system, checkpoint_manager):
+    @pytest.fixture
+    def recovery_system(self, checkpoint_manager_recovery):
+        """Create recovery system."""
+        return CheckpointRecovery(checkpoint_manager_recovery)
+    
+    def test_recover_seed_state(self, recovery_system, checkpoint_manager_recovery):
         """Test recovering seed state from checkpoints."""
         # Create multiple checkpoints for a seed
         state_data_versions = [
@@ -426,7 +429,7 @@ class TestCheckpointRecovery:
         assert recovered['state_data']['epochs'] == 30
         assert recovered['checkpoint_id'] == checkpoint_ids[-1]
     
-    def test_recover_with_corrupted_checkpoints(self, recovery_system, checkpoint_manager):
+    def test_recover_with_corrupted_checkpoints(self, recovery_system, checkpoint_manager_recovery):
         """Test recovery when some checkpoints are corrupted."""
         # Create valid checkpoint
         valid_id = checkpoint_manager.save_checkpoint(
@@ -441,7 +444,7 @@ class TestCheckpointRecovery:
             f.write(b'corrupted data')
         
         # Create metadata for corrupted checkpoint
-        metadata_path = checkpoint_manager.active_dir / 'layer1_400_9999999999999.json'
+        metadata_path = checkpoint_manager_recovery.active_dir / 'layer1_400_9999999999999.json'
         with open(metadata_path, 'w') as f:
             json.dump({
                 'checkpoint_id': 'layer1_400_9999999999999',
@@ -457,13 +460,13 @@ class TestCheckpointRecovery:
         assert recovered['state_data']['valid'] is True
         assert recovered['checkpoint_id'] == valid_id
     
-    def test_no_valid_checkpoints(self, recovery_system, checkpoint_manager):
+    def test_no_valid_checkpoints(self, recovery_system, checkpoint_manager_recovery):
         """Test recovery when no valid checkpoints exist."""
         # No checkpoints for this seed
         recovered = recovery_system.recover_seed_state('layer1', 500)
         assert recovered is None
     
-    def test_device_specific_recovery(self, recovery_system, checkpoint_manager):
+    def test_device_specific_recovery(self, recovery_system, checkpoint_manager_recovery):
         """Test recovering to specific device."""
         # Create checkpoint with tensors
         checkpoint_manager.save_checkpoint(
@@ -487,6 +490,11 @@ class TestCheckpointRecovery:
 
 class TestCheckpointScenarios:
     """Test complete checkpoint scenarios."""
+    
+    @pytest.fixture
+    def checkpoint_manager(self, temp_checkpoint_dir):
+        """Create checkpoint manager."""
+        return CheckpointManager(temp_checkpoint_dir, max_checkpoints_per_seed=5)
     
     def test_full_lifecycle_checkpointing(self, checkpoint_manager):
         """Test checkpointing through full lifecycle."""

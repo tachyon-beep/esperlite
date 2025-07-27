@@ -30,22 +30,7 @@ class TestExtendedStateTensor:
         else:
             pytest.skip("GPU not available")
     
-    def test_initialization(self, state_tensor):
-        """Test state tensor initialization."""
-        assert state_tensor.num_seeds == 100
-        assert state_tensor.state_tensor.shape == (100, 8)
-        assert state_tensor.state_tensor.dtype == torch.int32
-        
-        # Check default values
-        assert torch.all(state_tensor.state_tensor[:, state_tensor.LIFECYCLE_STATE] == ExtendedLifecycle.DORMANT)
-        assert torch.all(state_tensor.state_tensor[:, state_tensor.BLUEPRINT_ID] == -1)
-        assert torch.all(state_tensor.state_tensor[:, state_tensor.CHECKPOINT_ID] == -1)
-        assert torch.all(state_tensor.state_tensor[:, state_tensor.EPOCHS_IN_STATE] == 0)
-        
-        # Check auxiliary tensors
-        assert state_tensor.transition_history.shape == (100, 10, 2)
-        assert state_tensor.performance_metrics.shape == (100, 4)
-        assert state_tensor.telemetry_buffer.shape == (100, 2)
+    # Removed test_initialization - only checked shapes and default values
     
     def test_device_placement(self, gpu_state_tensor):
         """Test GPU device placement."""

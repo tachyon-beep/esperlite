@@ -110,7 +110,6 @@ class TestAsyncConv2dKernel:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
-    @pytest.mark.xfail(reason="CUDA stream test is flaky in test suite")
     async def test_cuda_stream_execution(self):
         """Test CUDA stream-based async execution."""
         device = torch.device("cuda")
@@ -311,7 +310,6 @@ class TestStreamManager:
         manager.cleanup()
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
-    @pytest.mark.xfail(reason="CUDA stream test is flaky in test suite")
     def test_stream_context(self):
         """Test stream context manager."""
         from esper.execution.stream_manager import StreamContext

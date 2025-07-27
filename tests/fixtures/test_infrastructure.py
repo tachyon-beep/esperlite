@@ -29,13 +29,21 @@ class InMemoryPerformanceTracker(PerformanceTracker):
     
     async def get_seed_metrics(
         self, layer_name: str, seed_idx: int
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """Get performance metrics for a specific seed."""
-        return self.metrics_store.get(layer_name, {}).get(seed_idx, {
-            "accuracy_trend": 0.5,
-            "loss_trend": 0.5,
-            "efficiency": 0.5,
-        })
+        # Return the format expected by SeedOrchestrator
+        base_metrics = self.metrics_store.get(layer_name, {}).get(seed_idx, {})
+        
+        # Provide default values in the expected format
+        return {
+            "mean_performance": base_metrics.get("mean_performance", 0.5),
+            "variance": base_metrics.get("variance", 0.1),
+            "success_rate": base_metrics.get("success_rate", 0.8),
+            "total_activations": base_metrics.get("total_activations", 10),
+            "accuracy_trend": base_metrics.get("accuracy_trend", 0.5),
+            "loss_trend": base_metrics.get("loss_trend", 0.5),
+            "efficiency": base_metrics.get("efficiency", 0.5),
+        }
     
     async def record_seed_metrics(
         self, layer_name: str, seed_idx: int, metrics: Dict[str, float]

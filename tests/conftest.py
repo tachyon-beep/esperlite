@@ -26,6 +26,9 @@ from esper.services.oona_client import OonaClient
 
 # Import real component fixtures
 from tests.fixtures.real_components import *  # noqa: F401,F403
+from tests.fixtures.test_infrastructure import *  # noqa: F401,F403
+from tests.fixtures.mock_oona_client import *  # noqa: F401,F403
+from tests.fixtures.test_services import *  # noqa: F401,F403
 
 
 @pytest.fixture(scope="session")
@@ -366,6 +369,21 @@ def disable_telemetry():
 
 
 # Duplicate mock_oona_client fixture removed - using the one defined earlier
+
+
+@pytest.fixture
+def auto_oona_client(request, oona_client):
+    """Automatically provide OonaClient based on test requirements.
+    
+    If test is marked with @pytest.mark.requires_redis, use real client.
+    Otherwise, mock is fine.
+    """
+    if request.node.get_closest_marker('requires_redis'):
+        return oona_client  # Will be real if Redis available
+    else:
+        # For tests that don't need Redis, always use mock
+        from tests.fixtures.mock_oona_client import MockOonaClient
+        return MockOonaClient()
 
 
 class TestModelFactory:

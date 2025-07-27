@@ -43,7 +43,7 @@ class TestPhase2Integration:
     @pytest.fixture
     def lifecycle_manager(self):
         """Create lifecycle manager."""
-        return LifecycleManager(num_seeds=10)
+        return LifecycleManager()
     
     @pytest.fixture
     def checkpoint_manager(self, temp_checkpoint_dir):

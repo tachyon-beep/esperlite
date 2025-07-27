@@ -232,7 +232,6 @@ class TestRealTolariaTrainer:
             # That's tracked in the layer stats separately
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="torch.load weights_only=True prevents loading TrainingState")
     async def test_real_checkpoint_saving_and_loading(self, minimal_real_config, temp_config_dir):
         """Test real checkpoint save/load functionality."""
         trainer = TolariaTrainer(minimal_real_config)

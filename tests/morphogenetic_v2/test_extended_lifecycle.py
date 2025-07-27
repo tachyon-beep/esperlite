@@ -348,13 +348,13 @@ class TestLifecycleManager:
     @pytest.fixture
     def manager(self):
         """Create a lifecycle manager."""
-        return LifecycleManager(num_seeds=100)
+        return LifecycleManager()
     
     def test_manager_creation(self, manager):
         """Test manager initialization."""
-        assert manager.num_seeds == 100
-        assert len(manager.transition_history) == 0
-        assert len(manager.transition_callbacks) == 0
+        # LifecycleManager no longer tracks num_seeds
+        assert hasattr(manager, 'valid_transitions')
+        assert hasattr(manager, 'validators')
     
     def test_valid_transition_request(self, manager):
         """Test requesting a valid transition."""
@@ -369,22 +369,10 @@ class TestLifecycleManager:
             metadata={}
         )
         
-        success, error = manager.request_transition(
-            seed_id=10,
-            from_state=ExtendedLifecycle.DORMANT,
-            to_state=ExtendedLifecycle.GERMINATED,
-            context=context
-        )
+        success = manager.request_transition(context)
         
-        assert success
-        assert error is None
-        assert len(manager.transition_history) == 1
-        
-        # Check history record
-        record = manager.transition_history[0]
-        assert record['seed_id'] == 10
-        assert record['from_state'] == 'DORMANT'
-        assert record['to_state'] == 'GERMINATED'
+        assert success is True
+        # Manager no longer tracks history - that's handled by other components
     
     def test_invalid_transition_request(self, manager):
         """Test requesting an invalid transition."""
@@ -399,91 +387,52 @@ class TestLifecycleManager:
             metadata={}
         )
         
-        success, error = manager.request_transition(
-            seed_id=20,
-            from_state=ExtendedLifecycle.DORMANT,
-            to_state=ExtendedLifecycle.FOSSILIZED,
-            context=context
-        )
+        success = manager.request_transition(context)
         
-        assert not success
-        assert error is not None
-        assert len(manager.transition_history) == 0  # Not recorded
+        assert not success  # Invalid transition should fail
     
-    def test_transition_callbacks(self, manager):
-        """Test transition callback system."""
-        callback_data = []
-        
-        def test_callback(seed_id, context):
-            callback_data.append({
-                'seed_id': seed_id,
-                'to_state': context.target_state.name
-            })
-        
-        # Register callback
-        manager.register_transition_callback(
-            ExtendedLifecycle.DORMANT,
-            ExtendedLifecycle.GERMINATED,
-            test_callback
-        )
-        
-        # Make transition
+    def test_transition_validation(self, manager):
+        """Test transition validation logic."""
+        # Test evaluation validation (requires 5 epochs in stabilization)
         context = TransitionContext(
             seed_id=30,
-            current_state=ExtendedLifecycle.DORMANT,
-            target_state=ExtendedLifecycle.GERMINATED,
-            epochs_in_state=0,
+            current_state=ExtendedLifecycle.STABILIZATION,
+            target_state=ExtendedLifecycle.EVALUATING,
+            epochs_in_state=2,  # Less than required
             performance_metrics={},
             error_count=0,
             timestamp=None,
             metadata={}
         )
         
-        manager.request_transition(
-            seed_id=30,
-            from_state=ExtendedLifecycle.DORMANT,
-            to_state=ExtendedLifecycle.GERMINATED,
-            context=context
+        # Should fail due to insufficient epochs
+        success = manager.request_transition(context)
+        assert not success
+        
+        # Test with sufficient epochs
+        context.epochs_in_state = 6
+        success = manager.request_transition(context)
+        assert success  # Should pass with enough epochs
+    
+    def test_can_transition_check(self, manager):
+        """Test checking if transitions are allowed."""
+        # Valid transition
+        assert manager.can_transition(
+            ExtendedLifecycle.DORMANT,
+            ExtendedLifecycle.GERMINATED
         )
         
-        assert len(callback_data) == 1
-        assert callback_data[0]['seed_id'] == 30
-        assert callback_data[0]['to_state'] == 'GERMINATED'
-    
-    def test_transition_history_query(self, manager):
-        """Test querying transition history."""
-        # Add multiple transitions
-        for i in range(5):
-            context = TransitionContext(
-                seed_id=i,
-                current_state=ExtendedLifecycle.DORMANT,
-                target_state=ExtendedLifecycle.GERMINATED,
-                epochs_in_state=0,
-                performance_metrics={},
-                error_count=0,
-                timestamp=None,
-                metadata={}
-            )
-            
-            manager.request_transition(
-                seed_id=i,
-                from_state=ExtendedLifecycle.DORMANT,
-                to_state=ExtendedLifecycle.GERMINATED,
-                context=context
-            )
+        # Invalid transition
+        assert not manager.can_transition(
+            ExtendedLifecycle.DORMANT,
+            ExtendedLifecycle.FOSSILIZED
+        )
         
-        # Query all history
-        all_history = manager.get_transition_history()
-        assert len(all_history) == 5
-        
-        # Query specific seed
-        seed_history = manager.get_transition_history(seed_id=2)
-        assert len(seed_history) == 1
-        assert seed_history[0]['seed_id'] == 2
-        
-        # Query with limit
-        limited_history = manager.get_transition_history(limit=3)
-        assert len(limited_history) == 3
+        # Self-transition (not allowed)
+        assert not manager.can_transition(
+            ExtendedLifecycle.DORMANT,
+            ExtendedLifecycle.DORMANT
+        )
 
 
 class TestLifecycleScenarios:
@@ -491,7 +440,7 @@ class TestLifecycleScenarios:
     
     def test_full_successful_lifecycle(self):
         """Test a seed going through full successful lifecycle."""
-        manager = LifecycleManager(num_seeds=10)
+        manager = LifecycleManager()
         seed_id = 0
         
         # Track state progression
@@ -523,23 +472,16 @@ class TestLifecycleScenarios:
                 metadata={'reconstruction_threshold': 0.01}
             )
             
-            success, error = manager.request_transition(
-                seed_id=seed_id,
-                from_state=from_state,
-                to_state=to_state,
-                context=context
-            )
+            success = manager.request_transition(context)
             
-            assert success, f"Failed transition {from_state.name} -> {to_state.name}: {error}"
+            assert success, f"Failed transition {from_state.name} -> {to_state.name}"
         
-        # Verify full history
-        history = manager.get_transition_history(seed_id=seed_id)
-        assert len(history) == len(state_progression)
-        assert history[-1]['to_state'] == 'FOSSILIZED'
+        # Test completed successfully
+        # (Manager no longer tracks history)
     
     def test_failed_lifecycle_with_culling(self):
         """Test a seed that fails and gets culled."""
-        manager = LifecycleManager(num_seeds=10)
+        manager = LifecycleManager()
         seed_id = 1
         
         # Progress to evaluation
@@ -564,12 +506,7 @@ class TestLifecycleScenarios:
                 metadata={'reconstruction_threshold': 0.01}
             )
             
-            success, _ = manager.request_transition(
-                seed_id=seed_id,
-                from_state=from_state,
-                to_state=to_state,
-                context=context
-            )
+            success = manager.request_transition(context)
             assert success
         
         # Now cull due to poor performance
@@ -587,22 +524,16 @@ class TestLifecycleScenarios:
             metadata={}
         )
         
-        success, _ = manager.request_transition(
-            seed_id=seed_id,
-            from_state=ExtendedLifecycle.EVALUATING,
-            to_state=ExtendedLifecycle.CULLED,
-            context=context
-        )
+        success = manager.request_transition(context)
         
         assert success
         
-        # Verify terminal state
-        history = manager.get_transition_history(seed_id=seed_id)
-        assert history[-1]['to_state'] == 'CULLED'
+        # Test completed successfully
+        # (Manager no longer tracks history)
     
     def test_emergency_rollback(self):
         """Test emergency rollback scenario."""
-        manager = LifecycleManager(num_seeds=10)
+        manager = LifecycleManager()
         seed_id = 2
         
         # Progress to grafting
@@ -624,12 +555,7 @@ class TestLifecycleScenarios:
                 metadata={'reconstruction_threshold': 0.01}
             )
             
-            manager.request_transition(
-                seed_id=seed_id,
-                from_state=from_state,
-                to_state=to_state,
-                context=context
-            )
+            manager.request_transition(context)
         
         # Emergency rollback from grafting
         context = TransitionContext(
@@ -643,15 +569,9 @@ class TestLifecycleScenarios:
             metadata={'reason': 'Emergency'}
         )
         
-        success, _ = manager.request_transition(
-            seed_id=seed_id,
-            from_state=ExtendedLifecycle.GRAFTING,
-            to_state=ExtendedLifecycle.ROLLED_BACK,
-            context=context
-        )
+        success = manager.request_transition(context)
         
         assert success
         
-        # Verify rollback is terminal
-        history = manager.get_transition_history(seed_id=seed_id)
-        assert history[-1]['to_state'] == 'ROLLED_BACK'
+        # Test completed successfully
+        # (Manager no longer tracks history)

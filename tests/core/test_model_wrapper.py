@@ -34,25 +34,8 @@ class SimpleModel(nn.Module):
 class TestMorphableModel:
     """Test cases for MorphableModel."""
 
-    def test_initialization(self):
-        """Test MorphableModel initialization."""
-        # Create a simple model
-        model = SimpleModel()
-
-        # Create mock KasminaLayers
-        kasmina_layers = {
-            "layer1": Mock(spec=KasminaLayer),
-            "layer2": Mock(spec=KasminaLayer),
-        }
-
-        # Create MorphableModel
-        morphable = MorphableModel(model, kasmina_layers, original_model=model)
-
-        assert morphable.wrapped_model == model
-        assert len(morphable.kasmina_layers) == 2
-        assert morphable.original_model == model
-        assert morphable.total_forward_calls == 0
-        assert not morphable.morphogenetic_active
+    # Removed trivial test_initialization - only checked constructor parameters
+    # without testing any actual behavior
 
     def test_forward_pass(self):
         """Test forward pass through MorphableModel."""

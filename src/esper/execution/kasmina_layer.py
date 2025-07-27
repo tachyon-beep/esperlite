@@ -52,6 +52,7 @@ class KasminaLayer(nn.Module):
         cache_size_mb: int = 128,
         telemetry_enabled: bool = True,
         layer_name: str = "kasmina_layer",
+        oona_client: Optional[OonaClient] = None,
     ):
         """
         Initialize KasminaLayer.
@@ -63,6 +64,7 @@ class KasminaLayer(nn.Module):
             cache_size_mb: Kernel cache size in MB
             telemetry_enabled: Whether to collect telemetry
             layer_name: Name of this layer for telemetry
+            oona_client: Optional pre-configured OonaClient instance
         """
         super().__init__()
 
@@ -100,20 +102,26 @@ class KasminaLayer(nn.Module):
         self.error_recovery = ErrorRecoveryManager()
 
         # Telemetry
-        self.oona_client = None
+        self.oona_client = oona_client
         self._telemetry_available = False
         if telemetry_enabled:
-            try:
-                self.oona_client = OonaClient()
+            if oona_client is not None:
+                # Use provided client
+                self.oona_client = oona_client
                 self._telemetry_available = True
-            except ImportError as e:
-                # Missing dependency is ok, just disable telemetry
-                logger.warning("Oona client not available, telemetry disabled: %s", e)
-                self.telemetry_enabled = False
-            except (ConnectionError, RuntimeError) as e:
-                # Connection/runtime errors are critical - fail fast
-                logger.error("Failed to connect to Oona service: %s", e, exc_info=True)
-                raise RuntimeError(f"Telemetry initialization failed: {e}") from e
+            else:
+                # Try to create new client
+                try:
+                    self.oona_client = OonaClient()
+                    self._telemetry_available = True
+                except ImportError as e:
+                    # Missing dependency is ok, just disable telemetry
+                    logger.warning("Oona client not available, telemetry disabled: %s", e)
+                    self.telemetry_enabled = False
+                except (ConnectionError, RuntimeError) as e:
+                    # Connection/runtime errors are critical - fail fast
+                    logger.error("Failed to connect to Oona service: %s", e, exc_info=True)
+                    raise RuntimeError(f"Telemetry initialization failed: {e}") from e
 
         # Performance tracking
         self.total_forward_calls = 0
@@ -193,8 +201,10 @@ class KasminaLayer(nn.Module):
         Returns:
             Output tensor from kernel execution
         """
-        # In sync mode when we're already in an async context,
-        # we cannot create new async tasks, so just use default transform
+        # In sync mode, we still need to apply active kernels
+        # but without async execution
+        # TODO: Implement proper sync kernel execution
+        # For now, just return default transform
         return self.default_transform(x)
 
     async def _execute_with_kernels(

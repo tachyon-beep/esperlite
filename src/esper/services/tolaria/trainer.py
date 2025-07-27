@@ -912,7 +912,7 @@ class TolariaTrainer:
                 
                 # Use existing components if available
                 performance_tracker = getattr(self, 'performance_tracker', PerformanceTracker())
-                blueprint_registry = BlueprintRegistry.get_instance()
+                blueprint_registry = BlueprintRegistry()
                 
                 self.seed_orchestrator = SeedOrchestrator(
                     performance_tracker=performance_tracker,

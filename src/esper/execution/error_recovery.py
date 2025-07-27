@@ -480,11 +480,11 @@ class HealthMonitor:
 
         # Check memory usage (simplified)
         if torch.cuda.is_available():
-            memory_usage = (
-                torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated()
-            )
-            if memory_usage > self.health_thresholds["memory_usage"]:
-                logger.warning("High memory usage detected: %.2f%%", memory_usage * 100)
+            max_memory = torch.cuda.max_memory_allocated()
+            if max_memory > 0:
+                memory_usage = torch.cuda.memory_allocated() / max_memory
+                if memory_usage > self.health_thresholds["memory_usage"]:
+                    logger.warning("High memory usage detected: %.2f%%", memory_usage * 100)
 
     def add_health_signal(self, signal: HealthSignal):
         """Add a health signal for analysis."""

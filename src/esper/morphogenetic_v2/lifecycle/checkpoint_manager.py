@@ -192,7 +192,7 @@ class CheckpointManager:
                 continue
             if seed_id is not None and metadata['seed_id'] != seed_id:
                 continue
-            if lifecycle_state and metadata.get('lifecycle_state') != lifecycle_state:
+            if lifecycle_state is not None and metadata.get('lifecycle_state') != lifecycle_state:
                 continue
             
             results.append(metadata)
@@ -209,13 +209,18 @@ class CheckpointManager:
             checkpoint_id: Checkpoint to delete
             archive: Whether to archive instead of delete
         """
-        # Find checkpoint
+        # Find checkpoint in active or archive
         checkpoint_path = self.active_dir / f"{checkpoint_id}{self.CHECKPOINT_EXTENSION}"
         metadata_path = self.active_dir / f"{checkpoint_id}{self.METADATA_EXTENSION}"
         
         if not checkpoint_path.exists():
-            logger.warning("Checkpoint not found: %s", checkpoint_id)
-            return
+            # Check archive
+            checkpoint_path = self.archive_dir / f"{checkpoint_id}{self.CHECKPOINT_EXTENSION}"
+            metadata_path = self.archive_dir / f"{checkpoint_id}{self.METADATA_EXTENSION}"
+            
+            if not checkpoint_path.exists():
+                logger.warning("Checkpoint not found: %s", checkpoint_id)
+                return
         
         if archive:
             # Move to archive

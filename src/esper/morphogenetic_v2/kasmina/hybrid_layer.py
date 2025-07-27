@@ -52,7 +52,7 @@ class HybridKasminaLayer(nn.Module):
         super().__init__()
         
         self.layer_id = layer_id or f"hybrid_kasmina_{id(self)}"
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device if device is not None else torch.device("cpu")
         self.force_implementation = force_implementation
         
         # Initialize feature flags
@@ -87,9 +87,20 @@ class HybridKasminaLayer(nn.Module):
             else:
                 raise ValueError("Cannot determine dimensions from base layer")
             
+            # Use mock client if telemetry is disabled
+            oona_client = None
+            if not enable_telemetry:
+                try:
+                    from tests.fixtures.mock_oona_client import MockOonaClient
+                    oona_client = MockOonaClient()
+                except ImportError:
+                    pass
+            
             self.legacy_layer = KasminaLayer(
                 input_size=input_size,
-                output_size=output_size
+                output_size=output_size,
+                telemetry_enabled=enable_telemetry,
+                oona_client=oona_client
             )
             self.legacy_available = True
         except (ValueError, AttributeError) as e:

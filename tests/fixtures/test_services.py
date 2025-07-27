@@ -1,7 +1,7 @@
 """
 Test service infrastructure for integration tests.
 
-This module provides fixtures that spin up real services (Redis, etc.) 
+This module provides fixtures that spin up real services (Redis, etc.)
 for integration testing, using Docker containers or embedded servers.
 """
 
@@ -12,7 +12,7 @@ import subprocess
 import pytest
 import logging
 from contextlib import closing
-from typing import Optional, Dict, Any
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,75 +28,75 @@ def find_free_port(start=6379, end=7000) -> int:
     raise RuntimeError(f"No free ports found in range {start}-{end}")
 
 
-class TestRedisServer:
+class RedisTestServer:
     """Manages a Redis server instance for testing."""
-    
+
     def __init__(self, port: Optional[int] = None):
         self.port = port or find_free_port()
         self.process = None
         self.redis_url = f"redis://localhost:{self.port}"
-        
+
     def start(self) -> str:
         """Start Redis server and return connection URL."""
         # First try to use Docker
         if self._try_docker():
             return self.redis_url
-            
+
         # Fall back to redis-server if available
         if self._try_redis_server():
             return self.redis_url
-            
+
         # If neither work, we'll use mock
         logger.warning("No Redis available, tests will use mock")
         return None
-        
+
     def _try_docker(self) -> bool:
         """Try to start Redis using Docker."""
         try:
             # Check if Docker is available
             subprocess.run(["docker", "--version"], check=True, capture_output=True)
-            
+
             # Stop any existing container
             subprocess.run(
-                ["docker", "stop", "test-redis"], 
+                ["docker", "stop", "test-redis"],
                 capture_output=True
             )
             subprocess.run(
-                ["docker", "rm", "test-redis"], 
+                ["docker", "rm", "test-redis"],
                 capture_output=True
             )
-            
+
             # Start Redis container
             cmd = [
-                "docker", "run", 
+                "docker", "run",
                 "--name", "test-redis",
                 "-d",  # detached
                 "-p", f"{self.port}:6379",
                 "redis:7-alpine"
             ]
-            result = subprocess.run(cmd, check=True, capture_output=True)
-            
+            subprocess.run(cmd, check=True, capture_output=True)
+
             # Wait for Redis to be ready
             time.sleep(1)
-            
+
             # Test connection
             import redis
             client = redis.Redis(host='localhost', port=self.port)
             client.ping()
-            
+
             logger.info(f"Started Redis in Docker on port {self.port}")
             return True
-            
+
         except (subprocess.CalledProcessError, ImportError, Exception) as e:
             logger.debug(f"Docker Redis failed: {e}")
             return False
-            
+
     def _try_redis_server(self) -> bool:
         """Try to start Redis using redis-server."""
         try:
             # Check if redis-server is available
             subprocess.run(["redis-server", "--version"], check=True, capture_output=True)
-            
+
             # Start Redis server
             cmd = ["redis-server", "--port", str(self.port), "--save", ""]
             self.process = subprocess.Popen(
@@ -104,25 +104,25 @@ class TestRedisServer:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
-            
+
             # Wait for Redis to be ready
             time.sleep(0.5)
-            
+
             # Test connection
             import redis
             client = redis.Redis(host='localhost', port=self.port)
             client.ping()
-            
+
             logger.info(f"Started redis-server on port {self.port}")
             return True
-            
+
         except (subprocess.CalledProcessError, ImportError, Exception) as e:
             logger.debug(f"redis-server failed: {e}")
             if self.process:
                 self.process.terminate()
                 self.process = None
             return False
-            
+
     def stop(self):
         """Stop the Redis server."""
         if self.process:
@@ -133,36 +133,36 @@ class TestRedisServer:
             # Try to stop Docker container
             try:
                 subprocess.run(
-                    ["docker", "stop", "test-redis"], 
+                    ["docker", "stop", "test-redis"],
                     capture_output=True
                 )
                 subprocess.run(
-                    ["docker", "rm", "test-redis"], 
+                    ["docker", "rm", "test-redis"],
                     capture_output=True
                 )
-            except:
+            except Exception:
                 pass
 
 
 # Global test Redis instance
-_test_redis: Optional[TestRedisServer] = None
+_test_redis: Optional[RedisTestServer] = None
 
 
 @pytest.fixture(scope="session")
 def redis_server():
     """Session-scoped Redis server for all tests."""
     global _test_redis
-    
+
     if _test_redis is None:
-        _test_redis = TestRedisServer()
+        _test_redis = RedisTestServer()
         redis_url = _test_redis.start()
-        
+
         if redis_url:
             # Set environment variable for OonaClient
             os.environ['REDIS_URL'] = redis_url
-            
+
     yield _test_redis
-    
+
     # Cleanup happens at end of test session
     if _test_redis:
         _test_redis.stop()
@@ -198,11 +198,11 @@ def oona_client(redis_server, mock_oona_client):
         yield mock_oona_client
 
 
-@pytest.fixture(scope="session") 
+@pytest.fixture(scope="session")
 def redis_async_available():
     """Check if redis async is available."""
     try:
-        import redis.asyncio
+        import redis.asyncio  # noqa: F401
         return True
     except ImportError:
         return False
@@ -214,15 +214,15 @@ def message_bus_client(redis_server, redis_async_available):
     from src.esper.morphogenetic_v2.message_bus.clients import (
         MockMessageBusClient, RedisStreamClient, MessageBusConfig
     )
-    
+
     if redis_server.redis_url and redis_async_available:
         config = MessageBusConfig(redis_url=redis_server.redis_url)
         client = RedisStreamClient(config)
     else:
         client = MockMessageBusClient()
-        
+
     yield client
-    
+
     # Cleanup
     if hasattr(client, 'disconnect'):
         import asyncio

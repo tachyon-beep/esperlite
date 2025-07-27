@@ -24,8 +24,9 @@ logger = logging.getLogger(__name__)
 class OonaClient:
     """A client for publishing and consuming events on the Oona message bus."""
 
-    def __init__(self):
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    def __init__(self, redis_url: Optional[str] = None):
+        if redis_url is None:
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
         try:
             self.redis_client = redis.from_url(redis_url, decode_responses=True)
             # Test connection

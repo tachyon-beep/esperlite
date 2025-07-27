@@ -13,7 +13,7 @@ from typing import List
 from typing import Optional
 
 import aiohttp
-import aioredis
+import redis.asyncio as aioredis
 import redis
 import torch
 from aiohttp import web

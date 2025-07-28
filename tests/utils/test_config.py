@@ -9,7 +9,6 @@ import pytest
 
 from esper.utils.config import ServiceConfig
 from esper.utils.config import get_service_config
-from esper.utils.config import init_service_config
 from esper.utils.config import reset_service_config
 
 

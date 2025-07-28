@@ -108,7 +108,7 @@ class AsyncHttpClient:
                 keepalive_timeout=30,
                 enable_cleanup_closed=True,
             )
-        
+
         self.session = aiohttp.ClientSession(
             timeout=self.timeout,
             connector=self.connector,
@@ -207,13 +207,13 @@ class AsyncHttpClient:
                     keepalive_timeout=30,
                     enable_cleanup_closed=True,
                 )
-            
+
             self.session = aiohttp.ClientSession(
                 timeout=self.timeout,
                 connector=self.connector,
                 headers={"User-Agent": "Esper-AsyncHttpClient/1.0"},
             )
-    
+
     async def _request(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
         """
         Execute HTTP request with retry logic and error handling.
@@ -298,7 +298,7 @@ class AsyncHttpClient:
         if self.connector:
             await self.connector.close()
             self.connector = None
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Get HTTP client performance statistics.

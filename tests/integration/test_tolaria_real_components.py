@@ -9,7 +9,8 @@ import asyncio
 import tempfile
 import warnings
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -19,10 +20,10 @@ import yaml
 # Suppress torchvision deprecation warnings for cleaner test output
 warnings.filterwarnings("ignore", category=UserWarning, module="torchvision")
 
-from esper.services.tolaria.config import TolariaConfig
-from esper.services.tolaria.main import TolariaService
-from esper.services.tolaria.trainer import TolariaTrainer
-import esper
+import src.esper as esper
+from src.esper.services.tolaria.config import TolariaConfig
+from src.esper.services.tolaria.main import TolariaService
+from src.esper.services.tolaria.trainer import TolariaTrainer
 
 
 @pytest.fixture
@@ -240,9 +241,6 @@ class TestRealTolariaTrainer:
         original_model = SimpleTestModel(num_classes=2)
         trainer.model = esper.wrap(original_model, telemetry_enabled=False)
 
-        # Save initial state for comparison
-        initial_state = {k: v.clone() for k, v in trainer.model.state_dict().items()}
-
         # Train for a bit to change weights
         trainer.optimizer = torch.optim.Adam(trainer.model.parameters(), lr=0.1)
         trainer.criterion = nn.CrossEntropyLoss()  # Set trainer's criterion
@@ -257,17 +255,20 @@ class TestRealTolariaTrainer:
             loss.backward()
             trainer.optimizer.step()
 
+        # Save the trained state for comparison
+        trained_state = {k: v.clone() for k, v in trainer.model.state_dict().items()}
+
         # Create checkpoint directory if it doesn't exist
         checkpoint_dir = Path(trainer.config.checkpoint_dir)
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Save checkpoint
         trainer.state.epoch = 3
         trainer.state.best_val_accuracy = 0.85
         trainer._save_checkpoint(epoch=3, is_best=True)
 
         # Verify checkpoint exists
-        checkpoint_path = Path(trainer.config.checkpoint_dir) / f"checkpoint_epoch_3.pt"
+        checkpoint_path = Path(trainer.config.checkpoint_dir) / "checkpoint_epoch_3.pt"
         assert checkpoint_path.exists()
 
         # Create new trainer and load checkpoint
@@ -284,8 +285,8 @@ class TestRealTolariaTrainer:
         # Verify model weights were restored
         loaded_state = new_trainer.model.state_dict()
         for key in loaded_state:
-            if key in initial_state:  # Only check common keys
-                assert not torch.allclose(initial_state[key], loaded_state[key])
+            if key in trained_state:  # Only check common keys
+                assert torch.allclose(trained_state[key], loaded_state[key])
 
 
 @pytest.mark.integration
@@ -328,7 +329,7 @@ class TestRealTolariaService:
 
             # Shutdown
             await service.shutdown()
-            
+
             # Cancel the task if it's still running
             if not service_task.done():
                 service_task.cancel()
@@ -337,7 +338,7 @@ class TestRealTolariaService:
             else:
                 # Task already completed, just await it
                 await service_task
-            
+
             assert not service.running
 
 

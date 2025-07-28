@@ -355,7 +355,7 @@ class TestAdaptationDecision:
                 confidence=0.8,
                 urgency=0.5,
             )
-        
+
         # Test old adaptation types that tests were using (should fail)
         old_invalid_types = ["add_neurons", "remove_neurons", "add_layer"]
         for invalid_type in old_invalid_types:
@@ -413,7 +413,7 @@ class TestAdaptationDecision:
                 urgency=0.5,
                 decision_id="test_001",  # Forbidden field
             )
-        
+
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             AdaptationDecision(
                 layer_name="test_layer",
@@ -422,7 +422,7 @@ class TestAdaptationDecision:
                 urgency=0.5,
                 parameters={"num_seeds": 2},  # Forbidden field
             )
-        
+
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             AdaptationDecision(
                 layer_name="test_layer",
@@ -431,7 +431,7 @@ class TestAdaptationDecision:
                 urgency=0.5,
                 reasoning="Test reasoning",  # Forbidden field
             )
-    
+
     def test_adaptation_decision_timestamp(self):
         """Test AdaptationDecision timestamp functionality."""
         # Record time before creating decision

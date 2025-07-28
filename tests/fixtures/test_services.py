@@ -5,14 +5,15 @@ This module provides fixtures that spin up real services (Redis, etc.)
 for integration testing, using Docker containers or embedded servers.
 """
 
+import logging
 import os
-import time
 import socket
 import subprocess
-import pytest
-import logging
+import time
 from contextlib import closing
 from typing import Optional
+
+import pytest
 
 logger = logging.getLogger(__name__)
 
@@ -211,9 +212,9 @@ def redis_async_available():
 @pytest.fixture
 def message_bus_client(redis_server, redis_async_available):
     """Get appropriate message bus client based on Redis availability."""
-    from src.esper.morphogenetic_v2.message_bus.clients import (
-        MockMessageBusClient, RedisStreamClient, MessageBusConfig
-    )
+    from src.esper.morphogenetic_v2.message_bus.clients import MessageBusConfig
+    from src.esper.morphogenetic_v2.message_bus.clients import MockMessageBusClient
+    from src.esper.morphogenetic_v2.message_bus.clients import RedisStreamClient
 
     if redis_server.redis_url and redis_async_available:
         config = MessageBusConfig(redis_url=redis_server.redis_url)

@@ -274,7 +274,7 @@ class ModelGraphAnalyzer:
         """Estimate the input/output size of a layer."""
         # Default reasonable sizes based on common architectures
         layer_type = self._infer_layer_type(layer_name)
-        
+
         if layer_type == "linear":
             # Common FC layer sizes
             if "fc1" in layer_name or "classifier" in layer_name:
@@ -299,7 +299,7 @@ class ModelGraphAnalyzer:
     def _estimate_parameter_count(self, layer_name: str) -> int:
         """Estimate the parameter count of a layer."""
         layer_type = self._infer_layer_type(layer_name)
-        
+
         if layer_type == "linear":
             # Estimate based on common layer configurations
             input_size = self._estimate_layer_size(layer_name, "input")

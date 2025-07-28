@@ -4,7 +4,6 @@ Triton kernel for telemetry reduction in morphogenetic layers.
 This kernel performs efficient reduction operations on telemetry data.
 """
 
-import torch
 import triton
 import triton.language as tl
 

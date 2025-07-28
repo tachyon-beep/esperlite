@@ -279,14 +279,14 @@ class ExecutionSystemIntegrator:
             available_memory_mb=available_memory_mb,
             urgency=urgency
         )
-        
+
         # Get currently active seeds for this layer
         active_seeds = [
-            int(key.split(":")[1]) 
-            for key in self.active_adaptations.keys() 
+            int(key.split(":")[1])
+            for key in self.active_adaptations.keys()
             if key.startswith(f"{layer_name}:")
         ]
-        
+
         # Select seed using intelligent strategy
         seed_idx, reason = await self.seed_selector.select_seed(
             layer_name=layer_name,
@@ -294,11 +294,11 @@ class ExecutionSystemIntegrator:
             context=context,
             active_seeds=active_seeds
         )
-        
+
         logger.info(
             f"Selected seed {seed_idx} for {layer_name}: {reason.reason}"
         )
-        
+
         return seed_idx, reason.reason
 
     async def load_kernel(
@@ -333,7 +333,7 @@ class ExecutionSystemIntegrator:
             elif seed_idx is None:
                 # Fallback to seed 0 if not using intelligent selection
                 seed_idx = 0
-                
+
             # Use circuit breaker for protection
             async with self.circuit_breaker:
                 # Publish kernel load command via Oona
@@ -492,7 +492,7 @@ class ExecutionSystemIntegrator:
             k: v for k, v in self.active_adaptations.items()
             if v.get("status") == "active"
         }
-    
+
     async def update_performance_metrics(
         self,
         layer_name: str,
@@ -514,32 +514,32 @@ class ExecutionSystemIntegrator:
             memory_mb: Memory usage
         """
         from esper.services.tamiyo.performance_tracker import PerformanceDelta
-        
+
         delta = PerformanceDelta(
             accuracy_delta=accuracy_delta,
             loss_delta=loss_delta,
             latency_ms=latency_ms,
             memory_mb=memory_mb
         )
-        
+
         # Get kernel ID if available
         kernel_id = None
         adaptation_key = f"{layer_name}:{seed_idx}"
         if adaptation_key in self.active_adaptations:
             kernel_id = self.active_adaptations[adaptation_key].get("kernel_id")
-        
+
         await self.performance_tracker.update_metrics(
             layer_name=layer_name,
             seed_idx=seed_idx,
             performance_delta=delta,
             kernel_id=kernel_id
         )
-        
+
         logger.info(
             f"Updated metrics for {layer_name}:{seed_idx} - "
             f"accuracy_delta={accuracy_delta:.4f}, loss_delta={loss_delta:.4f}"
         )
-    
+
     def update_epoch(self, epoch: int) -> None:
         """Update current epoch for selection context."""
         self.current_epoch = epoch
@@ -562,17 +562,17 @@ class Phase2IntegrationOrchestrator:
         seed_selection_config: Optional[Dict] = None
     ):
         self.blueprint_selector = BlueprintSelector(blueprint_registry)
-        
+
         # Create shared performance tracker
         performance_tracker = PerformanceTracker()
-        
+
         # Create seed selector with strategy
         seed_selector = SeedSelector(
             strategy=seed_selection_strategy,
             performance_tracker=performance_tracker,
             config=seed_selection_config or {}
         )
-        
+
         # Pass to execution integrator
         self.execution_integrator = ExecutionSystemIntegrator(
             oona_client=oona_client,

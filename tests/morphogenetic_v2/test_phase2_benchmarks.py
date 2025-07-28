@@ -1,9 +1,10 @@
 """Quick test to ensure Phase 2 benchmarks are working."""
 
-import pytest
-import torch
 import sys
 from pathlib import Path
+
+import pytest
+import torch
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -15,7 +16,7 @@ def test_benchmark_initialization():
     """Test that benchmarks can be initialized."""
     device = torch.device("cpu")  # Use CPU for testing
     benchmarks = Phase2Benchmarks(device)
-    
+
     assert benchmarks.device == device
     assert len(benchmarks.seed_counts) > 0
     assert len(benchmarks.batch_sizes) > 0
@@ -26,12 +27,12 @@ def test_state_transition_benchmark():
     """Test state transition benchmark with minimal configuration."""
     device = torch.device("cpu")
     benchmarks = Phase2Benchmarks(device)
-    
+
     # Use very small sizes for testing
     benchmarks.seed_counts = [10, 50]
-    
+
     results = benchmarks.benchmark_state_transitions()
-    
+
     assert "single_transition_times" in results
     assert "bulk_transition_times" in results
     assert "validation_overhead" in results
@@ -44,12 +45,12 @@ def test_checkpoint_benchmark():
     """Test checkpoint benchmark with minimal configuration."""
     device = torch.device("cpu")
     benchmarks = Phase2Benchmarks(device)
-    
+
     # Use very small sizes for testing
     benchmarks.seed_counts = [10]
-    
+
     results = benchmarks.benchmark_checkpoint_operations()
-    
+
     assert "save_times" in results
     assert "restore_times" in results
     assert "checkpoint_sizes_mb" in results
@@ -62,12 +63,12 @@ def test_memory_benchmark():
     """Test memory usage benchmark."""
     device = torch.device("cpu")
     benchmarks = Phase2Benchmarks(device)
-    
+
     # Use very small sizes for testing
     benchmarks.seed_counts = [10, 50]
-    
+
     results = benchmarks.benchmark_extended_state_memory()
-    
+
     assert "state_memory_mb" in results
     assert "total_memory_mb" in results
     assert "memory_per_seed_kb" in results
@@ -80,13 +81,13 @@ def test_grafting_strategies_benchmark():
     """Test grafting strategies benchmark."""
     device = torch.device("cpu")
     benchmarks = Phase2Benchmarks(device)
-    
+
     results = benchmarks.benchmark_grafting_strategies()
-    
+
     assert "strategies" in results
     assert "compute_times_us" in results
     assert "alpha_convergence" in results
-    
+
     strategies = results["strategies"]
     assert len(strategies) == 5
     assert all(s in results["compute_times_us"] for s in strategies)
@@ -97,13 +98,13 @@ def test_full_layer_benchmark():
     """Test full layer throughput benchmark."""
     device = torch.device("cpu")
     benchmarks = Phase2Benchmarks(device)
-    
+
     # Override with minimal config
     benchmarks.seed_counts = []  # Not used in this benchmark
-    
+
     # Manually set minimal configs for testing
     original_method = benchmarks.benchmark_full_layer_throughput
-    
+
     def minimal_benchmark():
         benchmarks.results["full_layer_throughput"] = {
             "configurations": ["10 seeds, batch 4, dim 32"],
@@ -113,10 +114,10 @@ def test_full_layer_benchmark():
             "state_distribution": [{"DORMANT": 7, "TRAINING": 1, "GRAFTING": 1, "FINE_TUNING": 1}]
         }
         return benchmarks.results["full_layer_throughput"]
-    
+
     benchmarks.benchmark_full_layer_throughput = minimal_benchmark
     results = benchmarks.benchmark_full_layer_throughput()
-    
+
     assert "configurations" in results
     assert "forward_times_ms" in results
     assert "throughput_samples_per_sec" in results

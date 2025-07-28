@@ -7,12 +7,16 @@ This module validates compiled kernels for correctness, safety, and performance.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-import torch
 import numpy as np
+import torch
 
-from esper.contracts.assets import Blueprint, CompiledKernel
+from esper.contracts.assets import Blueprint
+from esper.contracts.assets import CompiledKernel
 
 logger = logging.getLogger(__name__)
 
@@ -498,7 +502,7 @@ class KernelValidator:
                 return torch.randn(32, input_size, device=self.device)
         except StopIteration:
             pass
-        
+
         # Default fallback
         return torch.randn(32, 128, device=self.device)
 

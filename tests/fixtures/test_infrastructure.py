@@ -5,35 +5,38 @@ These components provide in-memory implementations suitable for testing
 without external dependencies.
 """
 
-import asyncio
-from typing import Dict, Any, List, Optional
-from collections import defaultdict
 import time
+from collections import defaultdict
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import pytest
 
-from esper.services.tamiyo.performance_tracker import PerformanceTracker
+from esper.blueprints.metadata import BlueprintCategory
+from esper.blueprints.metadata import BlueprintMetadata
 from esper.blueprints.registry import BlueprintRegistry
-from esper.blueprints.metadata import BlueprintMetadata, BlueprintCategory
+from esper.services.tamiyo.performance_tracker import PerformanceTracker
 
 
 class InMemoryPerformanceTracker(PerformanceTracker):
     """In-memory implementation of PerformanceTracker for testing."""
-    
+
     def __init__(self):
         super().__init__()
         self.metrics_store: Dict[str, Dict[int, Dict[str, float]]] = defaultdict(
             lambda: defaultdict(dict)
         )
         self.history: List[Dict[str, Any]] = []
-    
+
     async def get_seed_metrics(
         self, layer_name: str, seed_idx: int
     ) -> Dict[str, Any]:
         """Get performance metrics for a specific seed."""
         # Return the format expected by SeedOrchestrator
         base_metrics = self.metrics_store.get(layer_name, {}).get(seed_idx, {})
-        
+
         # Provide default values in the expected format
         return {
             "mean_performance": base_metrics.get("mean_performance", 0.5),
@@ -44,7 +47,7 @@ class InMemoryPerformanceTracker(PerformanceTracker):
             "loss_trend": base_metrics.get("loss_trend", 0.5),
             "efficiency": base_metrics.get("efficiency", 0.5),
         }
-    
+
     async def record_seed_metrics(
         self, layer_name: str, seed_idx: int, metrics: Dict[str, float]
     ) -> None:
@@ -56,11 +59,11 @@ class InMemoryPerformanceTracker(PerformanceTracker):
             "seed_idx": seed_idx,
             "metrics": metrics
         })
-    
+
     def get_history(self) -> List[Dict[str, Any]]:
         """Get metric history for testing."""
         return self.history.copy()
-    
+
     def clear(self):
         """Clear all metrics for test isolation."""
         self.metrics_store.clear()
@@ -69,13 +72,13 @@ class InMemoryPerformanceTracker(PerformanceTracker):
 
 class InMemoryBlueprintRegistry(BlueprintRegistry):
     """In-memory implementation of BlueprintRegistry for testing."""
-    
+
     def __init__(self):
         # Don't call super().__init__() as it expects manifest file
         self.templates: Dict[str, Dict[str, Any]] = {}
         self.metadata_cache: Dict[str, BlueprintMetadata] = {}
         self._initialized = True
-    
+
     def register_template(
         self, name: str, template: Dict[str, Any], metadata: Optional[BlueprintMetadata] = None
     ) -> None:
@@ -83,11 +86,11 @@ class InMemoryBlueprintRegistry(BlueprintRegistry):
         self.templates[name] = template
         if metadata:
             self.metadata_cache[name] = metadata
-    
+
     def get_template(self, name: str) -> Optional[Dict[str, Any]]:
         """Get blueprint template from memory."""
         return self.templates.get(name)
-    
+
     def list_templates(self, category: Optional[BlueprintCategory] = None) -> List[str]:
         """List all registered template names."""
         if category:
@@ -96,7 +99,7 @@ class InMemoryBlueprintRegistry(BlueprintRegistry):
                 if meta and meta.category == category
             ]
         return list(self.templates.keys())
-    
+
     def clear(self):
         """Clear all blueprints for test isolation."""
         self.templates.clear()
@@ -144,7 +147,7 @@ def real_performance_tracker():
 def real_blueprint_registry():
     """Create a real blueprint registry for testing."""
     registry = InMemoryBlueprintRegistry()
-    
+
     # Pre-populate with some test blueprints
     for i in range(3):
         template = create_test_blueprint_template(
@@ -175,7 +178,7 @@ def real_blueprint_registry():
             peak_benefit_window=100
         )
         registry.register_template(f"blueprint_{i}", template, metadata)
-    
+
     yield registry
     registry.clear()
 
@@ -193,16 +196,16 @@ def real_seed_orchestrator_components(real_performance_tracker, real_blueprint_r
 
 class MockUrzaServer:
     """Mock Urza server for testing without real HTTP."""
-    
+
     def __init__(self):
         self.compiled_kernels = {}
         self.compilation_count = 0
-    
+
     async def compile_kernel(self, blueprint_id: str) -> Dict[str, Any]:
         """Simulate kernel compilation."""
         self.compilation_count += 1
         kernel_id = f"kernel_{blueprint_id}_{self.compilation_count}"
-        
+
         # Simulate compilation result
         result = {
             "kernel_id": kernel_id,
@@ -210,14 +213,14 @@ class MockUrzaServer:
             "compilation_time_ms": 150,
             "optimization_level": "O2"
         }
-        
+
         self.compiled_kernels[kernel_id] = result
         return result
-    
+
     def get_kernel(self, kernel_id: str) -> Optional[Dict[str, Any]]:
         """Get compiled kernel info."""
         return self.compiled_kernels.get(kernel_id)
-    
+
     def clear(self):
         """Clear for test isolation."""
         self.compiled_kernels.clear()

@@ -11,6 +11,6 @@ from .telemetry_kernel import telemetry_reduction_kernel
 
 __all__ = [
     'kasmina_forward_kernel',
-    'state_update_kernel', 
+    'state_update_kernel',
     'telemetry_reduction_kernel'
 ]

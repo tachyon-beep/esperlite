@@ -7,17 +7,20 @@ This layer combines:
 - Phase 3: GPU-optimized Triton kernels
 """
 
+from typing import Any
+from typing import Dict
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional, Dict, Any
 
-from ..triton.simple_forward_kernel import simple_kasmina_kernel
+from ..common.feature_flags import is_feature_enabled
+from ..grafting.strategies import GraftingStrategyFactory
+from ..lifecycle.checkpoint_manager_v2 import CheckpointManager
 from ..lifecycle.extended_lifecycle import ExtendedLifecycle
 from ..lifecycle.lifecycle_manager import LifecycleManager
-from ..lifecycle.checkpoint_manager_v2 import CheckpointManager
 from ..lifecycle.state_manager import ExtendedStateTensor
-from ..grafting.strategies import GraftingStrategyFactory
-from ..common.feature_flags import is_feature_enabled
+from ..triton.simple_forward_kernel import simple_kasmina_kernel
 
 
 class TritonChunkedKasminaLayer(nn.Module):

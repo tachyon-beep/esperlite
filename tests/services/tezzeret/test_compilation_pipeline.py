@@ -2,14 +2,14 @@
 Integration tests for the real kernel compilation pipeline.
 """
 
+
 import pytest
 import torch
-import numpy as np
-from datetime import datetime
 
 from esper.contracts.assets import Blueprint
 from esper.contracts.enums import BlueprintState
-from esper.services.tezzeret.compiler import BlueprintCompiler, CompilationError
+from esper.services.tezzeret.compiler import BlueprintCompiler
+from esper.services.tezzeret.compiler import CompilationError
 from esper.services.tezzeret.optimizer import KernelOptimizer
 from esper.services.tezzeret.validator import KernelValidator
 
@@ -259,8 +259,9 @@ class TestCompilationPipeline:
         scripted = torch.jit.script(module)
 
         # Create dummy kernel and blueprint
-        from esper.contracts.assets import CompiledKernel, KernelMetadata
-        
+        from esper.contracts.assets import CompiledKernel
+        from esper.contracts.assets import KernelMetadata
+
         metadata = KernelMetadata(
             kernel_id="test_kernel",
             blueprint_id="test_blueprint",
@@ -271,14 +272,14 @@ class TestCompilationPipeline:
             device_requirements=["cpu"],
             memory_footprint_mb=1.0,
         )
-        
+
         kernel = CompiledKernel(
             kernel_id="test_kernel",
             blueprint_id="test_blueprint",
             binary_ref="dummy",
             metadata=metadata,
         )
-        
+
         blueprint = Blueprint(
             blueprint_id="test_blueprint",
             name="Test",
@@ -291,7 +292,7 @@ class TestCompilationPipeline:
         validator = KernelValidator()
         # Override the load method for testing
         validator._load_kernel_module = lambda k: scripted
-        
+
         result = validator.validate_kernel(kernel, blueprint)
         assert result.gradient_correct
         assert "input_gradient_norm" in result.metrics
@@ -310,10 +311,11 @@ class TestCompilationPipeline:
 
         # Validator with strict performance threshold
         validator = KernelValidator(performance_threshold=1.0)  # Very strict
-        
+
         # Create dummy kernel
-        from esper.contracts.assets import CompiledKernel, KernelMetadata
-        
+        from esper.contracts.assets import CompiledKernel
+        from esper.contracts.assets import KernelMetadata
+
         kernel = CompiledKernel(
             kernel_id="slow_kernel",
             blueprint_id="test",
@@ -329,7 +331,7 @@ class TestCompilationPipeline:
                 memory_footprint_mb=1.0,
             ),
         )
-        
+
         blueprint = Blueprint(
             blueprint_id="test",
             name="Test",
@@ -340,7 +342,7 @@ class TestCompilationPipeline:
 
         # Override load method
         validator._load_kernel_module = lambda k: slow_module
-        
+
         result = validator.validate_kernel(kernel, blueprint)
         # The slow module should fail performance validation
         assert not result.performance_acceptable or len(result.errors) > 0
@@ -368,7 +370,7 @@ class TestCompilationPipeline:
 
         compiler = BlueprintCompiler()
         compiled_kernel = compiler.compile_blueprint(blueprint)
-        
+
         assert compiled_kernel is not None
         assert compiled_kernel.status == "compiled"
         assert compiled_kernel.metadata.parameter_count >= 0
@@ -393,15 +395,15 @@ class TestCompilationPipeline:
         )
 
         compiler = BlueprintCompiler()
-        
+
         # First compilation
         kernel1 = compiler.compile_blueprint(blueprint)
-        
+
         # Second compilation of same blueprint
         kernel2 = compiler.compile_blueprint(blueprint)
-        
+
         # Should get different kernel IDs (no caching in basic implementation)
         assert kernel1.kernel_id != kernel2.kernel_id
-        
+
         # But same blueprint ID
         assert kernel1.blueprint_id == kernel2.blueprint_id

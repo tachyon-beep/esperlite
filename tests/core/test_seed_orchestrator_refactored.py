@@ -5,21 +5,18 @@ REFACTORED VERSION: Uses real components and tests actual functionality,
 not implementation details.
 """
 
+import time
+from unittest.mock import AsyncMock
+
 import pytest
 import torch.nn as nn
-from unittest.mock import AsyncMock
-import time
 
-from esper.core.seed_orchestrator import SeedOrchestrator, SeedStrategy
+from esper.core.seed_orchestrator import SeedOrchestrator
+from esper.core.seed_orchestrator import SeedStrategy
 from esper.execution.kasmina_layer import KasminaLayer
 from esper.execution.state_layout import SeedLifecycleState
-from tests.helpers import create_valid_adaptation_decision
-from tests.fixtures.test_infrastructure import (
-    real_performance_tracker,
-    real_blueprint_registry,
-    real_seed_orchestrator_components,
-)
 from tests.fixtures.real_components import TestKernelFactory
+from tests.helpers import create_valid_adaptation_decision
 
 
 class _TestModel(nn.Module):

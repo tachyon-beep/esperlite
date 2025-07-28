@@ -6,11 +6,11 @@ focusing on cache behavior rather than mocking implementation details.
 """
 
 import asyncio
+
 import pytest
 import torch
 
 from esper.execution.kernel_cache import KernelCache
-from esper.utils.circuit_breaker import CircuitBreakerOpenError
 from tests.fixtures.real_components import TestKernelFactory
 
 
@@ -188,9 +188,15 @@ class TestKernelCacheWithRealComponents:
 
         # If CUDA available, test GPU detection
         if torch.cuda.is_available():
-            gpu_cache = KernelCache()
-            gpu_cache._add_to_cache("gpu-tensor", torch.randn(256).cuda())
-            assert gpu_cache.is_gpu_resident
+            try:
+                gpu_cache = KernelCache()
+                gpu_cache._add_to_cache("gpu-tensor", torch.randn(256).cuda())
+                assert gpu_cache.is_gpu_resident
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    pytest.skip("CUDA out of memory, skipping GPU test")
+                else:
+                    raise
 
     @pytest.mark.asyncio
     async def test_load_kernel_with_circuit_breaker(self, cache, monkeypatch):

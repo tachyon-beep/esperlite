@@ -25,9 +25,9 @@ from esper.services.contracts import SimpleBlueprintContract
 from esper.services.contracts import SimpleCompiledKernelContract
 
 from .database import get_db
+from .kernel_manager import KernelManager
 from .models import Blueprint
 from .models import CompiledKernel
-from .kernel_manager import KernelManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -285,7 +285,7 @@ async def create_kernel(
         db.add(db_kernel)
         db.commit()
         db.refresh(db_kernel)
-        
+
         # Store in persistent cache if kernel data provided
         if kernel.kernel_binary_ref:
             # In production, this would be actual binary data
@@ -317,20 +317,20 @@ async def get_kernel_binary(kernel_id: str, db: Session = Depends(get_db)):
     """Retrieve kernel binary data from cache."""
     try:
         kernel_data = await kernel_manager.retrieve_kernel(kernel_id, db)
-        
+
         if not kernel_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Kernel binary {kernel_id} not found"
             )
-        
+
         # In production, return as proper binary response
         return {
             "kernel_id": kernel_id,
             "size_bytes": len(kernel_data),
             "cached": True
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -349,7 +349,7 @@ async def search_kernels_by_tags(
     try:
         results = await kernel_manager.find_kernels_by_tags(tags, db, limit)
         return results
-        
+
     except Exception as e:
         logger.error("Failed to search kernels: %s", e)
         raise HTTPException(
@@ -363,15 +363,15 @@ async def retire_kernel(kernel_id: str, db: Session = Depends(get_db)):
     """Retire a kernel (soft delete)."""
     try:
         success = await kernel_manager.delete_kernel(kernel_id, db)
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Kernel {kernel_id} not found"
             )
-        
+
         return {"kernel_id": kernel_id, "status": "retired"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -391,7 +391,7 @@ async def get_cache_statistics():
             "cache_stats": stats,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        
+
     except Exception as e:
         logger.error("Failed to get cache stats: %s", e)
         raise HTTPException(
@@ -406,7 +406,7 @@ async def optimize_cache(db: Session = Depends(get_db)):
     try:
         result = await kernel_manager.optimize_cache(db)
         return result
-        
+
     except Exception as e:
         logger.error("Failed to optimize cache: %s", e)
         raise HTTPException(

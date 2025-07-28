@@ -23,11 +23,11 @@ from esper.contracts.operational import HealthSignal
 from esper.execution.kasmina_layer import KasminaLayer
 from esper.execution.state_layout import KasminaStateLayout
 from esper.services.oona_client import OonaClient
+from tests.fixtures.mock_oona_client import *  # noqa: F401,F403
 
 # Import real component fixtures
 from tests.fixtures.real_components import *  # noqa: F401,F403
 from tests.fixtures.test_infrastructure import *  # noqa: F401,F403
-from tests.fixtures.mock_oona_client import *  # noqa: F401,F403
 from tests.fixtures.test_services import *  # noqa: F401,F403
 
 

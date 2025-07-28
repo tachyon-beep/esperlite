@@ -418,9 +418,10 @@ class TestMorphogeneticAdaptation:
         trainer = TolariaTrainer(minimal_config)
 
         # Create a real model with KasminaLayer
-        from esper.execution.kasmina_layer import KasminaLayer
         import torch.nn as nn
-        
+
+        from esper.execution.kasmina_layer import KasminaLayer
+
         class TestModelWithKasmina(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -433,10 +434,10 @@ class TestMorphogeneticAdaptation:
                     layer_name="layer1"
                 )
                 self.kasmina_layers = {"layer1": self.layer1}
-                
+
             def forward(self, x):
                 return self.layer1(x)
-        
+
         # Use real model
         trainer.model = TestModelWithKasmina()
         trainer.metrics = {"loss": [0.5, 0.4, 0.3], "accuracy": [0.8, 0.85, 0.9]}
@@ -460,7 +461,7 @@ class TestMorphogeneticAdaptation:
         # Even if it fails due to missing dependencies, verify the attempt was made
         # and the trainer handled it gracefully
         assert isinstance(result, bool)  # Should return True or False, not crash
-        
+
         # If successful, verify state changed
         if result:
             final_stats = trainer.model.layer1.get_layer_stats()

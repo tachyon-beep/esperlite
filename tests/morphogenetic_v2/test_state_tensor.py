@@ -6,10 +6,12 @@ Validates GPU-resident state management for massively parallel seeds.
 
 import pytest
 import torch
-# Removed typing imports - not needed after removing test_initialization
 
+from esper.morphogenetic_v2.kasmina.logical_seed import LogicalSeedState
+from esper.morphogenetic_v2.kasmina.logical_seed import SeedLifecycle
+
+# Removed typing imports - not needed after removing test_initialization
 from esper.morphogenetic_v2.kasmina.state_tensor import StateTensor
-from esper.morphogenetic_v2.kasmina.logical_seed import SeedLifecycle, LogicalSeedState
 
 
 class TestStateTensor:

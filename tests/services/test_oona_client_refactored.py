@@ -5,16 +5,17 @@ This version uses real Redis as per project guidelines:
 "Use real services when available, mock only external dependencies"
 """
 
+import asyncio
 import json
 import os
 import time
-import pytest
-import asyncio
 
+import pytest
 import redis.asyncio as aioredis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from esper.contracts.messages import OonaMessage, TopicNames
+from esper.contracts.messages import OonaMessage
+from esper.contracts.messages import TopicNames
 from esper.contracts.operational import HealthSignal
 from esper.services.oona_client import OonaClient
 

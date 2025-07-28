@@ -7,7 +7,9 @@ async execution and proper synchronization.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import torch
 
@@ -34,7 +36,7 @@ class StreamManager:
         self.stream_index: Dict[int, int] = {}
         self.default_streams: Dict[int, torch.cuda.Stream] = {}
         self._initialized_devices: set = set()
-        
+
         logger.info(
             f"Initialized StreamManager with {num_streams_per_device} streams per device"
         )
@@ -51,24 +53,24 @@ class StreamManager:
         """
         if device.type != "cuda":
             raise ValueError(f"StreamManager only supports CUDA devices, got {device}")
-        
+
         device_id = device.index or 0
-        
+
         # Initialize streams for device if needed
         if device_id not in self.streams:
             self._initialize_device_streams(device_id)
-        
+
         # Round-robin stream selection
         idx = self.stream_index[device_id]
         self.stream_index[device_id] = (idx + 1) % self.num_streams
-        
+
         return self.streams[device_id][idx]
 
     def _initialize_device_streams(self, device_id: int):
         """Initialize streams for a specific device."""
         if device_id in self._initialized_devices:
             return
-        
+
         # Create streams for the device
         with torch.cuda.device(device_id):
             self.streams[device_id] = [
@@ -77,7 +79,7 @@ class StreamManager:
             ]
             self.stream_index[device_id] = 0
             self.default_streams[device_id] = torch.cuda.default_stream(device_id)
-        
+
         self._initialized_devices.add(device_id)
         logger.debug(f"Initialized {self.num_streams} streams for device {device_id}")
 
@@ -85,19 +87,19 @@ class StreamManager:
         """Get the default stream for a device."""
         if device.type != "cuda":
             raise ValueError(f"StreamManager only supports CUDA devices, got {device}")
-        
+
         device_id = device.index or 0
-        
+
         if device_id not in self.default_streams:
             self._initialize_device_streams(device_id)
-        
+
         return self.default_streams[device_id]
 
     async def synchronize_stream(self, stream: torch.cuda.Stream):
         """Asynchronously wait for stream completion."""
         event = torch.cuda.Event()
         event.record(stream)
-        
+
         while not event.query():
             await asyncio.sleep(0)  # Yield to event loop
 
@@ -105,9 +107,9 @@ class StreamManager:
         """Synchronize all streams on a device."""
         if device.type != "cuda":
             return
-        
+
         device_id = device.index or 0
-        
+
         if device_id in self.streams:
             sync_tasks = [
                 self.synchronize_stream(stream)
@@ -118,11 +120,11 @@ class StreamManager:
     async def synchronize_all(self):
         """Synchronize all streams across all devices."""
         sync_tasks = []
-        
+
         for device_id, device_streams in self.streams.items():
             for stream in device_streams:
                 sync_tasks.append(self.synchronize_stream(stream))
-        
+
         if sync_tasks:
             await asyncio.gather(*sync_tasks)
             logger.debug(f"Synchronized {len(sync_tasks)} streams across all devices")
@@ -135,11 +137,11 @@ class StreamManager:
             "total_streams": sum(len(streams) for streams in self.streams.values()),
             "devices": list(self._initialized_devices),
         }
-        
+
         # Add per-device stats
         for device_id in self._initialized_devices:
             stats[f"device_{device_id}_current_stream"] = self.stream_index.get(device_id, 0)
-        
+
         return stats
 
     def cleanup(self):
@@ -149,12 +151,12 @@ class StreamManager:
             for device_streams in self.streams.values():
                 for stream in device_streams:
                     stream.synchronize()
-        
+
         self.streams.clear()
         self.stream_index.clear()
         self.default_streams.clear()
         self._initialized_devices.clear()
-        
+
         logger.info("StreamManager cleaned up")
 
 
@@ -199,7 +201,7 @@ class StreamContext:
         if self.device.type == "cuda" and self.stream:
             if self.synchronize_on_exit:
                 self.stream.synchronize()
-            
+
             # Restore original stream
             if self.original_stream:
                 torch.cuda.set_stream(self.original_stream)
@@ -212,7 +214,7 @@ class StreamContext:
         """Async exit stream context."""
         if self.device.type == "cuda" and self.stream and self.synchronize_on_exit:
             await self.stream_manager.synchronize_stream(self.stream)
-        
+
         # Restore original stream
         if self.original_stream:
             torch.cuda.set_stream(self.original_stream)
@@ -233,17 +235,17 @@ def get_global_stream_manager(num_streams: int = 4) -> StreamManager:
         Global StreamManager instance
     """
     global _global_stream_manager
-    
+
     if _global_stream_manager is None:
         _global_stream_manager = StreamManager(num_streams)
-    
+
     return _global_stream_manager
 
 
 def cleanup_global_stream_manager():
     """Clean up global stream manager."""
     global _global_stream_manager
-    
+
     if _global_stream_manager is not None:
         _global_stream_manager.cleanup()
         _global_stream_manager = None

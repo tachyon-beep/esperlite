@@ -1,23 +1,30 @@
 """Unit tests for message schemas."""
 
-import pytest
 import time
 import uuid
-from src.esper.morphogenetic_v2.message_bus.schemas import (
-    BaseMessage, LayerHealthReport, SeedMetricsSnapshot,
-    LifecycleTransitionCommand, StateTransitionEvent,
-    PerformanceAlert, AlertType, AlertSeverity,
-    MessageFactory, create_topic_name, parse_topic_name
-)
+
+import pytest
+
+from src.esper.morphogenetic_v2.message_bus.schemas import AlertSeverity
+from src.esper.morphogenetic_v2.message_bus.schemas import AlertType
+from src.esper.morphogenetic_v2.message_bus.schemas import BaseMessage
+from src.esper.morphogenetic_v2.message_bus.schemas import LayerHealthReport
+from src.esper.morphogenetic_v2.message_bus.schemas import LifecycleTransitionCommand
+from src.esper.morphogenetic_v2.message_bus.schemas import MessageFactory
+from src.esper.morphogenetic_v2.message_bus.schemas import PerformanceAlert
+from src.esper.morphogenetic_v2.message_bus.schemas import SeedMetricsSnapshot
+from src.esper.morphogenetic_v2.message_bus.schemas import StateTransitionEvent
+from src.esper.morphogenetic_v2.message_bus.schemas import create_topic_name
+from src.esper.morphogenetic_v2.message_bus.schemas import parse_topic_name
 
 
 class TestBaseMessage:
     """Test BaseMessage functionality."""
-    
+
     def test_base_message_creation(self):
         """Test creating a base message."""
         msg = BaseMessage(source="test_source")
-        
+
         assert msg.message_id
         assert isinstance(msg.message_id, str)
         assert msg.timestamp > 0
@@ -25,7 +32,7 @@ class TestBaseMessage:
         assert msg.version == "1.0"
         assert msg.correlation_id is None
         assert msg.metadata == {}
-    
+
     def test_base_message_to_dict(self):
         """Test converting message to dictionary."""
         msg = BaseMessage(
@@ -33,9 +40,9 @@ class TestBaseMessage:
             correlation_id="corr_123",
             metadata={"key": "value"}
         )
-        
+
         data = msg.to_dict()
-        
+
         assert data["message_id"] == msg.message_id
         assert data["timestamp"] == msg.timestamp
         assert data["source"] == "test"
@@ -43,7 +50,7 @@ class TestBaseMessage:
         assert data["correlation_id"] == "corr_123"
         assert data["metadata"] == {"key": "value"}
         assert data["message_type"] == "BaseMessage"
-    
+
     def test_base_message_from_dict(self):
         """Test creating message from dictionary."""
         data = {
@@ -54,9 +61,9 @@ class TestBaseMessage:
             "correlation_id": "corr_123",
             "metadata": {"key": "value"}
         }
-        
+
         msg = BaseMessage.from_dict(data)
-        
+
         assert msg.message_id == "test_id"
         assert msg.timestamp == 123.456
         assert msg.source == "test"
@@ -67,7 +74,7 @@ class TestBaseMessage:
 
 class TestTelemetryMessages:
     """Test telemetry message types."""
-    
+
     def test_layer_health_report(self):
         """Test LayerHealthReport creation and serialization."""
         report = LayerHealthReport(
@@ -82,22 +89,22 @@ class TestTelemetryMessages:
             telemetry_window=(100.0, 110.0),
             anomalies=[{"metric": "loss", "severity": "high"}]
         )
-        
+
         assert report.layer_id == "layer_1"
         assert report.inactive_seeds == 70
         assert report.window_duration == 10.0
-        
+
         # Test serialization
         data = report.to_dict()
         assert data["message_type"] == "LayerHealthReport"
         assert data["layer_id"] == "layer_1"
         assert data["total_seeds"] == 100
-        
+
         # Test deserialization
         restored = LayerHealthReport.from_dict(data)
         assert restored.layer_id == report.layer_id
         assert restored.total_seeds == report.total_seeds
-    
+
     def test_seed_metrics_snapshot(self):
         """Test SeedMetricsSnapshot creation."""
         snapshot = SeedMetricsSnapshot(
@@ -110,11 +117,11 @@ class TestTelemetryMessages:
             warning_count=5,
             checkpoint_id="ckpt_123"
         )
-        
+
         assert snapshot.seed_id == 42
         assert snapshot.lifecycle_state == "TRAINING"
         assert snapshot.error_count == 2
-        
+
         # Test serialization roundtrip
         data = snapshot.to_dict()
         restored = SeedMetricsSnapshot.from_dict(data)
@@ -124,7 +131,7 @@ class TestTelemetryMessages:
 
 class TestControlCommands:
     """Test control command messages."""
-    
+
     def test_lifecycle_transition_command(self):
         """Test LifecycleTransitionCommand."""
         cmd = LifecycleTransitionCommand(
@@ -137,12 +144,12 @@ class TestControlCommands:
             force=True,
             reason="Performance improvement"
         )
-        
+
         assert cmd.target_state == "GRAFTING"
         assert cmd.parameters["learning_rate"] == 0.001
         assert cmd.priority == "high"
         assert cmd.force is True
-        
+
         # Test serialization
         data = cmd.to_dict()
         assert data["message_type"] == "LifecycleTransitionCommand"
@@ -151,7 +158,7 @@ class TestControlCommands:
 
 class TestEventMessages:
     """Test event message types."""
-    
+
     def test_state_transition_event(self):
         """Test StateTransitionEvent."""
         event = StateTransitionEvent(
@@ -165,17 +172,17 @@ class TestEventMessages:
             triggered_by="system",
             success=True
         )
-        
+
         assert event.from_state == "TRAINING"
         assert event.to_state == "GRAFTING"
         assert event.success is True
-        
+
         # Test serialization
         data = event.to_dict()
         restored = StateTransitionEvent.from_dict(data)
         assert restored.from_state == event.from_state
         assert restored.metrics_snapshot == event.metrics_snapshot
-    
+
     def test_performance_alert(self):
         """Test PerformanceAlert."""
         alert = PerformanceAlert(
@@ -189,11 +196,11 @@ class TestEventMessages:
             details={"stddev": 0.1},
             recommended_action="Check training data"
         )
-        
+
         assert alert.alert_type == AlertType.ANOMALY
         assert alert.severity == AlertSeverity.WARNING
         assert alert.metric_value == 0.5
-        
+
         # Test enum serialization
         data = alert.to_dict()
         assert data["alert_type"] == "anomaly"
@@ -202,7 +209,7 @@ class TestEventMessages:
 
 class TestMessageFactory:
     """Test MessageFactory functionality."""
-    
+
     def test_create_from_dict(self):
         """Test creating messages from dictionaries."""
         # Test health report
@@ -215,17 +222,17 @@ class TestMessageFactory:
             "performance_summary": {},
             "telemetry_window": [0, 10]
         }
-        
+
         msg = MessageFactory.create(data)
         assert isinstance(msg, LayerHealthReport)
         assert msg.layer_id == "test"
         assert msg.total_seeds == 100
-    
+
     def test_unknown_message_type(self):
         """Test error on unknown message type."""
         with pytest.raises(ValueError, match="Unknown message type"):
             MessageFactory.create({"message_type": "UnknownType"})
-    
+
     def test_missing_message_type(self):
         """Test error on missing message type."""
         with pytest.raises(ValueError, match="Missing message_type"):
@@ -234,21 +241,21 @@ class TestMessageFactory:
 
 class TestTopicUtilities:
     """Test topic utility functions."""
-    
+
     def test_create_topic_name(self):
         """Test topic name creation."""
         # Basic topic
         topic = create_topic_name("telemetry")
         assert topic == "morphogenetic.telemetry"
-        
+
         # With layer
         topic = create_topic_name("telemetry", layer_id="layer_1")
         assert topic == "morphogenetic.telemetry.layer.layer_1"
-        
+
         # With layer and seed
         topic = create_topic_name("control", layer_id="layer_1", seed_id=42)
         assert topic == "morphogenetic.control.layer.layer_1.seed.42"
-    
+
     def test_parse_topic_name(self):
         """Test topic name parsing."""
         # Basic topic
@@ -256,17 +263,17 @@ class TestTopicUtilities:
         assert parsed["system"] == "morphogenetic"
         assert parsed["message_type"] == "telemetry"
         assert "layer_id" not in parsed
-        
+
         # With layer
         parsed = parse_topic_name("morphogenetic.control.layer.layer_1")
         assert parsed["layer_id"] == "layer_1"
         assert "seed_id" not in parsed
-        
+
         # With layer and seed
         parsed = parse_topic_name("morphogenetic.event.layer.layer_1.seed.42")
         assert parsed["layer_id"] == "layer_1"
         assert parsed["seed_id"] == 42
-        
+
         # Complex topic
         parsed = parse_topic_name("morphogenetic.telemetry.aggregated.layer.test")
         assert parsed["message_type"] == "telemetry"
@@ -275,27 +282,27 @@ class TestTopicUtilities:
 
 class TestMessageValidation:
     """Test message validation and edge cases."""
-    
+
     def test_message_id_generation(self):
         """Test automatic message ID generation."""
         msg1 = BaseMessage()
         msg2 = BaseMessage()
-        
+
         # Should have different IDs
         assert msg1.message_id != msg2.message_id
-        
+
         # Should be valid UUIDs
         uuid.UUID(msg1.message_id)
         uuid.UUID(msg2.message_id)
-    
+
     def test_timestamp_generation(self):
         """Test automatic timestamp generation."""
         before = time.time()
         msg = BaseMessage()
         after = time.time()
-        
+
         assert before <= msg.timestamp <= after
-    
+
     def test_empty_health_metrics(self):
         """Test health report with empty metrics."""
         report = LayerHealthReport(
@@ -306,10 +313,10 @@ class TestMessageValidation:
             performance_summary={},
             telemetry_window=(0, 0)
         )
-        
+
         assert report.inactive_seeds == 0
         assert report.window_duration == 0
-    
+
     def test_message_metadata_preservation(self):
         """Test that metadata is preserved through serialization."""
         msg = BaseMessage(
@@ -318,9 +325,9 @@ class TestMessageValidation:
                 "nested": {"data": [1, 2, 3]}
             }
         )
-        
+
         data = msg.to_dict()
         restored = BaseMessage.from_dict(data)
-        
+
         assert restored.metadata == msg.metadata
         assert restored.metadata["nested"]["data"] == [1, 2, 3]

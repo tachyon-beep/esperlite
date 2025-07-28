@@ -906,14 +906,14 @@ class TolariaTrainer:
             # Check if seed orchestrator is available
             if not hasattr(self, 'seed_orchestrator'):
                 # Initialize seed orchestrator if not already done
+                from esper.blueprints.registry import BlueprintRegistry
                 from esper.core.seed_orchestrator import SeedOrchestrator
                 from esper.services.tamiyo.performance_tracker import PerformanceTracker
-                from esper.blueprints.registry import BlueprintRegistry
-                
+
                 # Use existing components if available
                 performance_tracker = getattr(self, 'performance_tracker', PerformanceTracker())
                 blueprint_registry = BlueprintRegistry()
-                
+
                 self.seed_orchestrator = SeedOrchestrator(
                     performance_tracker=performance_tracker,
                     blueprint_registry=blueprint_registry,
@@ -921,13 +921,13 @@ class TolariaTrainer:
                     urza_url=self.config.urza_url if hasattr(self.config, 'urza_url') else "http://localhost:8000"
                 )
                 logger.info("Initialized seed orchestrator for architecture modification")
-            
+
             # Apply modification through seed orchestration
             success, details = await self.seed_orchestrator.apply_architecture_modification(
                 model=self.model,
                 decision=decision
             )
-            
+
             if success:
                 logger.info(
                     f"Successfully applied architecture modification to {layer_name}: {details}"
@@ -940,9 +940,9 @@ class TolariaTrainer:
                     f"Failed to apply architecture modification to {layer_name}: {details}"
                 )
                 self.metrics['failed_modifications'] = self.metrics.get('failed_modifications', 0) + 1
-            
+
             return success
-            
+
         except ImportError as e:
             logger.error(f"Failed to import seed orchestrator: {e}")
             logger.warning(
@@ -1062,7 +1062,8 @@ class TolariaTrainer:
     def load_checkpoint(self, checkpoint_path: str) -> bool:
         """Load training checkpoint and restore state."""
         try:
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            # Use weights_only=False to handle custom classes like TrainingState
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
 
             self.model.load_state_dict(checkpoint["state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])

@@ -3,22 +3,21 @@ Multi-tiered persistent kernel cache implementation.
 """
 
 import asyncio
-import time
-from typing import Optional, Dict, Any, List, Tuple
-from dataclasses import dataclass, field
-from collections import OrderedDict
 import hashlib
+from collections import OrderedDict
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from pydantic import BaseModel
-
-from .cache_backends import (
-    RedisBackend,
-    PostgreSQLBackend,
-    CacheEntry,
-    RedisConfig,
-    PostgreSQLConfig,
-)
 from ..utils.logging import get_logger
+from .cache_backends import CacheEntry
+from .cache_backends import PostgreSQLBackend
+from .cache_backends import PostgreSQLConfig
+from .cache_backends import RedisBackend
+from .cache_backends import RedisConfig
 
 logger = get_logger(__name__)
 

@@ -8,18 +8,22 @@ model surgery.
 
 import logging
 import time
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 import torch.nn as nn
 
+from esper.blueprints.registry import BlueprintRegistry
 from esper.contracts.operational import AdaptationDecision
 from esper.execution.kasmina_layer import KasminaLayer
-from esper.services.tamiyo.performance_tracker import PerformanceTracker
-from esper.services.tamiyo.blueprint_integration import Phase2IntegrationOrchestrator
-from esper.blueprints.registry import BlueprintRegistry
 from esper.services.oona_client import OonaClient
+from esper.services.tamiyo.blueprint_integration import Phase2IntegrationOrchestrator
+from esper.services.tamiyo.performance_tracker import PerformanceTracker
 
 logger = logging.getLogger(__name__)
 

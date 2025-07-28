@@ -2,16 +2,19 @@
 Cache backend implementations for persistent kernel storage.
 """
 
-import asyncio
 import json
 import pickle
-from typing import Optional, Dict, Any, List
-from abc import ABC, abstractmethod
 import time
-from dataclasses import dataclass, field
+from abc import ABC
+from abc import abstractmethod
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Dict
+from typing import Optional
 
-import redis.asyncio as aioredis
 import asyncpg
+import redis.asyncio as aioredis
 from pydantic import BaseModel
 
 from ..utils.logging import get_logger
@@ -23,14 +26,14 @@ __all__ = [
     "CacheBackend",
     "RedisConfig",
     "RedisBackend",
-    "PostgreSQLConfig", 
+    "PostgreSQLConfig",
     "PostgreSQLBackend",
 ]
 
 
 class CacheEntry(BaseModel):
     """Represents a cached kernel entry."""
-    
+
     kernel_id: str
     kernel_data: bytes
     metadata: Dict[str, Any]
@@ -42,27 +45,27 @@ class CacheEntry(BaseModel):
 
 class CacheBackend(ABC):
     """Abstract base class for cache backends."""
-    
+
     @abstractmethod
     async def get(self, key: str) -> Optional[CacheEntry]:
         """Retrieve entry from cache."""
         pass
-    
+
     @abstractmethod
     async def put(self, key: str, entry: CacheEntry) -> bool:
         """Store entry in cache."""
         pass
-    
+
     @abstractmethod
     async def delete(self, key: str) -> bool:
         """Remove entry from cache."""
         pass
-    
+
     @abstractmethod
     async def exists(self, key: str) -> bool:
         """Check if key exists."""
         pass
-    
+
     @abstractmethod
     async def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
@@ -72,7 +75,7 @@ class CacheBackend(ABC):
 @dataclass
 class RedisConfig:
     """Redis connection configuration."""
-    
+
     host: str = "localhost"
     port: int = 6379
     db: int = 0
@@ -83,7 +86,7 @@ class RedisConfig:
 
 class RedisBackend(CacheBackend):
     """Redis-based cache backend for hot kernel data."""
-    
+
     def __init__(self, config: RedisConfig):
         self.config = config
         self._pool: Optional[aioredis.ConnectionPool] = None
@@ -95,7 +98,7 @@ class RedisBackend(CacheBackend):
             "deletes": 0,
             "errors": 0
         }
-    
+
     async def connect(self):
         """Establish Redis connection."""
         self._pool = aioredis.ConnectionPool(
@@ -106,54 +109,54 @@ class RedisBackend(CacheBackend):
             max_connections=self.config.max_connections,
         )
         self._client = aioredis.Redis(connection_pool=self._pool)
-        
+
         # Test connection
         await self._client.ping()
         logger.info(f"Connected to Redis at {self.config.host}:{self.config.port}")
-    
+
     async def disconnect(self):
         """Close Redis connection."""
         if self._client:
             await self._client.close()
         if self._pool:
             await self._pool.disconnect()
-    
+
     async def get(self, key: str) -> Optional[CacheEntry]:
         """Retrieve kernel from Redis cache."""
         try:
             data = await self._client.get(f"kernel:{key}")
             if data:
                 self._stats["hits"] += 1
-                
+
                 # Update access stats
                 await self._client.hincrby(f"kernel:stats:{key}", "access_count", 1)
                 await self._client.hset(f"kernel:stats:{key}", "last_access", time.time())
-                
+
                 # Deserialize entry
                 entry_dict = pickle.loads(data)
                 return CacheEntry(**entry_dict)
             else:
                 self._stats["misses"] += 1
                 return None
-                
+
         except Exception as e:
             logger.error(f"Redis get error for key {key}: {e}")
             self._stats["errors"] += 1
             return None
-    
+
     async def put(self, key: str, entry: CacheEntry) -> bool:
         """Store kernel in Redis cache."""
         try:
             # Serialize entry
             entry_data = pickle.dumps(entry.model_dump())
-            
+
             # Store with TTL
             success = await self._client.setex(
                 f"kernel:{key}",
                 self.config.ttl_seconds,
                 entry_data
             )
-            
+
             # Store stats separately
             stats = {
                 "size_bytes": entry.size_bytes,
@@ -163,17 +166,17 @@ class RedisBackend(CacheBackend):
             }
             await self._client.hset(f"kernel:stats:{key}", mapping=stats)
             await self._client.expire(f"kernel:stats:{key}", self.config.ttl_seconds)
-            
+
             if success:
                 self._stats["puts"] += 1
                 return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Redis put error for key {key}: {e}")
             self._stats["errors"] += 1
             return False
-    
+
     async def delete(self, key: str) -> bool:
         """Remove kernel from Redis cache."""
         try:
@@ -182,12 +185,12 @@ class RedisBackend(CacheBackend):
                 self._stats["deletes"] += 1
                 return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Redis delete error for key {key}: {e}")
             self._stats["errors"] += 1
             return False
-    
+
     async def exists(self, key: str) -> bool:
         """Check if kernel exists in cache."""
         try:
@@ -195,7 +198,7 @@ class RedisBackend(CacheBackend):
         except Exception as e:
             logger.error(f"Redis exists error for key {key}: {e}")
             return False
-    
+
     async def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         try:
@@ -215,7 +218,7 @@ class RedisBackend(CacheBackend):
 @dataclass
 class PostgreSQLConfig:
     """PostgreSQL connection configuration."""
-    
+
     host: str = "localhost"
     port: int = 5432
     database: str = "esper"
@@ -227,7 +230,7 @@ class PostgreSQLConfig:
 
 class PostgreSQLBackend(CacheBackend):
     """PostgreSQL-based cache backend for cold kernel data and metadata."""
-    
+
     def __init__(self, config: PostgreSQLConfig):
         self.config = config
         self._pool: Optional[asyncpg.Pool] = None
@@ -238,7 +241,7 @@ class PostgreSQLBackend(CacheBackend):
             "deletes": 0,
             "errors": 0
         }
-    
+
     async def connect(self):
         """Establish PostgreSQL connection pool."""
         self._pool = await asyncpg.create_pool(
@@ -250,16 +253,16 @@ class PostgreSQLBackend(CacheBackend):
             min_size=self.config.min_connections,
             max_size=self.config.max_connections,
         )
-        
+
         # Create tables if not exist
         await self._create_tables()
         logger.info(f"Connected to PostgreSQL at {self.config.host}:{self.config.port}")
-    
+
     async def disconnect(self):
         """Close PostgreSQL connection pool."""
         if self._pool:
             await self._pool.close()
-    
+
     async def _create_tables(self):
         """Create cache tables if they don't exist."""
         async with self._pool.acquire() as conn:
@@ -284,7 +287,7 @@ class PostgreSQLBackend(CacheBackend):
                 CREATE INDEX IF NOT EXISTS idx_kernel_metadata 
                 ON kernel_cache USING GIN(metadata);
             """)
-    
+
     async def get(self, key: str) -> Optional[CacheEntry]:
         """Retrieve kernel from PostgreSQL cache."""
         try:
@@ -298,7 +301,7 @@ class PostgreSQLBackend(CacheBackend):
                     RETURNING kernel_id, kernel_data, metadata, size_bytes, 
                               access_count, last_access, tier
                 """, key)
-                
+
                 if row:
                     self._stats["hits"] += 1
                     return CacheEntry(
@@ -313,12 +316,12 @@ class PostgreSQLBackend(CacheBackend):
                 else:
                     self._stats["misses"] += 1
                     return None
-                    
+
         except Exception as e:
             logger.error(f"PostgreSQL get error for key {key}: {e}")
             self._stats["errors"] += 1
             return None
-    
+
     async def put(self, key: str, entry: CacheEntry) -> bool:
         """Store kernel in PostgreSQL cache."""
         try:
@@ -335,8 +338,8 @@ class PostgreSQLBackend(CacheBackend):
                         access_count = EXCLUDED.access_count,
                         last_access = EXCLUDED.last_access,
                         tier = EXCLUDED.tier
-                """, 
-                key, 
+                """,
+                key,
                 entry.kernel_data,
                 json.dumps(entry.metadata),
                 entry.size_bytes,
@@ -344,15 +347,15 @@ class PostgreSQLBackend(CacheBackend):
                 entry.last_access,
                 entry.tier
                 )
-                
+
                 self._stats["puts"] += 1
                 return True
-                
+
         except Exception as e:
             logger.error(f"PostgreSQL put error for key {key}: {e}")
             self._stats["errors"] += 1
             return False
-    
+
     async def delete(self, key: str) -> bool:
         """Remove kernel from PostgreSQL cache."""
         try:
@@ -361,17 +364,17 @@ class PostgreSQLBackend(CacheBackend):
                     "DELETE FROM kernel_cache WHERE kernel_id = $1",
                     key
                 )
-                
+
                 if result.split()[-1] != "0":
                     self._stats["deletes"] += 1
                     return True
                 return False
-                
+
         except Exception as e:
             logger.error(f"PostgreSQL delete error for key {key}: {e}")
             self._stats["errors"] += 1
             return False
-    
+
     async def exists(self, key: str) -> bool:
         """Check if kernel exists in cache."""
         try:
@@ -381,11 +384,11 @@ class PostgreSQLBackend(CacheBackend):
                     key
                 )
                 return result
-                
+
         except Exception as e:
             logger.error(f"PostgreSQL exists error for key {key}: {e}")
             return False
-    
+
     async def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         try:
@@ -398,7 +401,7 @@ class PostgreSQLBackend(CacheBackend):
                         MAX(last_access) as most_recent_access
                     FROM kernel_cache
                 """)
-                
+
                 return {
                     **self._stats,
                     "total_entries": stats["total_entries"] or 0,
@@ -407,11 +410,11 @@ class PostgreSQLBackend(CacheBackend):
                     "most_recent_access": stats["most_recent_access"].isoformat() if stats["most_recent_access"] else None,
                     "hit_rate": self._stats["hits"] / max(1, self._stats["hits"] + self._stats["misses"])
                 }
-                
+
         except Exception as e:
             logger.error(f"PostgreSQL stats error: {e}")
             return self._stats
-    
+
     async def cleanup_old_entries(self, days: int = 30) -> int:
         """Remove entries not accessed for specified days."""
         try:
@@ -420,11 +423,11 @@ class PostgreSQLBackend(CacheBackend):
                     DELETE FROM kernel_cache 
                     WHERE last_access < NOW() - INTERVAL '%s days'
                 """, days)
-                
+
                 deleted = int(result.split()[-1])
                 logger.info(f"Cleaned up {deleted} old cache entries")
                 return deleted
-                
+
         except Exception as e:
             logger.error(f"PostgreSQL cleanup error: {e}")
             return 0

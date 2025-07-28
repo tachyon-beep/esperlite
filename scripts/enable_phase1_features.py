@@ -7,8 +7,8 @@ This script allows gradual rollout of the chunked architecture.
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -25,14 +25,14 @@ def enable_phase1_features(rollout_percentage: int = 10, model_ids: list = None)
         model_ids: Specific model IDs to add to allowlist
     """
     config_path = Path("config/morphogenetic_features.json")
-    
+
     # Load existing config
     if config_path.exists():
         with open(config_path) as f:
             config = json.load(f)
     else:
         config = {}
-    
+
     # Update Phase 1 features
     config["chunked_architecture"] = {
         "enabled": True,
@@ -41,7 +41,7 @@ def enable_phase1_features(rollout_percentage: int = 10, model_ids: list = None)
         "blocklist": [],
         "description": "Phase 1: Enable chunked architecture with thousands of parallel seeds"
     }
-    
+
     # Ensure Phase 0 features are enabled
     config["performance_monitoring"] = {
         "enabled": True,
@@ -50,7 +50,7 @@ def enable_phase1_features(rollout_percentage: int = 10, model_ids: list = None)
         "blocklist": [],
         "description": "Phase 0: Performance baseline and monitoring"
     }
-    
+
     config["ab_testing"] = {
         "enabled": True,
         "rollout_percentage": 100,
@@ -58,18 +58,18 @@ def enable_phase1_features(rollout_percentage: int = 10, model_ids: list = None)
         "blocklist": [],
         "description": "Phase 0: A/B testing framework"
     }
-    
+
     # Save updated config
     config_path.parent.mkdir(exist_ok=True)
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
-    
-    print(f"Phase 1 features enabled:")
+
+    print("Phase 1 features enabled:")
     print(f"- Chunked architecture: {rollout_percentage}% rollout")
     if model_ids:
         print(f"- Allowlist: {', '.join(model_ids)}")
     print(f"- Config saved to: {config_path}")
-    
+
     # Verify with feature flag manager
     manager = FeatureFlagManager(config_path)
     test_model = model_ids[0] if model_ids else "test_model_123"
@@ -80,20 +80,20 @@ def enable_phase1_features(rollout_percentage: int = 10, model_ids: list = None)
 def disable_phase1_features():
     """Disable Phase 1 features (revert to Phase 0 only)."""
     config_path = Path("config/morphogenetic_features.json")
-    
+
     if config_path.exists():
         with open(config_path) as f:
             config = json.load(f)
-        
+
         # Disable Phase 1 features
         if "chunked_architecture" in config:
             config["chunked_architecture"]["enabled"] = False
             config["chunked_architecture"]["rollout_percentage"] = 0
             config["chunked_architecture"]["allowlist"] = []
-        
+
         with open(config_path, 'w') as f:
             json.dump(config, f, indent=2)
-        
+
         print("Phase 1 features disabled")
     else:
         print("No config file found")
@@ -104,7 +104,7 @@ def main():
         description="Enable/disable Phase 1 morphogenetic features"
     )
     parser.add_argument(
-        "--enable", 
+        "--enable",
         action="store_true",
         help="Enable Phase 1 features"
     )
@@ -124,9 +124,9 @@ def main():
         nargs="+",
         help="Specific model IDs to enable"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.disable:
         disable_phase1_features()
     elif args.enable:

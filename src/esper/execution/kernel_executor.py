@@ -8,6 +8,7 @@ the placeholder implementation in KasminaLayer with real PyTorch module executio
 import asyncio
 import io
 import logging
+
 # Removed pickle import - using torch.load for security
 import time
 from dataclasses import dataclass
@@ -457,14 +458,14 @@ class RealKernelExecutor:
             buffer = io.BytesIO(kernel_artifact)
             # Load only the state dict, not arbitrary Python objects
             state_dict = torch.load(buffer, map_location='cpu', weights_only=True)
-            
+
             # Create a new module and load the state dict
             # This requires the kernel to save module class info separately
             if not isinstance(state_dict, dict):
                 raise KernelDeserializationError(
                     "Invalid kernel format - expected state dict"
                 )
-            
+
             # For now, return the state dict - caller needs to instantiate module
             return state_dict
 

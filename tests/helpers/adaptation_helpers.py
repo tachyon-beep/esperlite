@@ -1,6 +1,8 @@
 """Helper functions for creating valid AdaptationDecision instances in tests."""
 
-from typing import Dict, Optional, Any
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 from esper.contracts.operational import AdaptationDecision
 
@@ -39,23 +41,23 @@ def create_valid_adaptation_decision(
         "replace_kernel": "optimize_parameters",
         "kernel_selection": "optimize_parameters",
     }
-    
+
     # Use mapping if available, otherwise use as-is
     adaptation_type = type_mapping.get(adaptation_type, adaptation_type)
-    
+
     # Build metadata dict
     metadata = {}
     if parameters:
         metadata["parameters"] = parameters
     if reasoning:
         metadata["reasoning"] = reasoning
-    
+
     # Add any additional kwargs to metadata
     for key, value in kwargs.items():
         # Skip fields that are part of the main schema
         if key not in ["layer_name", "adaptation_type", "confidence", "urgency", "metadata", "timestamp"]:
             metadata[key] = value
-    
+
     return AdaptationDecision(
         layer_name=layer_name,
         adaptation_type=adaptation_type,

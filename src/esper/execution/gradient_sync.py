@@ -9,7 +9,12 @@ backward pass synchronization.
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 from weakref import WeakKeyDictionary
 
 import torch
@@ -67,22 +72,22 @@ class GradientSynchronizer:
         """
         self._operation_counter += 1
         op_id = f"op_{self._operation_counter}"
-        
+
         # Create gradient placeholder
         grad_placeholder = GradientPlaceholder(inputs, op_id)
-        
+
         # Execute operation
         if asyncio.iscoroutinefunction(operation):
             output = await operation(*inputs, **kwargs)
         else:
             # Wrap sync operation for consistency
             output = operation(*inputs, **kwargs)
-        
+
         # Register for backward sync if gradients required
         if self._sync_enabled and any(inp.requires_grad for inp in inputs):
             self._register_backward_hook(output, grad_placeholder)
             self.operation_registry[output] = grad_placeholder
-        
+
         return output
 
     def _register_backward_hook(
@@ -96,10 +101,10 @@ class GradientSynchronizer:
                 # This is called during backward pass which is synchronous
                 import concurrent.futures
                 import threading
-                
+
                 # Create a future to wait on
                 future = concurrent.futures.Future()
-                
+
                 def run_sync():
                     try:
                         # Create new event loop in thread
@@ -110,17 +115,17 @@ class GradientSynchronizer:
                         future.set_result(None)
                     except Exception as e:
                         future.set_exception(e)
-                
+
                 # Run in a separate thread to avoid event loop conflicts
                 thread = threading.Thread(target=run_sync)
                 thread.start()
                 thread.join()
-                
+
                 # Get result or raise exception
                 future.result()
                 placeholder.completed = True
             return grad
-        
+
         if tensor.requires_grad:
             tensor.register_hook(grad_sync_hook)
 
@@ -131,11 +136,11 @@ class GradientSynchronizer:
                 f"Synchronizing {len(self.pending_operations)} operations "
                 f"before backward for {placeholder.operation_id}"
             )
-            
+
             # Wait for all pending operations
             await asyncio.gather(*self.pending_operations, return_exceptions=True)
             self.pending_operations.clear()
-        
+
         # Synchronize CUDA events if any
         if self.gradient_events:
             for event in self.gradient_events:
@@ -158,7 +163,7 @@ class GradientSynchronizer:
         if self.pending_operations:
             await asyncio.gather(*self.pending_operations, return_exceptions=True)
             self.pending_operations.clear()
-        
+
         # Clear CUDA events
         self.gradient_events.clear()
 
@@ -208,7 +213,7 @@ class GradientSafeContext:
         """Exit context and ensure synchronization."""
         # Synchronize all pending operations
         await self.synchronizer.synchronize_all()
-        
+
         # Restore original sync state
         if self._original_sync_state is not None:
             self.synchronizer._sync_enabled = self._original_sync_state
@@ -280,7 +285,7 @@ class AsyncGradientAccumulator:
                     param.grad = grad
                 else:
                     param.grad += grad
-            
+
             # Clear buffers
             self._gradient_buffers.clear()
 

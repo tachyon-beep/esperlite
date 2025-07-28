@@ -4,13 +4,16 @@ Feature flag system for morphogenetic migration.
 Enables gradual rollout and A/B testing of new features.
 """
 
-import os
-import json
 import hashlib
-from dataclasses import dataclass
-from typing import Dict, Any, Optional, Callable
-from pathlib import Path
+import json
 import logging
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +26,7 @@ class FeatureFlag:
     rollout_percentage: int = 0  # 0-100
     allowlist: list[str] = None  # Specific model IDs
     blocklist: list[str] = None  # Excluded model IDs
-    
+
     def __post_init__(self):
         if self.allowlist is None:
             self.allowlist = []
@@ -33,13 +36,13 @@ class FeatureFlag:
 
 class FeatureFlagManager:
     """Manages feature flags for the morphogenetic migration."""
-    
+
     def __init__(self, config_path: Optional[Path] = None):
         self.config_path = config_path or Path("config/morphogenetic_features.json")
         self.flags: Dict[str, FeatureFlag] = {}
         self._load_flags()
         self._override_from_env()
-        
+
     def _load_flags(self):
         """Load feature flags from configuration file."""
         if self.config_path.exists():
@@ -57,7 +60,7 @@ class FeatureFlagManager:
         else:
             # Default flags for Phase 0
             self._initialize_default_flags()
-    
+
     def _initialize_default_flags(self):
         """Initialize default feature flags for migration."""
         defaults = {
@@ -103,7 +106,7 @@ class FeatureFlagManager:
             ),
         }
         self.flags.update(defaults)
-        
+
     def _override_from_env(self):
         """Override flags from environment variables."""
         # Format: MORPHOGENETIC_FEATURE_<NAME>=true/false
@@ -114,7 +117,7 @@ class FeatureFlagManager:
                 if flag_name in self.flags:
                     self.flags[flag_name].enabled = value.lower() == "true"
                     logger.info("Overrode flag %s from env: %s", flag_name, value)
-    
+
     def is_enabled(self, feature: str, model_id: Optional[str] = None) -> bool:
         """
         Check if a feature is enabled for a given model.
@@ -129,48 +132,48 @@ class FeatureFlagManager:
         if feature not in self.flags:
             logger.warning("Unknown feature flag: %s", feature)
             return False
-            
+
         flag = self.flags[feature]
-        
+
         # Check blocklist first
         if model_id and model_id in flag.blocklist:
             return False
-            
+
         # Check allowlist
         if model_id and flag.allowlist and model_id in flag.allowlist:
             return True
-            
+
         # Check global enable
         if flag.enabled:
             return True
-            
+
         # Check percentage rollout
         if flag.rollout_percentage > 0 and model_id:
             # Consistent hashing for stable rollout
             hash_value = int(hashlib.sha256(model_id.encode()).hexdigest(), 16)
             return (hash_value % 100) < flag.rollout_percentage
-            
+
         return False
-    
+
     def set_enabled(self, feature: str, enabled: bool):
         """Enable or disable a feature globally."""
         if feature in self.flags:
             self.flags[feature].enabled = enabled
             logger.info("Set feature %s enabled=%s", feature, enabled)
-    
+
     def set_rollout_percentage(self, feature: str, percentage: int):
         """Set gradual rollout percentage for a feature."""
         if feature in self.flags:
             self.flags[feature].rollout_percentage = max(0, min(100, percentage))
             logger.info("Set feature %s rollout=%d%%", feature, percentage)
-    
+
     def add_to_allowlist(self, feature: str, model_id: str):
         """Add a model to the feature's allowlist."""
         if feature in self.flags:
             if model_id not in self.flags[feature].allowlist:
                 self.flags[feature].allowlist.append(model_id)
                 logger.info("Added %s to %s allowlist", model_id, feature)
-    
+
     def save_flags(self):
         """Persist current flag configuration."""
         data = {
@@ -182,7 +185,7 @@ class FeatureFlagManager:
             }
             for name, flag in self.flags.items()
         }
-        
+
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, 'w') as f:
             json.dump(data, f, indent=2)
@@ -191,10 +194,10 @@ class FeatureFlagManager:
 
 class MigrationRouter:
     """Routes between legacy and new implementations based on feature flags."""
-    
+
     def __init__(self, feature_manager: FeatureFlagManager):
         self.features = feature_manager
-        
+
     def route_to_implementation(
         self,
         feature: str,

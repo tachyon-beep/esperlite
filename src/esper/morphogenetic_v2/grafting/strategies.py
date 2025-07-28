@@ -4,13 +4,15 @@ Provides sophisticated blending strategies for integrating
 blueprints into the main network with various control mechanisms.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Optional
-from dataclasses import dataclass
 import logging
+from abc import ABC
+from abc import abstractmethod
+from dataclasses import dataclass
+from typing import Dict
+from typing import Optional
 
-import torch
 import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 

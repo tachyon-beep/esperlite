@@ -7,14 +7,18 @@ synchronous fallbacks while maintaining morphogenetic capabilities.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import torch
-import torch.nn as nn
 
-from .async_conv2d_kernel import AsyncConv2dKernel, create_async_conv2d_kernel
+from .async_conv2d_kernel import create_async_conv2d_kernel
 from .gradient_sync import GradientSynchronizer
 from .kasmina_conv2d_layer import KasminaConv2dLayer
+
 # from .state_management import SeedData  # Will create inline for now
 
 logger = logging.getLogger(__name__)
@@ -87,7 +91,7 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
             telemetry_enabled=telemetry_enabled,
             layer_name=layer_name,
         )
-        
+
         # Initialize async components
         self.async_kernel = create_async_conv2d_kernel(
             in_channels=in_channels,
@@ -99,14 +103,14 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
             groups=groups,
             device=self.default_transform.weight.device,
         )
-        
+
         # Initialize gradient synchronizer
         self.gradient_sync = GradientSynchronizer() if enable_gradient_sync else None
-        
+
         # Async execution statistics
         self.async_execution_count = 0
         self.sync_fallback_count = 0
-        
+
         logger.info(
             f"Initialized AsyncKasminaConv2dLayer '{layer_name}' "
             f"with async support and gradient sync {'enabled' if enable_gradient_sync else 'disabled'}"
@@ -128,22 +132,22 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         # Validate input
         if len(x.shape) != 4:
             raise ValueError(f"Conv2d input must be 4D (N, C, H, W), got {x.shape}")
-            
+
         if x.shape[1] != self.in_channels:
             raise ValueError(
                 f"Input channels {x.shape[1]} != expected {self.in_channels}"
             )
-        
+
         self.total_forward_calls += 1
         self.async_execution_count += 1
-        
+
         # Check for active seeds
         active_seeds = self.state_layout.get_active_seeds()
-        
+
         if not active_seeds.any():
             # Fast path: No active seeds, use async default transformation
             return await self._execute_default_async(x)
-        
+
         # Slow path: Execute with morphogenetic capabilities
         return await self._execute_with_seeds_async(x, active_seeds)
 
@@ -151,7 +155,7 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         """Execute default Conv2D transformation asynchronously."""
         weight = self.default_transform.weight
         bias = self.default_transform.bias if self.bias_enabled else None
-        
+
         if self.gradient_sync:
             # Register with gradient synchronizer
             return await self.gradient_sync.register_async_operation(
@@ -177,35 +181,35 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         """
         # Start with default transformation
         default_output = await self._execute_default_async(x)
-        
+
         # Get alpha blending factors
         alpha_blend = self.state_layout.alpha_blend
-        
+
         # Initialize accumulated morphogenetic output
         morpho_output = torch.zeros_like(default_output)
         total_alpha = 0.0
-        
+
         # Create list of async operations for active seeds
         seed_operations = []
         seed_indices = []
-        
+
         for seed_idx in range(self.num_seeds):
             if active_seeds[seed_idx]:
                 seed_indices.append(seed_idx)
                 seed_operations.append(
                     self._execute_seed_kernel_async(x, seed_idx)
                 )
-        
+
         # Execute all seed operations concurrently
         if seed_operations:
             seed_outputs = await asyncio.gather(*seed_operations)
-            
+
             # Blend outputs
             for idx, seed_output in zip(seed_indices, seed_outputs):
                 alpha = alpha_blend[idx].item()
                 morpho_output += alpha * seed_output
                 total_alpha += alpha
-        
+
         # Blend default and morphogenetic outputs
         if total_alpha > 0:
             default_weight = 1.0 - total_alpha
@@ -229,14 +233,14 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         try:
             # Get seed data
             seed_data = self._get_seed_data(seed_idx)
-            
+
             if seed_data is None or seed_data.kernel_id == "":
                 # No kernel loaded, use default
                 return await self._execute_default_async(x)
-            
+
             # Execute real kernel asynchronously
             return await self._execute_kernel_real_async(x, seed_data)
-            
+
         except Exception as e:
             logger.error(
                 f"Failed to execute seed {seed_idx} kernel: {e}, "
@@ -260,21 +264,21 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         """
         # In production, this would load and execute the actual compiled kernel
         # For now, we'll use the async kernel with seed-specific parameters
-        
+
         # Get kernel parameters from seed data
         weight = seed_data.parameters.get('weight', self.default_transform.weight)
         bias = seed_data.parameters.get('bias', self.default_transform.bias)
-        
+
         # Execute through async kernel
         output = await self.async_kernel.execute_async(x, weight, bias)
-        
+
         # Record telemetry
         if self.telemetry_enabled:
             asyncio.create_task(self._record_async_telemetry(
                 kernel_id=seed_data.kernel_id,
                 seed_idx=seed_data.position,
             ))
-        
+
         return output
 
     async def _record_async_telemetry(self, kernel_id: str, seed_idx: int):
@@ -300,17 +304,17 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         try:
             # Check if we're in an async context
             loop = asyncio.get_running_loop()
-            
+
             # We're in an async context
             logger.warning(
                 "AsyncKasminaConv2dLayer.forward() called in async context. "
                 "Use forward_async() for proper async execution."
             )
             self.sync_fallback_count += 1
-            
+
             # Don't create an async task, just fall back to parent's synchronous implementation
             return super().forward(x)
-            
+
         except RuntimeError:
             # Not in an async context, use parent's implementation
             return super().forward(x)
@@ -320,10 +324,10 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
         # This would retrieve actual seed data from state management
         # For now, return a mock SeedData
         kernel_id = int(self.state_layout.active_kernel_id[seed_idx].item())
-        
+
         if kernel_id == 0:
             return None
-            
+
         return SeedData(
             id=f"seed_{seed_idx}",
             position=seed_idx,
@@ -343,17 +347,17 @@ class AsyncKasminaConv2dLayer(KasminaConv2dLayer):
                 self.async_execution_count / max(self.total_forward_calls, 1)
             ),
         }
-        
+
         # Add async kernel stats
         stats.update(self.async_kernel.get_execution_stats())
-        
+
         # Add gradient sync stats if enabled
         if self.gradient_sync:
             stats.update({
                 f"gradient_sync_{k}": v
                 for k, v in self.gradient_sync.get_stats().items()
             })
-        
+
         return stats
 
     def cleanup(self):

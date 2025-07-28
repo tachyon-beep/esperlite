@@ -2,15 +2,20 @@
 Asset lifecycle management repository for blueprints and kernels.
 """
 
-import asyncio
-from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime, timezone, timedelta
-from uuid import UUID, uuid4
 import json
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from uuid import UUID
+from uuid import uuid4
 
 import asyncpg
 from pydantic import BaseModel
-from sqlalchemy import text
 
 from ..utils.logging import get_logger
 
@@ -19,7 +24,7 @@ logger = get_logger(__name__)
 
 class AssetQuery(BaseModel):
     """Query parameters for asset search."""
-    
+
     tags: Optional[List[str]] = None
     status: Optional[str] = None
     created_after: Optional[datetime] = None
@@ -31,7 +36,7 @@ class AssetQuery(BaseModel):
 
 class AssetMetadata(BaseModel):
     """Extended metadata for assets."""
-    
+
     tags: List[str] = []
     lineage: List[str] = []  # Parent asset IDs
     performance_metrics: Dict[str, float] = {}
@@ -43,7 +48,7 @@ class AssetMetadata(BaseModel):
 
 class RetirementCriteria(BaseModel):
     """Criteria for retiring assets."""
-    
+
     unused_days: int = 30
     low_performance_threshold: float = 0.5
     max_storage_gb: float = 100.0
@@ -57,11 +62,11 @@ class AssetRepository:
     Provides versioning, lineage tracking, tag-based search, and
     lifecycle management for blueprints and kernels.
     """
-    
+
     def __init__(self, postgres_config: Dict[str, Any]):
         self.config = postgres_config
         self._pool: Optional[asyncpg.Pool] = None
-    
+
     async def initialize(self):
         """Initialize database connection and schema."""
         self._pool = await asyncpg.create_pool(
@@ -73,16 +78,16 @@ class AssetRepository:
             min_size=10,
             max_size=20,
         )
-        
+
         # Create enhanced schema
         await self._create_schema()
         logger.info("AssetRepository initialized")
-    
+
     async def close(self):
         """Close database connections."""
         if self._pool:
             await self._pool.close()
-    
+
     async def _create_schema(self):
         """Create or update database schema for asset management."""
         async with self._pool.acquire() as conn:
@@ -116,7 +121,7 @@ class AssetRepository:
                 CREATE INDEX IF NOT EXISTS idx_blueprints_metadata 
                 ON blueprints_v2 USING GIN(metadata);
             """)
-            
+
             # Enhanced kernels table
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS kernels_v2 (
@@ -151,7 +156,7 @@ class AssetRepository:
                 CREATE INDEX IF NOT EXISTS idx_kernels_usage 
                 ON kernels_v2(usage_count DESC, last_used DESC NULLS LAST);
             """)
-            
+
             # Asset events table for audit trail
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS asset_events (
@@ -170,10 +175,10 @@ class AssetRepository:
                 CREATE INDEX IF NOT EXISTS idx_asset_events_type 
                 ON asset_events(event_type, created_at DESC);
             """)
-    
+
     # Blueprint operations
     async def store_blueprint(
-        self, 
+        self,
         blueprint_id: str,
         name: str,
         architecture_ir: str,
@@ -187,12 +192,12 @@ class AssetRepository:
                 FROM blueprints_v2 
                 WHERE name = $1
             """, name)
-            
+
             # Insert blueprint
             blueprint_uuid = UUID(blueprint_id) if blueprint_id else uuid4()
-            
+
             meta = metadata or AssetMetadata()
-            
+
             await conn.execute("""
                 INSERT INTO blueprints_v2 
                 (id, name, version, architecture_ir, status, metadata, tags, lineage)
@@ -201,18 +206,18 @@ class AssetRepository:
             blueprint_uuid, name, version, architecture_ir, "unvalidated",
             json.dumps(meta.model_dump()), meta.tags, meta.lineage
             )
-            
+
             # Record event
             await self._record_event(
                 conn, blueprint_uuid, "blueprint", "created",
                 {"name": name, "version": version}
             )
-            
+
             logger.info(f"Stored blueprint {name} v{version} with ID {blueprint_uuid}")
             return blueprint_uuid
-    
+
     async def find_blueprints(
-        self, 
+        self,
         query: AssetQuery
     ) -> List[Dict[str, Any]]:
         """Find blueprints matching query criteria."""
@@ -221,35 +226,35 @@ class AssetRepository:
             conditions = ["retired_at IS NULL"]
             params = []
             param_count = 0
-            
+
             if query.tags:
                 param_count += 1
                 conditions.append(f"tags && ${param_count}")
                 params.append(query.tags)
-            
+
             if query.status:
                 param_count += 1
                 conditions.append(f"status = ${param_count}")
                 params.append(query.status)
-            
+
             if query.created_after:
                 param_count += 1
                 conditions.append(f"created_at >= ${param_count}")
                 params.append(query.created_after)
-            
+
             if query.created_before:
                 param_count += 1
                 conditions.append(f"created_at <= ${param_count}")
                 params.append(query.created_before)
-            
+
             where_clause = " AND ".join(conditions)
-            
+
             # Add offset and limit
             param_count += 1
             limit_param = param_count
             param_count += 1
             offset_param = param_count
-            
+
             query_sql = f"""
                 SELECT id, name, version, status, tags, metadata,
                        created_at, updated_at
@@ -258,11 +263,11 @@ class AssetRepository:
                 ORDER BY created_at DESC
                 LIMIT ${limit_param} OFFSET ${offset_param}
             """
-            
+
             params.extend([query.limit, query.offset])
-            
+
             rows = await conn.fetch(query_sql, *params)
-            
+
             return [
                 {
                     "id": str(row["id"]),
@@ -276,7 +281,7 @@ class AssetRepository:
                 }
                 for row in rows
             ]
-    
+
     # Kernel operations
     async def track_kernel_lineage(
         self,
@@ -296,13 +301,13 @@ class AssetRepository:
                 updated_at = NOW()
                 WHERE id = $1
             """, kernel_id, parent_kernel_ids)
-            
+
             # Record lineage event
             await self._record_event(
                 conn, kernel_id, "kernel", "lineage_updated",
                 {"parent_ids": [str(pid) for pid in parent_kernel_ids]}
             )
-    
+
     async def update_kernel_performance(
         self,
         kernel_id: UUID,
@@ -318,7 +323,7 @@ class AssetRepository:
                     updated_at = NOW()
                 WHERE id = $1
             """, kernel_id, json.dumps(performance_metrics))
-    
+
     # Lifecycle management
     async def retire_assets(
         self,
@@ -328,7 +333,7 @@ class AssetRepository:
         async with self._pool.acquire() as conn:
             # Find retirement candidates
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=criteria.unused_days)
-            
+
             # Retire old unused kernels
             kernel_result = await conn.execute("""
                 UPDATE kernels_v2
@@ -347,9 +352,9 @@ class AssetRepository:
                     LIMIT $3
                 )
             """, cutoff_date, str(criteria.low_performance_threshold), criteria.preserve_recent)
-            
+
             kernels_retired = int(kernel_result.split()[-1])
-            
+
             # Retire old unvalidated blueprints
             blueprint_result = await conn.execute("""
                 UPDATE blueprints_v2
@@ -363,22 +368,22 @@ class AssetRepository:
                     WHERE retired_at IS NULL
                 )
             """, cutoff_date)
-            
+
             blueprints_retired = int(blueprint_result.split()[-1])
-            
+
             logger.info(
                 f"Retired {kernels_retired} kernels and "
                 f"{blueprints_retired} blueprints"
             )
-            
+
             return kernels_retired, blueprints_retired
-    
+
     async def optimize_storage(self) -> Dict[str, Any]:
         """Optimize storage by moving cold assets to archive tiers."""
         async with self._pool.acquire() as conn:
             # Move cold kernels to archive tier
             cold_threshold = datetime.now(timezone.utc) - timedelta(days=7)
-            
+
             result = await conn.execute("""
                 UPDATE kernels_v2
                 SET storage_tier = CASE
@@ -389,9 +394,9 @@ class AssetRepository:
                 WHERE retired_at IS NULL
                 AND storage_tier != 'archive'
             """, cold_threshold)
-            
+
             updated = int(result.split()[-1])
-            
+
             # Get storage statistics
             stats = await conn.fetchrow("""
                 SELECT 
@@ -403,7 +408,7 @@ class AssetRepository:
                 FROM kernels_v2
                 WHERE retired_at IS NULL
             """)
-            
+
             return {
                 "updated_count": updated,
                 "storage_distribution": {
@@ -415,7 +420,7 @@ class AssetRepository:
                 "total_size_gb": stats["total_bytes"] / (1024**3) if stats["total_bytes"] else 0,
                 "optimized_at": datetime.now(timezone.utc).isoformat()
             }
-    
+
     async def _record_event(
         self,
         conn: asyncpg.Connection,
@@ -430,7 +435,7 @@ class AssetRepository:
             (asset_id, asset_type, event_type, event_data, created_by)
             VALUES ($1, $2, $3, $4, $5)
         """, asset_id, asset_type, event_type, json.dumps(event_data), "system")
-    
+
     async def get_asset_history(
         self,
         asset_id: UUID,
@@ -445,7 +450,7 @@ class AssetRepository:
                 ORDER BY created_at DESC
                 LIMIT $2
             """, asset_id, limit)
-            
+
             return [
                 {
                     "event_type": row["event_type"],

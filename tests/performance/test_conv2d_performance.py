@@ -113,7 +113,7 @@ class TestConv2dPerformance:
         for _ in range(20):
             _ = original_model(input_tensor)
             _ = wrapped_model(input_tensor)
-        
+
         # Force garbage collection before measurement
         import gc
         gc.collect()

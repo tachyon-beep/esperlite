@@ -6,10 +6,11 @@ thousands of parallel seeds through efficient chunked processing.
 """
 
 from .chunk_manager import ChunkManager
-from .logical_seed import LogicalSeed, LogicalSeedState
-from .state_tensor import StateTensor
 from .chunked_layer import ChunkedKasminaLayer
 from .hybrid_layer import HybridKasminaLayer
+from .logical_seed import LogicalSeed
+from .logical_seed import LogicalSeedState
+from .state_tensor import StateTensor
 
 __all__ = [
     "ChunkManager",

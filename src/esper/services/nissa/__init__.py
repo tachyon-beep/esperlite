@@ -5,9 +5,10 @@ Provides comprehensive monitoring, metrics collection, and analysis
 for the morphogenetic training platform.
 """
 
-from .service import NissaService
-from .collectors import MetricsCollector, MorphogeneticMetrics
+from .collectors import MetricsCollector
+from .collectors import MorphogeneticMetrics
 from .exporters import PrometheusExporter
+from .service import NissaService
 
 __all__ = [
     "NissaService",

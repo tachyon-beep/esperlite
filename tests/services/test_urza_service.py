@@ -6,7 +6,8 @@ This module tests the REST API endpoints for managing blueprints and compiled ke
 
 from datetime import datetime
 from datetime import timezone
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -58,7 +59,7 @@ class TestUrzaService:
             mock_km.close = AsyncMock(return_value=None)
             mock_km.store_kernel = AsyncMock(return_value={"success": True})
             mock_km.get_kernel = AsyncMock(return_value=None)
-            
+
             app.dependency_overrides[get_db] = get_test_db
             with TestClient(app) as test_client:
                 yield test_client

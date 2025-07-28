@@ -4,7 +4,6 @@ Triton kernel for state updates in morphogenetic layers.
 This kernel handles efficient batch updates to seed states.
 """
 
-import torch
 import triton
 import triton.language as tl
 

@@ -4,12 +4,13 @@ Tests for ChunkedKasminaLayer module.
 Validates the high-performance chunked implementation.
 """
 
+import time
+
 import pytest
 import torch
 import torch.nn as nn
-import time
-# Removed typing imports - not needed after removing test_initialization
 
+# Removed typing imports - not needed after removing test_initialization
 from esper.morphogenetic_v2.kasmina.chunked_layer import ChunkedKasminaLayer
 from esper.morphogenetic_v2.kasmina.logical_seed import SeedLifecycle
 
@@ -314,19 +315,29 @@ class TestChunkedKasminaLayer:
     def test_device_movement(self, base_layer):
         """Test moving layer between devices."""
         if torch.cuda.is_available():
-            # Create on CPU
-            layer = ChunkedKasminaLayer(base_layer, num_seeds=8, device=torch.device("cpu"))
-            assert layer.device.type == "cpu"
+            try:
+                # Create on CPU
+                layer = ChunkedKasminaLayer(base_layer, num_seeds=8, device=torch.device("cpu"))
+                assert layer.device.type == "cpu"
 
-            # Move to GPU
-            layer_gpu = layer.to("cuda")
-            assert layer_gpu.device.type == "cuda"
-            assert layer_gpu.base_layer.weight.device.type == "cuda"
+                # Move to GPU
+                layer.to("cuda")
+                # Check if device attribute is a device object or string
+                if hasattr(layer.device, 'type'):
+                    assert layer.device.type == "cuda"
+                else:
+                    assert str(layer.device) == "cuda"
+                assert layer.base_layer.weight.device.type == "cuda"
 
-            # Test forward on GPU
-            x_gpu = torch.randn(16, 256, device="cuda")
-            output_gpu = layer_gpu(x_gpu)
-            assert output_gpu.device.type == "cuda"
+                # Test forward on GPU
+                x_gpu = torch.randn(16, 256, device="cuda")
+                output_gpu = layer(x_gpu)
+                assert output_gpu.device.type == "cuda"
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    pytest.skip("CUDA out of memory, skipping GPU test")
+                else:
+                    raise
 
     def test_performance_characteristics(self, chunked_layer, sample_input):
         """Test performance metrics."""

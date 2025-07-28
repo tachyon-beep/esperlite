@@ -6,13 +6,15 @@ enabling morphogenetic neural networks to evolve their architecture
 during training.
 """
 
-import copy
 import logging
+from dataclasses import dataclass
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Dict, List, Optional, Tuple, Union, Any
-from dataclasses import dataclass, field
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +32,14 @@ class SurgeryResult:
 
 class LayerWrapper(nn.Module):
     """Wrapper for layers with different connection types."""
-    
-    def __init__(self, original_layer: nn.Module, new_layer: nn.Module, 
+
+    def __init__(self, original_layer: nn.Module, new_layer: nn.Module,
                  connection_type: str = "sequential"):
         super().__init__()
         self.original_layer = original_layer
         self.new_layer = new_layer
         self.connection_type = connection_type
-        
+
     def forward(self, x):
         if self.connection_type == "sequential":
             x = self.original_layer(x)
@@ -57,12 +59,12 @@ class LayerWrapper(nn.Module):
 
 class DimensionAdapter(nn.Module):
     """Adapts dimensions between layers when bridging removed layers."""
-    
+
     def __init__(self, in_shape: torch.Size, out_shape: torch.Size):
         super().__init__()
         self.in_shape = in_shape
         self.out_shape = out_shape
-        
+
         # Simple linear adapter for now
         # TODO: Support more sophisticated adapters
         if len(in_shape) == 2 and len(out_shape) == 2:
@@ -71,7 +73,7 @@ class DimensionAdapter(nn.Module):
         elif len(in_shape) == 4 and len(out_shape) == 4:
             # Conv2d case
             self.adapter = nn.Conv2d(
-                in_shape[1], out_shape[1], 
+                in_shape[1], out_shape[1],
                 kernel_size=1, stride=1, padding=0
             )
         else:
@@ -83,7 +85,7 @@ class DimensionAdapter(nn.Module):
                 nn.Linear(in_features, out_features),
                 nn.Unflatten(1, out_shape[1:])
             )
-            
+
     def forward(self, x):
         return self.adapter(x)
 
@@ -99,12 +101,12 @@ class ModelSurgeon:
     - Validate changes
     - Rollback on failure
     """
-    
+
     def __init__(self):
         self.operation_history: List[SurgeryResult] = []
         # Validators will be initialized separately
         self.validators = None
-        
+
     def set_validators(self, validators):
         """Set the validator chain."""
         self.validators = validators

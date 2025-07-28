@@ -9,7 +9,9 @@ gradient correctness.
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional, Callable
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -74,7 +76,7 @@ class AsyncConv2dKernel:
             Output tensor from convolution
         """
         self._execution_count += 1
-        
+
         if x.is_cuda and self.device.type == "cuda":
             return await self._execute_cuda_async(x, weight, bias)
         else:
@@ -86,11 +88,11 @@ class AsyncConv2dKernel:
         """GPU async execution using CUDA streams."""
         # Record current stream state
         original_stream = torch.cuda.current_stream(self.device)
-        
+
         # Create a future for the result
         loop = asyncio.get_event_loop()
         future = loop.create_future()
-        
+
         # Switch to our async stream
         with torch.cuda.stream(self.stream):
             # Queue Conv2D operation
@@ -101,27 +103,27 @@ class AsyncConv2dKernel:
                 dilation=self.conv_params.get('dilation', 1),
                 groups=self.conv_params.get('groups', 1)
             )
-            
+
             # Create event for synchronization
             event = torch.cuda.Event()
             event.record(self.stream)
-        
+
         # Create an async task to wait for completion
         async def wait_for_completion():
             """Poll for CUDA operation completion without blocking."""
             while not event.query():
                 await asyncio.sleep(0)  # Yield to event loop
             future.set_result(output)
-        
+
         # Start the waiting task
         asyncio.create_task(wait_for_completion())
-        
+
         # Wait for the result
         result = await future
-        
+
         # Ensure the operation completed before returning
         self.stream.synchronize()
-        
+
         return result
 
     async def _execute_cpu_async(
@@ -129,7 +131,7 @@ class AsyncConv2dKernel:
     ) -> torch.Tensor:
         """CPU async execution using thread pool."""
         loop = asyncio.get_event_loop()
-        
+
         def conv_operation():
             """Execute convolution in thread pool."""
             return F.conv2d(
@@ -139,7 +141,7 @@ class AsyncConv2dKernel:
                 dilation=self.conv_params.get('dilation', 1),
                 groups=self.conv_params.get('groups', 1)
             )
-        
+
         # Run in thread pool to avoid blocking
         result = await loop.run_in_executor(self.executor, conv_operation)
         return result
@@ -150,7 +152,7 @@ class AsyncConv2dKernel:
             self._total_execution_time / self._execution_count
             if self._execution_count > 0 else 0
         )
-        
+
         return {
             "execution_count": self._execution_count,
             "average_execution_time": avg_time,
@@ -223,6 +225,6 @@ def create_async_conv2d_kernel(
         'dilation': dilation,
         'groups': groups,
     }
-    
+
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return AsyncConv2dKernel(conv_params, device)

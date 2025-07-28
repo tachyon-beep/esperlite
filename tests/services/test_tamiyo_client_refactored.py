@@ -6,14 +6,16 @@ following project guidelines to use real services when available.
 """
 
 import asyncio
-import time
-import pytest
 import os
+import time
 
-from esper.contracts.operational import AdaptationDecision, HealthSignal
+import pytest
+
+from esper.contracts.operational import AdaptationDecision
+from esper.contracts.operational import HealthSignal
 from esper.services.clients.tamiyo_client import TamiyoClient
-from esper.utils.config import ServiceConfig
 from esper.utils.circuit_breaker import CircuitBreakerOpenError
+from esper.utils.config import ServiceConfig
 
 
 @pytest.fixture

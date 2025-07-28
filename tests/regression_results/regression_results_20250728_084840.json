@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-07-28T08:48:40.915355",
+  "tests_run": 3,
+  "tests_passed": 0,
+  "tests_failed": 3,
+  "test_results": {
+    "kasmina_layer_basic": {
+      "description": "Test basic KasminaLayer forward pass and seed management",
+      "passed": false,
+      "error": "empty() received an invalid combination of arguments - got (tuple, dtype=NoneType, device=NoneType), but expected one of:\n * (tuple of ints size, *, tuple of names names, torch.memory_format memory_format = None, torch.dtype dtype = None, torch.layout layout = None, torch.device device = None, bool pin_memory = False, bool requires_grad = False)\n * (tuple of ints size, *, torch.memory_format memory_format = None, Tensor out = None, torch.dtype dtype = None, torch.layout layout = None, torch.device device = None, bool pin_memory = False, bool requires_grad = False)\n"
+    },
+    "tamiyo_analyzer_decisions": {
+      "description": "Test Tamiyo analyzer decision making",
+      "passed": false,
+      "error": "'ModelGraphAnalyzer' object has no attribute 'analyze_layer_health'"
+    },
+    "seed_lifecycle_transitions": {
+      "description": "Test seed lifecycle state machine transitions",
+      "passed": false,
+      "error": "cannot import name 'SeedLifecycle' from 'esper.execution.state_layout' (/home/john/esperlite/src/esper/execution/state_layout.py)"
+    }
+  }
+}

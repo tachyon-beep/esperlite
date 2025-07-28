@@ -5,11 +5,10 @@ This module provides fixtures that use actual components instead of mocks,
 ensuring tests verify real functionality.
 """
 
-import asyncio
 import io
 import tempfile
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import pytest
 import torch
@@ -24,7 +23,7 @@ from esper.services.oona_client import OonaClient
 
 class TestKernelFactory:
     """Factory for creating real test kernels."""
-    
+
     @staticmethod
     def create_real_kernel(input_size: int, output_size: int) -> Tuple[bytes, KernelMetadata]:
         """Create a real kernel artifact with metadata."""
@@ -33,16 +32,16 @@ class TestKernelFactory:
             nn.Linear(input_size, output_size),
             nn.ReLU()
         )
-        
+
         # Trace the module to create TorchScript
         example_input = torch.randn(1, input_size)
         traced_module = torch.jit.trace(module, example_input)
-        
+
         # Serialize to bytes
         buffer = io.BytesIO()
         torch.jit.save(traced_module, buffer)
         kernel_bytes = buffer.getvalue()
-        
+
         # Create metadata
         metadata = KernelMetadata(
             kernel_id=f"test_kernel_{input_size}x{output_size}",
@@ -59,7 +58,7 @@ class TestKernelFactory:
             checksum="test_checksum",
             performance_profile={"confidence": 0.8}
         )
-        
+
         return kernel_bytes, metadata
 
 
@@ -103,19 +102,19 @@ def real_kasmina_layer():
 async def populated_kernel_cache(real_kernel_cache):
     """Create a kernel cache populated with test kernels."""
     factory = TestKernelFactory()
-    
+
     # Add several test kernels
     sizes = [(64, 32), (32, 16), (128, 64)]
     for input_size, output_size in sizes:
         kernel_bytes, metadata = factory.create_real_kernel(input_size, output_size)
-        
+
         # Manually add to cache
         kernel_id = metadata.kernel_id
-        
+
         # Deserialize kernel to get tensor representation
         buffer = io.BytesIO(kernel_bytes)
         module = torch.jit.load(buffer)
-        
+
         # Get state dict as tensor representation
         state_dict = module.state_dict()
         # Flatten state dict to single tensor for cache storage
@@ -123,14 +122,14 @@ async def populated_kernel_cache(real_kernel_cache):
         for param in state_dict.values():
             tensors.append(param.flatten())
         kernel_tensor = torch.cat(tensors)
-        
+
         # Add to cache with metadata
         real_kernel_cache._add_to_cache_with_metadata(
             kernel_id, kernel_tensor, metadata
         )
-        
+
         # No need to store raw bytes - EnhancedKernelCache doesn't have kernel_bytes_cache
-    
+
     return real_kernel_cache
 
 
@@ -149,7 +148,7 @@ def real_test_model():
             self.fc2 = nn.Linear(128, 10)
             self.relu = nn.ReLU()
             self.dropout = nn.Dropout(0.5)
-        
+
         def forward(self, x):
             x = self.relu(self.bn1(self.conv1(x)))
             x = self.relu(self.bn2(self.conv2(x)))
@@ -159,7 +158,7 @@ def real_test_model():
             x = self.dropout(x)
             x = self.fc2(x)
             return x
-    
+
     return RealTestModel()
 
 
@@ -168,11 +167,11 @@ def temp_kernel_storage():
     """Create temporary storage for kernel artifacts."""
     with tempfile.TemporaryDirectory() as temp_dir:
         storage_path = Path(temp_dir)
-        
+
         # Create kernel storage structure
         (storage_path / "kernels").mkdir()
         (storage_path / "metadata").mkdir()
-        
+
         yield storage_path
 
 
@@ -189,7 +188,7 @@ def real_oona_client_optional():
         # Just try to instantiate, don't test connection
         # Connection test would require Redis to be running
         return client
-    except (ImportError, ConnectionError, RuntimeError) as e:
+    except (ImportError, ConnectionError, RuntimeError):
         # Redis not available, return None
         return None
     except Exception as e:
@@ -201,7 +200,7 @@ def real_oona_client_optional():
 
 class RealComponentTestBase:
     """Base class for tests using real components."""
-    
+
     @staticmethod
     async def execute_real_kernel(
         layer: KasminaLayer,
@@ -212,9 +211,9 @@ class RealComponentTestBase:
         """Execute a real kernel through the layer."""
         # Manually set up the kernel in the cache
         kernel_id = metadata.kernel_id
-        
+
         # Skip storing raw bytes - EnhancedKernelCache doesn't have kernel_bytes_cache
-        
+
         # Create tensor representation for cache
         buffer = io.BytesIO(kernel_bytes)
         module = torch.jit.load(buffer)
@@ -223,19 +222,19 @@ class RealComponentTestBase:
         for param in state_dict.values():
             tensors.append(param.flatten())
         kernel_tensor = torch.cat(tensors)
-        
+
         layer.kernel_cache._add_to_cache_with_metadata(
             kernel_id, kernel_tensor, metadata
         )
-        
+
         # Load kernel into seed
         success = await layer.load_kernel(0, kernel_id)
         assert success, "Kernel loading should succeed"
-        
+
         # Execute forward pass
         output = layer(input_tensor)
         return output
-    
+
     @staticmethod
     def verify_kernel_execution(
         original_output: torch.Tensor,

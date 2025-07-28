@@ -5,8 +5,8 @@ This module implements the training procedures for improving the GNN policy
 through reinforcement learning on collected experience data.
 """
 
-import logging
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -429,7 +429,7 @@ class TamiyoTrainer:
         """Save experience data to disk."""
         save_path = Path(self.config.training_data_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Change extension to .json
         if save_path.suffix != '.json':
             save_path = save_path.with_suffix('.json')
@@ -453,7 +453,7 @@ class TamiyoTrainer:
     def load_experience_data(self) -> List[Dict[str, Any]]:
         """Load experience data from disk."""
         load_path = Path(self.config.training_data_path)
-        
+
         # Check for .json file
         if load_path.suffix != '.json':
             load_path = load_path.with_suffix('.json')
@@ -464,7 +464,7 @@ class TamiyoTrainer:
 
         with open(load_path, "r") as f:
             serializable_data = json.load(f)
-        
+
         # Convert lists back to tensors
         experience_data = []
         for exp in serializable_data:

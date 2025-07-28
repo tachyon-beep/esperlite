@@ -4,10 +4,14 @@ This module defines the full 11-state lifecycle that governs seed evolution,
 including state transitions, validation rules, and transition contexts.
 """
 
-from enum import IntEnum
-from typing import Dict, List, Tuple, Optional, Any
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from enum import IntEnum
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 
 class ExtendedLifecycle(IntEnum):
@@ -87,7 +91,7 @@ class StateTransition:
     This class defines the state machine logic, including which transitions
     are valid and what conditions must be met for each transition.
     """
-    
+
     # Define valid transitions from each state
     VALID_TRANSITIONS: Dict[ExtendedLifecycle, List[ExtendedLifecycle]] = {
         ExtendedLifecycle.DORMANT: [
@@ -126,7 +130,7 @@ class StateTransition:
         ExtendedLifecycle.CANCELLED: [],
         ExtendedLifecycle.ROLLED_BACK: []
     }
-    
+
     # Minimum epochs required in each state before transition
     MIN_EPOCHS_IN_STATE: Dict[ExtendedLifecycle, int] = {
         ExtendedLifecycle.DORMANT: 0,         # Can transition immediately
@@ -137,7 +141,7 @@ class StateTransition:
         ExtendedLifecycle.EVALUATING: 30,     # Evaluation window
         ExtendedLifecycle.FINE_TUNING: 50,    # Fine-tuning epochs
     }
-    
+
     @staticmethod
     def validate_transition(
         from_state: ExtendedLifecycle,
@@ -157,7 +161,7 @@ class StateTransition:
         # Check if transition is structurally valid
         if to_state not in StateTransition.VALID_TRANSITIONS[from_state]:
             return False, f"Invalid transition: {from_state.name} -> {to_state.name}"
-        
+
         # Check minimum time in state (except for emergency transitions)
         if to_state != ExtendedLifecycle.ROLLED_BACK:
             min_epochs = StateTransition.MIN_EPOCHS_IN_STATE.get(from_state, 0)
@@ -166,10 +170,10 @@ class StateTransition:
                     f"Insufficient time in {from_state.name}: "
                     f"{context.epochs_in_state} < {min_epochs} epochs"
                 )
-        
+
         # State-specific validation
         validators = {
-            (ExtendedLifecycle.TRAINING, ExtendedLifecycle.GRAFTING): 
+            (ExtendedLifecycle.TRAINING, ExtendedLifecycle.GRAFTING):
                 StateTransition._validate_reconstruction,
             (ExtendedLifecycle.EVALUATING, ExtendedLifecycle.FINE_TUNING):
                 StateTransition._validate_positive_evaluation,
@@ -178,13 +182,13 @@ class StateTransition:
             (ExtendedLifecycle.FINE_TUNING, ExtendedLifecycle.FOSSILIZED):
                 StateTransition._validate_improvement
         }
-        
+
         validator = validators.get((from_state, to_state))
         if validator:
             return validator(context)
-        
+
         return True, None
-    
+
     @staticmethod
     def _validate_reconstruction(context: TransitionContext) -> Tuple[bool, Optional[str]]:
         """Validate transition from TRAINING to GRAFTING.
@@ -194,14 +198,14 @@ class StateTransition:
         """
         reconstruction_loss = context.performance_metrics.get('reconstruction_loss', float('inf'))
         threshold = context.metadata.get('reconstruction_threshold', 0.01)
-        
+
         if reconstruction_loss > threshold:
             return False, (
                 f"Reconstruction loss too high: {reconstruction_loss:.4f} > {threshold}"
             )
-        
+
         return True, None
-    
+
     @staticmethod
     def _validate_positive_evaluation(context: TransitionContext) -> Tuple[bool, Optional[str]]:
         """Validate transition from EVALUATING to FINE_TUNING.
@@ -210,15 +214,15 @@ class StateTransition:
         """
         performance_delta = context.performance_metrics.get('performance_delta', 0.0)
         stability_score = context.performance_metrics.get('stability_score', 0.0)
-        
+
         if performance_delta <= 0:
             return False, f"No performance improvement: delta={performance_delta:.4f}"
-        
+
         if stability_score < 0.8:
             return False, f"Insufficient stability: {stability_score:.2f} < 0.8"
-        
+
         return True, None
-    
+
     @staticmethod
     def _validate_negative_evaluation(context: TransitionContext) -> Tuple[bool, Optional[str]]:
         """Validate transition from EVALUATING to CULLED.
@@ -227,19 +231,19 @@ class StateTransition:
         """
         performance_delta = context.performance_metrics.get('performance_delta', 0.0)
         error_rate = context.performance_metrics.get('error_rate', 0.0)
-        
+
         # Multiple failure conditions
         if performance_delta < -0.05:  # 5% performance degradation
             return True, None
-        
+
         if error_rate > 0.1:  # 10% error rate
             return True, None
-        
+
         if context.error_count > 5:  # Repeated errors
             return True, None
-        
+
         return False, "Evaluation metrics do not warrant culling"
-    
+
     @staticmethod
     def _validate_improvement(context: TransitionContext) -> Tuple[bool, Optional[str]]:
         """Validate transition from FINE_TUNING to FOSSILIZED.
@@ -249,13 +253,13 @@ class StateTransition:
         """
         total_improvement = context.performance_metrics.get('total_improvement', 0.0)
         final_stability = context.performance_metrics.get('final_stability', 0.0)
-        
+
         if total_improvement < 0.01:  # At least 1% improvement
             return False, f"Insufficient improvement: {total_improvement:.2%} < 1%"
-        
+
         if final_stability < 0.95:  # High stability required
             return False, f"Insufficient stability: {final_stability:.2f} < 0.95"
-        
+
         return True, None
 
 
@@ -265,7 +269,7 @@ class LifecycleManager:
     Provides high-level interface for managing seed lifecycles,
     including transition requests, validation, and history tracking.
     """
-    
+
     def __init__(self, num_seeds: int):
         """Initialize lifecycle manager.
         
@@ -275,7 +279,7 @@ class LifecycleManager:
         self.num_seeds = num_seeds
         self.transition_history: List[Dict[str, Any]] = []
         self.transition_callbacks: Dict[Tuple[ExtendedLifecycle, ExtendedLifecycle], List] = {}
-    
+
     def request_transition(
         self,
         seed_id: int,
@@ -298,10 +302,10 @@ class LifecycleManager:
         is_valid, error_msg = StateTransition.validate_transition(
             from_state, to_state, context
         )
-        
+
         if not is_valid:
             return False, error_msg
-        
+
         # Record transition
         self.transition_history.append({
             'seed_id': seed_id,
@@ -310,14 +314,14 @@ class LifecycleManager:
             'timestamp': time.time(),
             'context': context
         })
-        
+
         # Execute callbacks
         callbacks = self.transition_callbacks.get((from_state, to_state), [])
         for callback in callbacks:
             callback(seed_id, context)
-        
+
         return True, None
-    
+
     def register_transition_callback(
         self,
         from_state: ExtendedLifecycle,
@@ -335,7 +339,7 @@ class LifecycleManager:
         if key not in self.transition_callbacks:
             self.transition_callbacks[key] = []
         self.transition_callbacks[key].append(callback)
-    
+
     def get_transition_history(
         self,
         seed_id: Optional[int] = None,
@@ -351,8 +355,8 @@ class LifecycleManager:
             List of transition records
         """
         history = self.transition_history
-        
+
         if seed_id is not None:
             history = [h for h in history if h['seed_id'] == seed_id]
-        
+
         return history[-limit:]

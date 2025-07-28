@@ -68,7 +68,7 @@ class IntegrationTestEnvironment:
         # Track all messages for verification
         async def mock_consume(*args, **kwargs):
             count = kwargs.get("count", 10)
-            timeout = kwargs.get("timeout", 100)
+            kwargs.get("timeout", 100)
 
             # Simulate realistic Redis Streams latency
             await asyncio.sleep(np.random.uniform(0.001, 0.005))  # 1-5ms latency
@@ -359,9 +359,9 @@ class TestAutonomousServiceCore:
             try:
                 result = task.result()
                 if isinstance(result, Exception):
-                    logger.warning(f"Task completed with exception: {result}")
+                    logger.warning("Task completed with exception: %s", result)
             except Exception as e:
-                logger.warning(f"Task exception: {e}")
+                logger.warning("Task exception: %s", e)
 
         logger.info(
             f"Component coordination test completed: {coordination_time:.1f}s runtime, "
@@ -697,7 +697,7 @@ class TestAutonomousServicePerformance:
 
             # Time decision making
             decision_start = time.perf_counter()
-            decision = service.policy.make_decision(graph_state)
+            service.policy.make_decision(graph_state)
             decision_end = time.perf_counter()
 
             latency_ms = (decision_end - decision_start) * 1000

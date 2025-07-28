@@ -20,7 +20,8 @@ import torch
 
 # Force CPU-only mode for tests to avoid CUDA device mismatches
 torch.cuda.is_available = lambda: False
-torch.set_default_tensor_type("torch.FloatTensor")
+torch.set_default_dtype(torch.float32)
+torch.set_default_device("cpu")
 
 from esper.contracts.operational import AdaptationDecision
 from esper.contracts.operational import HealthSignal
@@ -272,7 +273,7 @@ class TestAutonomousServiceCore:
         decision_latency_ms = (decision_end - decision_start) * 1000
 
         # Then: Validate decision quality and performance
-        expected = scenario["expected_decisions"]
+        scenario["expected_decisions"]
 
         # Note: For untrained models, we validate the system can process the scenario
         # without crashing, rather than expecting specific decision outcomes
@@ -306,7 +307,7 @@ class TestAutonomousServiceCore:
             decision_latency_ms < 100
         ), f"Decision latency {decision_latency_ms}ms exceeds 100ms SLA"
 
-        logger.info(f"Decision cycle completed in {decision_latency_ms:.1f}ms")
+        logger.info("Decision cycle completed in %.1fms", decision_latency_ms)
 
     async def test_stable_system_no_intervention(
         self, real_oona_client, production_service_config, enhanced_policy_config
@@ -386,7 +387,7 @@ class TestAutonomousServiceCore:
             create_realistic_graph_state,
         )
 
-        test_graph_state = create_realistic_graph_state(
+        create_realistic_graph_state(
             num_nodes=10,
             feature_dim=enhanced_policy_config.node_feature_dim,
             problematic_layers=["test_layer", "valid_layer"],
@@ -467,7 +468,7 @@ class TestAutonomousServicePerformance:
             if not signals:
                 break
 
-            graph_state = service.graph_builder.build_model_graph(signals)
+            service.graph_builder.build_model_graph(signals)
 
             batch_end = time.perf_counter()
             batch_latency = (batch_end - batch_start) * 1000  # ms
@@ -529,7 +530,7 @@ class TestAutonomousServicePerformance:
 
             health_signals = await service.health_collector.get_recent_signals(500)
             graph_state = service.graph_builder.build_model_graph(health_signals)
-            decision = await service._make_safe_decision(graph_state, health_signals)
+            await service._make_safe_decision(graph_state, health_signals)
 
             end = time.perf_counter()
             latency_ms = (end - start) * 1000
@@ -672,7 +673,7 @@ class TestAutonomousServiceReliability:
             call_count > 3
         ), f"Only {call_count} calls made, error recovery may not have worked"
 
-        logger.info(f"Error recovery test completed after {call_count} calls")
+        logger.info("Error recovery test completed after %d calls", call_count)
 
 
 if __name__ == "__main__":

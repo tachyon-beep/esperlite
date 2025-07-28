@@ -23,6 +23,12 @@ from esper.contracts.operational import HealthSignal
 from esper.execution.kasmina_layer import KasminaLayer
 from esper.execution.state_layout import KasminaStateLayout
 from esper.services.oona_client import OonaClient
+from tests.fixtures.mock_oona_client import *  # noqa: F401,F403
+
+# Import real component fixtures
+from tests.fixtures.real_components import *  # noqa: F401,F403
+from tests.fixtures.test_infrastructure import *  # noqa: F401,F403
+from tests.fixtures.test_services import *  # noqa: F401,F403
 
 
 @pytest.fixture(scope="session")
@@ -213,10 +219,16 @@ def test_config() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture(autouse=True)
-def prevent_real_network_calls():
-    """Automatically prevent real network calls during testing."""
-    from unittest.mock import AsyncMock
+@pytest.fixture
+def mock_http_client():
+    """Mock HTTP client for tests that need to avoid real network calls.
+
+    This is an opt-in fixture. Use it explicitly in tests that need HTTP mocking:
+        def test_something(mock_http_client):
+            # Test with mocked HTTP
+
+    For tests that need real HTTP, simply don't use this fixture.
+    """
     from unittest.mock import patch
 
     with patch("esper.utils.http_client.AsyncHttpClient") as mock_http_client:
@@ -343,7 +355,7 @@ def prevent_real_network_calls():
         yield mock_http_instance
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def setup_logging():
     """Setup logging for tests."""
     logging.getLogger("esper").setLevel(logging.WARNING)
@@ -354,6 +366,24 @@ def setup_logging():
 def disable_telemetry():
     """Disable telemetry for testing."""
     return {"telemetry_enabled": False}
+
+
+# Duplicate mock_oona_client fixture removed - using the one defined earlier
+
+
+@pytest.fixture
+def auto_oona_client(request, oona_client):
+    """Automatically provide OonaClient based on test requirements.
+    
+    If test is marked with @pytest.mark.requires_redis, use real client.
+    Otherwise, mock is fine.
+    """
+    if request.node.get_closest_marker('requires_redis'):
+        return oona_client  # Will be real if Redis available
+    else:
+        # For tests that don't need Redis, always use mock
+        from tests.fixtures.mock_oona_client import MockOonaClient
+        return MockOonaClient()
 
 
 class TestModelFactory:
@@ -500,3 +530,5 @@ pytest.mark.unit = pytest.mark.unit
 pytest.mark.integration = pytest.mark.integration
 pytest.mark.performance = pytest.mark.performance
 pytest.mark.slow = pytest.mark.slow
+pytest.mark.real_components = pytest.mark.real_components  # Uses real components, no mocks
+pytest.mark.external_services = pytest.mark.external_services  # Requires external services

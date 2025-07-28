@@ -285,10 +285,8 @@ class TestQualityGates:
 
                 # Check for class docstrings in test classes
                 lines = content.split("\n")
-                in_test_class = False
                 for i, line in enumerate(lines):
                     if line.strip().startswith("class Test") and ":" in line:
-                        in_test_class = True
                         # Check if next non-empty line is a docstring
                         for j in range(i + 1, min(i + 5, len(lines))):
                             next_line = lines[j].strip()

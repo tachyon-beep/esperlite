@@ -112,6 +112,16 @@ class LayerFeatureExtractor:
             )
             dead_neuron_ratio = np.mean([s.dead_neuron_ratio for s in layer_signals])
             correlation = np.mean([s.avg_correlation for s in layer_signals])
+
+            # Gradient dynamics - crucial for morphogenetic adaptation
+            avg_gradient_norm = np.mean([s.gradient_norm for s in layer_signals])
+            avg_gradient_variance = np.mean([s.gradient_variance for s in layer_signals])
+            avg_gradient_stability = np.mean([s.gradient_sign_stability for s in layer_signals])
+            avg_param_norm_ratio = np.mean([s.param_norm_ratio for s in layer_signals])
+
+            # Performance metrics
+            avg_cache_hit_rate = np.mean([s.cache_hit_rate for s in layer_signals])
+            total_executions = sum([s.total_executions for s in layer_signals])
         else:
             avg_health = 0.5
             avg_latency = 0.0
@@ -119,6 +129,12 @@ class LayerFeatureExtractor:
             variance_activation = 0.0
             dead_neuron_ratio = 0.0
             correlation = 0.5
+            avg_gradient_norm = 1.0
+            avg_gradient_variance = 0.1
+            avg_gradient_stability = 0.8
+            avg_param_norm_ratio = 1.0
+            avg_cache_hit_rate = 0.5
+            total_executions = 0
 
         features.extend(
             [
@@ -128,6 +144,14 @@ class LayerFeatureExtractor:
                 variance_activation,
                 dead_neuron_ratio,
                 correlation,
+                # Gradient features - normalized for stability
+                np.tanh(avg_gradient_norm / 5.0),  # Tanh for stable range
+                min(avg_gradient_variance / 2.0, 1.0),
+                avg_gradient_stability,  # Already in [0,1]
+                np.tanh(np.log(avg_param_norm_ratio + 1e-6)),  # Log-tanh transform
+                # Performance features
+                avg_cache_hit_rate,
+                np.log10(total_executions + 1) / 6.0,  # Log scale, normalized
             ]
         )
 
@@ -284,7 +308,7 @@ class ModelGraphBuilder:
     architectural relationships and performance characteristics.
     """
 
-    def __init__(self, node_feature_dim: int = 16, edge_feature_dim: int = 8):
+    def __init__(self, node_feature_dim: int = 20, edge_feature_dim: int = 8):
         self.node_feature_dim = node_feature_dim
         self.edge_feature_dim = edge_feature_dim
 
@@ -468,18 +492,51 @@ class ModelGraphBuilder:
     ) -> List[str]:
         """Identify layers with performance issues."""
 
-        layer_health = {}
+        layer_metrics = {}
         for signal in health_signals:
             layer_name = f"layer_{signal.layer_id}"
-            if layer_name not in layer_health:
-                layer_health[layer_name] = []
-            layer_health[layer_name].append(signal.health_score)
+            if layer_name not in layer_metrics:
+                layer_metrics[layer_name] = {
+                    'health_scores': [],
+                    'gradient_norms': [],
+                    'gradient_stability': [],
+                    'error_counts': []
+                }
+            layer_metrics[layer_name]['health_scores'].append(signal.health_score)
+            layer_metrics[layer_name]['gradient_norms'].append(signal.gradient_norm)
+            layer_metrics[layer_name]['gradient_stability'].append(signal.gradient_sign_stability)
+            layer_metrics[layer_name]['error_counts'].append(signal.error_count)
 
         problematic = []
-        for layer_name, scores in layer_health.items():
-            avg_score = np.mean(scores)
-            if avg_score < 0.3:  # Threshold for problematic
+        for layer_name, metrics in layer_metrics.items():
+            avg_health = np.mean(metrics['health_scores'])
+            avg_gradient_norm = np.mean(metrics['gradient_norms'])
+            avg_stability = np.mean(metrics['gradient_stability'])
+            total_errors = sum(metrics['error_counts'])
+
+            # Multiple criteria for problematic layers
+            is_problematic = False
+            reasons = []
+
+            if avg_health < 0.3:
+                is_problematic = True
+                reasons.append("low_health")
+
+            if avg_gradient_norm > 10.0:
+                is_problematic = True
+                reasons.append("exploding_gradients")
+
+            if avg_stability < 0.3:
+                is_problematic = True
+                reasons.append("unstable_gradients")
+
+            if total_errors > 10:
+                is_problematic = True
+                reasons.append("high_errors")
+
+            if is_problematic:
                 problematic.append(layer_name)
+                logger.debug(f"Layer {layer_name} identified as problematic: {reasons}")
 
         return problematic
 
@@ -494,13 +551,39 @@ class ModelGraphBuilder:
                 "avg_latency": 0.0,
                 "total_errors": 0.0,
                 "signal_count": 0,
+                "gradient_health": 0.5,
+                "training_stability": 0.5,
+                "system_efficiency": 0.5,
             }
+
+        gradient_norms = [s.gradient_norm for s in health_signals]
+        gradient_stability = [s.gradient_sign_stability for s in health_signals]
+        cache_rates = [s.cache_hit_rate for s in health_signals]
+
+        # Compute gradient health score (lower norms are better)
+        avg_gradient_norm = np.mean(gradient_norms)
+        gradient_health = 1.0 / (1.0 + avg_gradient_norm)  # Inverse relationship
+
+        # Training stability combines gradient stability and param norm ratios
+        avg_stability = np.mean(gradient_stability)
+        param_ratios = [s.param_norm_ratio for s in health_signals]
+        param_health = 1.0 - abs(1.0 - np.mean(param_ratios))  # Best at 1.0
+        training_stability = (avg_stability + param_health) / 2.0
+
+        # System efficiency based on cache performance and execution
+        avg_cache_rate = np.mean(cache_rates)
+        system_efficiency = avg_cache_rate
 
         return {
             "overall_health": np.mean([s.health_score for s in health_signals]),
             "avg_latency": np.mean([s.execution_latency for s in health_signals]),
             "total_errors": sum(s.error_count for s in health_signals),
             "signal_count": len(health_signals),
+            "gradient_health": gradient_health,
+            "training_stability": training_stability,
+            "system_efficiency": system_efficiency,
+            "avg_gradient_norm": avg_gradient_norm,
+            "avg_gradient_stability": avg_stability,
         }
 
     def _compute_health_trends(

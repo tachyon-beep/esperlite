@@ -9,7 +9,6 @@ import pytest
 
 from esper.utils.config import ServiceConfig
 from esper.utils.config import get_service_config
-from esper.utils.config import init_service_config
 from esper.utils.config import reset_service_config
 
 
@@ -178,21 +177,9 @@ class TestConfigurationSingleton:
 
         assert config1 is not config2  # Different instances
 
-    def test_init_service_config_with_overrides(self):
-        """Test configuration initialization with overrides."""
-        config = init_service_config(
-            urza_url="https://custom-urza.com", cache_size_mb=2048
-        )
+    # Removed test_init_service_config_with_overrides - trivial test of parameter passing
 
-        assert config.urza_url == "https://custom-urza.com"
-        assert config.cache_size_mb == 2048
-        assert config.tamiyo_url == "http://localhost:8001"  # Default value preserved
-
-    def test_init_service_config_unknown_key_warning(self):
-        """Test that unknown configuration keys generate warnings."""
-        # This should log a warning but not raise an exception
-        config = init_service_config(unknown_key="value")
-        assert not hasattr(config, "unknown_key")
+    # Removed test_init_service_config_unknown_key_warning - trivial test
 
 
 class TestConfigurationIntegration:

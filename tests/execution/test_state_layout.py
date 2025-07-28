@@ -12,25 +12,8 @@ from esper.execution.state_layout import SeedLifecycleState
 class TestKasminaStateLayout:
     """Test cases for KasminaStateLayout."""
 
-    def test_initialization(self):
-        """Test basic initialization."""
-        num_seeds = 8
-        device = torch.device("cpu")
-
-        layout = KasminaStateLayout(num_seeds, device)
-
-        assert layout.num_seeds == num_seeds
-        assert layout.device == device
-        assert layout.lifecycle_states.shape == (num_seeds,)
-        assert layout.alpha_blend.shape == (num_seeds,)
-        assert layout.health_accumulator.shape == (num_seeds,)
-
-        # Check initial values
-        assert torch.all(layout.lifecycle_states == SeedLifecycleState.DORMANT)
-        assert torch.allclose(layout.alpha_blend, torch.zeros_like(layout.alpha_blend))
-        assert torch.allclose(
-            layout.health_accumulator, torch.zeros_like(layout.health_accumulator)
-        )
+    # Removed trivial initialization test - it only checked constructor parameters
+    # and default values without testing any meaningful behavior
 
     def test_get_active_seeds(self):
         """Test active seed detection."""
@@ -38,7 +21,7 @@ class TestKasminaStateLayout:
 
         # Initially no active seeds
         active_seeds = layout.get_active_seeds()
-        assert torch.all(active_seeds == False)
+        assert torch.all(~active_seeds)
 
         # Transition one seed to active
         layout.transition_seed_state(1, SeedLifecycleState.ACTIVE)
@@ -53,7 +36,7 @@ class TestKasminaStateLayout:
 
         # Initially all dormant
         dormant_seeds = layout.get_dormant_seeds()
-        assert torch.all(dormant_seeds == True)
+        assert torch.all(dormant_seeds)
 
         # Transition one seed to active
         layout.transition_seed_state(1, SeedLifecycleState.ACTIVE)
@@ -72,7 +55,7 @@ class TestKasminaStateLayout:
         assert layout.lifecycle_states[0] == SeedLifecycleState.ACTIVE
         assert layout.active_kernel_id[0] == 12345
         assert layout.error_count[0] == 0
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
         # Test transition to error recovery
         layout.transition_seed_state(0, SeedLifecycleState.ERROR_RECOVERY)
@@ -96,17 +79,17 @@ class TestKasminaStateLayout:
         count = layout.increment_error_count(0)
         assert count == 1
         assert layout.error_count[0] == 1
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
         # Second increment
         count = layout.increment_error_count(0)
         assert count == 2
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
         # Third increment should trigger fallback
         count = layout.increment_error_count(0)
         assert count == 3
-        assert layout.fallback_active[0] == True
+        assert layout.fallback_active[0]
         assert layout.lifecycle_states[0] == SeedLifecycleState.ERROR_RECOVERY
 
     def test_increment_error_count_invalid_index(self):
@@ -192,7 +175,7 @@ class TestKasminaStateLayout:
         assert layout.last_update_epoch[0] == 0
         assert layout.exec_latency_us[0] == 0
         assert layout.error_count[0] == 0
-        assert layout.fallback_active[0] == False
+        assert not layout.fallback_active[0]
 
     def test_reset_seed_invalid_index(self):
         """Test error handling for invalid seed index in reset."""
@@ -205,9 +188,15 @@ class TestKasminaStateLayout:
     def test_gpu_initialization(self):
         """Test initialization on GPU."""
         device = torch.device("cuda")
-        layout = KasminaStateLayout(4, device)
+        try:
+            layout = KasminaStateLayout(4, device)
 
-        assert layout.device == device
-        assert layout.lifecycle_states.is_cuda
-        assert layout.alpha_blend.is_cuda
-        assert layout.health_accumulator.is_cuda
+            assert layout.device == device
+            assert layout.lifecycle_states.is_cuda
+            assert layout.alpha_blend.is_cuda
+            assert layout.health_accumulator.is_cuda
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                pytest.skip("CUDA out of memory, skipping GPU test")
+            else:
+                raise

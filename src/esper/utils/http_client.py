@@ -78,13 +78,11 @@ class AsyncHttpClient:
             max_retries: Number of retry attempts
             retry_delay: Base delay between retries (exponential backoff)
         """
-        self.timeout = aiohttp.ClientTimeout(total=timeout)
-        self.connector = aiohttp.TCPConnector(
-            limit=max_connections,
-            limit_per_host=20,
-            keepalive_timeout=30,
-            enable_cleanup_closed=True,
-        )
+        # Store configuration for lazy initialization
+        self.timeout_seconds = timeout
+        self.timeout = None  # Will be created when needed
+        self.max_connections = max_connections
+        self.connector = None  # Create lazily to avoid event loop issues
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.session: Optional[aiohttp.ClientSession] = None
@@ -100,6 +98,17 @@ class AsyncHttpClient:
 
     async def __aenter__(self):
         """Async context manager entry."""
+        # Create timeout and connector lazily
+        if self.timeout is None:
+            self.timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+        if self.connector is None:
+            self.connector = aiohttp.TCPConnector(
+                limit=self.max_connections,
+                limit_per_host=20,
+                keepalive_timeout=30,
+                enable_cleanup_closed=True,
+            )
+
         self.session = aiohttp.ClientSession(
             timeout=self.timeout,
             connector=self.connector,
@@ -185,6 +194,26 @@ class AsyncHttpClient:
             "PUT", url, json=json, data=data, headers=headers, **kwargs
         )
 
+    async def _ensure_session(self):
+        """Ensure session is created with lazy initialization."""
+        if not self.session:
+            # Create timeout and connector lazily
+            if self.timeout is None:
+                self.timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
+            if self.connector is None:
+                self.connector = aiohttp.TCPConnector(
+                    limit=self.max_connections,
+                    limit_per_host=20,
+                    keepalive_timeout=30,
+                    enable_cleanup_closed=True,
+                )
+
+            self.session = aiohttp.ClientSession(
+                timeout=self.timeout,
+                connector=self.connector,
+                headers={"User-Agent": "Esper-AsyncHttpClient/1.0"},
+            )
+
     async def _request(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
         """
         Execute HTTP request with retry logic and error handling.
@@ -200,10 +229,8 @@ class AsyncHttpClient:
         Raises:
             aiohttp.ClientError: For HTTP errors after retries exhausted
         """
-        if not self.session:
-            raise RuntimeError(
-                "HTTP client not initialized. Use async context manager."
-            )
+        # Ensure session exists
+        await self._ensure_session()
 
         start_time = time.perf_counter()
         last_exception = None
@@ -242,7 +269,7 @@ class AsyncHttpClient:
                 # Don't retry for certain errors
                 if isinstance(e, aiohttp.ClientResponseError):
                     if e.status in (400, 401, 403, 404, 422):  # Client errors
-                        logger.warning(f"{method} {url} failed with {e.status}: {e}")
+                        logger.warning("%s %s failed with %s: %s", method, url, e.status, e)
                         raise
 
                 if attempt < self.max_retries:
@@ -262,6 +289,15 @@ class AsyncHttpClient:
         # Should not reach here, but raise last exception if we do
         if last_exception:
             raise last_exception
+
+    async def close(self):
+        """Close the HTTP client and clean up resources."""
+        if self.session:
+            await self.session.close()
+            self.session = None
+        if self.connector:
+            await self.connector.close()
+            self.connector = None
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -284,7 +320,7 @@ class AsyncHttpClient:
             "error_rate": error_rate,
             "total_request_time": self.total_request_time,
             "avg_request_time_ms": avg_request_time * 1000,
-            "max_connections": self.connector.limit if self.connector else 0,
+            "max_connections": self.max_connections,
         }
 
 

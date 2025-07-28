@@ -1,0 +1,106 @@
+# Morphogenetic Migration Configuration
+# Phase 0 - Foundation
+
+migration:
+  current_phase: 0
+  phase_name: "Foundation & Preparation"
+  start_date: "2024-01-24"
+  
+feature_flags:
+  # All features disabled in Phase 0
+  chunked_architecture:
+    enabled: false
+    rollout_percentage: 0
+    description: "Chunk-based parallel processing"
+    
+  triton_kernels:
+    enabled: false
+    rollout_percentage: 0
+    description: "GPU-optimized Triton kernels"
+    
+  extended_lifecycle:
+    enabled: false
+    rollout_percentage: 0
+    description: "11-stage seed lifecycle"
+    
+  message_bus:
+    enabled: false
+    rollout_percentage: 0
+    description: "Oona message bus integration"
+    
+  neural_controller:
+    enabled: false
+    rollout_percentage: 0
+    description: "Neural policy for Tamiyo"
+    
+  grafting_strategies:
+    enabled: false
+    rollout_percentage: 0
+    description: "Pluggable grafting strategies"
+
+performance_targets:
+  forward_pass_latency_ms: 100  # Target <100ms
+  gpu_utilization_percent: 80   # Target >80%
+  memory_overhead_percent: 20    # Target <20%
+  adaptation_success_rate: 0.95  # Target >95%
+
+monitoring:
+  metrics_collection_interval_sec: 60
+  performance_regression_threshold: 0.10  # 10% regression triggers alert
+  
+  dashboards:
+    - name: "Morphogenetic Overview"
+      url: "http://grafana.local/d/morph-overview"
+    - name: "Migration Progress"
+      url: "http://grafana.local/d/migration-progress"
+    - name: "Performance Comparison"
+      url: "http://grafana.local/d/perf-comparison"
+
+testing:
+  regression_test_schedule: "0 */6 * * *"  # Every 6 hours
+  ab_test_sample_size: 1000
+  performance_benchmark_iterations: 100
+
+rollout:
+  canary_percentage: 5
+  rollout_increment: 10
+  rollback_threshold:
+    error_rate: 0.05
+    latency_regression: 0.10
+    memory_leak_gb_per_hour: 0.1
+
+team:
+  phase_0_team:
+    - role: "Technical Lead"
+      assigned: "TBD"
+    - role: "Senior Engineer 1"
+      assigned: "TBD"
+    - role: "Senior Engineer 2"
+      assigned: "TBD"
+    - role: "DevOps Engineer"
+      assigned: "TBD"
+    - role: "QA Engineer"
+      assigned: "TBD"
+
+infrastructure:
+  development:
+    gpu_instances:
+      - type: "g5.xlarge"
+        count: 2
+        purpose: "Feature development"
+  testing:
+    gpu_instances:
+      - type: "g5.2xlarge"
+        count: 4
+        purpose: "Regression testing"
+        
+communication:
+  slack_channels:
+    - "#morphogenetic-migration"
+    - "#morphogenetic-alerts"
+  
+  meetings:
+    - name: "Weekly Sync"
+      schedule: "Monday 10:00 AM"
+    - name: "Phase Review"
+      schedule: "End of each phase"

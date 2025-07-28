@@ -25,6 +25,7 @@ from esper.services.contracts import SimpleBlueprintContract
 from esper.services.contracts import SimpleCompiledKernelContract
 
 from .database import get_db
+from .kernel_manager import KernelManager
 from .models import Blueprint
 from .models import CompiledKernel
 
@@ -38,6 +39,23 @@ app = FastAPI(
     description="Central repository for architectural assets",
     version="1.0.0",
 )
+
+# Initialize kernel manager
+kernel_manager = KernelManager()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    await kernel_manager.initialize()
+    logger.info("Urza service started with persistent kernel cache")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    await kernel_manager.close()
+    logger.info("Urza service shutdown complete")
 
 
 # Health check endpoint
@@ -268,6 +286,17 @@ async def create_kernel(
         db.commit()
         db.refresh(db_kernel)
 
+        # Store in persistent cache if kernel data provided
+        if kernel.kernel_binary_ref:
+            # In production, this would be actual binary data
+            kernel_data = kernel.kernel_binary_ref.encode()
+            await kernel_manager.store_kernel(
+                kernel_id=kernel.id,
+                kernel_data=kernel_data,
+                metadata=kernel.validation_report or {},
+                db_session=db
+            )
+
         logger.info(
             "Created kernel: %s for blueprint: %s", kernel.id, kernel.blueprint_id
         )
@@ -279,6 +308,110 @@ async def create_kernel(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create kernel",
+        ) from e
+
+
+# Enhanced Asset Management Endpoints
+@app.get("/api/v1/kernels/{kernel_id}/binary", tags=["kernels"])
+async def get_kernel_binary(kernel_id: str, db: Session = Depends(get_db)):
+    """Retrieve kernel binary data from cache."""
+    try:
+        kernel_data = await kernel_manager.retrieve_kernel(kernel_id, db)
+
+        if not kernel_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Kernel binary {kernel_id} not found"
+            )
+
+        # In production, return as proper binary response
+        return {
+            "kernel_id": kernel_id,
+            "size_bytes": len(kernel_data),
+            "cached": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to retrieve kernel binary: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve kernel binary"
+        ) from e
+
+
+@app.post("/api/v1/kernels/search", response_model=List[dict], tags=["kernels"])
+async def search_kernels_by_tags(
+    tags: List[str], limit: int = 100, db: Session = Depends(get_db)
+):
+    """Search kernels by tags using JSONB queries."""
+    try:
+        results = await kernel_manager.find_kernels_by_tags(tags, db, limit)
+        return results
+
+    except Exception as e:
+        logger.error("Failed to search kernels: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to search kernels"
+        ) from e
+
+
+@app.delete("/api/v1/kernels/{kernel_id}", tags=["kernels"])
+async def retire_kernel(kernel_id: str, db: Session = Depends(get_db)):
+    """Retire a kernel (soft delete)."""
+    try:
+        success = await kernel_manager.delete_kernel(kernel_id, db)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Kernel {kernel_id} not found"
+            )
+
+        return {"kernel_id": kernel_id, "status": "retired"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to retire kernel: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retire kernel"
+        ) from e
+
+
+@app.get("/api/v1/cache/stats", tags=["monitoring"])
+async def get_cache_statistics():
+    """Get cache statistics across all tiers."""
+    try:
+        stats = await kernel_manager.get_cache_stats()
+        return {
+            "cache_stats": stats,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        logger.error("Failed to get cache stats: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get cache statistics"
+        ) from e
+
+
+@app.post("/api/v1/cache/optimize", tags=["maintenance"])
+async def optimize_cache(db: Session = Depends(get_db)):
+    """Optimize cache by analyzing usage patterns."""
+    try:
+        result = await kernel_manager.optimize_cache(db)
+        return result
+
+    except Exception as e:
+        logger.error("Failed to optimize cache: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to optimize cache"
         ) from e
 
 

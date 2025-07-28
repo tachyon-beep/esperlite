@@ -413,10 +413,49 @@ class TestEnhancedKernelCache:
     @pytest.mark.asyncio
     async def test_fetch_kernel_integration(self):
         """Test kernel fetching integrates with HTTP mocking correctly."""
-        # This test verifies that fetch works with the global HTTP mock from conftest.py
-        # rather than testing implementation details with custom mocks
+        # Mock the HTTP client to avoid real network calls
+        import hashlib
+        from unittest.mock import AsyncMock
+        from unittest.mock import patch
 
-        result = await self.cache._fetch_kernel_with_metadata_impl("test_kernel")
+        import numpy as np
+
+        # Create some float32 tensor data
+        kernel_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float32).tobytes()
+        actual_checksum = hashlib.sha256(kernel_data).hexdigest()
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={
+            "id": "test_kernel",
+            "checksum": "abc123",
+            "metadata": {
+                "kernel_id": "test_kernel",
+                "blueprint_id": "test_blueprint",
+                "name": "Test Kernel",
+                "input_shape": [10],
+                "output_shape": [5],
+                "parameter_count": 1000,
+                "memory_footprint_mb": 4.0,
+                "performance_profile": {"flops": 1000000},
+                "checksum": actual_checksum
+            },
+            "binary_ref": "http://localhost:8080/kernels/test_kernel/download"
+        })
+
+        # Second response for downloading kernel bytes
+        mock_download_response = AsyncMock()
+        mock_download_response.status = 200
+        mock_download_response.read = AsyncMock(return_value=kernel_data)
+
+        with patch("esper.utils.http_client.AsyncHttpClient") as mock_http_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(side_effect=[mock_response, mock_download_response])
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_http_client_class.return_value = mock_client
+
+            result = await self.cache._fetch_kernel_with_metadata_impl("test_kernel")
 
         assert result is not None, "Should successfully fetch kernel using HTTP mock"
         kernel_tensor, metadata = result
@@ -431,8 +470,21 @@ class TestEnhancedKernelCache:
     @pytest.mark.asyncio
     async def test_fetch_kernel_not_found(self):
         """Test handling when kernel is not found."""
-        # Use "invalid" in the kernel ID to trigger 404 response from global mock
-        result = await self.cache._fetch_kernel_with_metadata_impl("invalid-kernel")
+        # Mock the HTTP client to return 404
+        from unittest.mock import AsyncMock
+        from unittest.mock import patch
+
+        mock_response = AsyncMock()
+        mock_response.status = 404
+
+        with patch("esper.utils.http_client.AsyncHttpClient") as mock_http_client_class:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_http_client_class.return_value = mock_client
+
+            result = await self.cache._fetch_kernel_with_metadata_impl("invalid-kernel")
 
         assert result is None, "Should return None when kernel not found"
 

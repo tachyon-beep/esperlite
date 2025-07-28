@@ -109,7 +109,7 @@ class TolariaTrainer:
         self._stop_requested = False
         self._last_train_loss = 0.0  # Track last training loss
 
-        logger.info(f"Initialized TolariaTrainer with run_id: {self.run_id}")
+        logger.info("Initialized TolariaTrainer with run_id: %s", self.run_id)
 
     def _setup_device(self) -> torch.device:
         """Setup and return the training device."""
@@ -118,7 +118,7 @@ class TolariaTrainer:
         else:
             device = torch.device(self.config.device)
 
-        logger.info(f"Using device: {device}")
+        logger.info("Using device: %s", device)
         return device
 
     async def initialize(self) -> None:
@@ -145,7 +145,7 @@ class TolariaTrainer:
             logger.info("Tolaria trainer initialization complete")
 
         except Exception as e:
-            logger.error(f"Failed to initialize trainer: {e}")
+            logger.error("Failed to initialize trainer: %s", e)
             raise
 
     def _setup_data_loaders(self) -> None:
@@ -268,7 +268,7 @@ class TolariaTrainer:
 
     def _setup_model(self) -> None:
         """Setup the model architecture."""
-        logger.info(f"Setting up model: {self.config.model.architecture}")
+        logger.info("Setting up model: %s", self.config.model.architecture)
 
         # Create base model
         if self.config.model.architecture.lower() == "resnet18":
@@ -309,7 +309,7 @@ class TolariaTrainer:
             elif layer_name.lower() == "batchnorm2d":
                 target_layer_types.append(nn.BatchNorm2d)
             else:
-                logger.warning(f"Unknown target layer type: {layer_name}, skipping")
+                logger.warning("Unknown target layer type: %s, skipping", layer_name)
 
         # Only wrap if we have target layers
         if target_layer_types:
@@ -335,7 +335,7 @@ class TolariaTrainer:
                 self.model = torch.compile(self.model)
                 logger.info("Model compiled with torch.compile")
             except Exception as e:
-                logger.warning(f"Failed to compile model: {e}")
+                logger.warning("Failed to compile model: %s", e)
 
         logger.info(
             f"Model setup complete: {sum(p.numel() for p in self.model.parameters())} parameters"
@@ -367,7 +367,7 @@ class TolariaTrainer:
         else:
             raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
-        logger.info(f"Optimizer setup: {optimizer_name}")
+        logger.info("Optimizer setup: %s", optimizer_name)
 
     def _setup_scheduler(self) -> None:
         """Setup learning rate scheduler if specified."""
@@ -389,7 +389,7 @@ class TolariaTrainer:
         else:
             raise ValueError(f"Unsupported scheduler: {scheduler_name}")
 
-        logger.info(f"Scheduler setup: {scheduler_name}")
+        logger.info("Scheduler setup: %s", scheduler_name)
 
     def _setup_criterion(self) -> None:
         """Setup loss criterion."""
@@ -404,7 +404,7 @@ class TolariaTrainer:
             self.oona_client = OonaClient()
             logger.info("Oona client initialized")
         except Exception as e:
-            logger.warning(f"Failed to initialize Oona client: {e}")
+            logger.warning("Failed to initialize Oona client: %s", e)
             self.oona_client = None
 
         # Setup Tamiyo client
@@ -420,22 +420,18 @@ class TolariaTrainer:
                 logger.info("Production Tamiyo client initialized")
 
         except Exception as e:
-            logger.warning(f"Failed to initialize Tamiyo client: {e}")
-            # Fallback to mock client
-            try:
-                self.tamiyo_client = MockTamiyoClient()
-                logger.info(
-                    "Fallback to mock Tamiyo client due to initialization error"
+            logger.error("Failed to initialize Tamiyo client: %s", e)
+            # In production, we should not fall back to mock clients
+            self.tamiyo_client = None
+            if self.tamiyo_config and self.tamiyo_config.enabled:
+                logger.warning(
+                    "Tamiyo integration is enabled but client initialization failed. "
+                    "Autonomous adaptation will not be available."
                 )
-            except Exception as fallback_error:
-                logger.error(
-                    f"Failed to initialize even mock Tamiyo client: {fallback_error}"
-                )
-                self.tamiyo_client = None
 
     async def train(self) -> List[TrainingMetrics]:
         """Execute the complete training process."""
-        logger.info(f"Starting training for {self.config.max_epochs} epochs")
+        logger.info("Starting training for %d epochs", self.config.max_epochs)
 
         self.running = True
         metrics_history = []
@@ -513,7 +509,7 @@ class TolariaTrainer:
             )
 
         except Exception as e:
-            logger.error(f"Training failed: {e}")
+            logger.error("Training failed: %s", e)
             raise
         finally:
             self.running = False
@@ -653,7 +649,7 @@ class TolariaTrainer:
                     )
 
             except Exception as e:
-                logger.error(f"Error in Tamiyo consultation: {e}")
+                logger.error("Error in Tamiyo consultation: %s", e)
 
     def _collect_health_signals(self) -> List[HealthSignal]:
         """Collect real health signals from the model's KasminaLayers."""
@@ -662,7 +658,7 @@ class TolariaTrainer:
         try:
             # Collect health signals from each KasminaLayer in the model
             if self.model is not None and hasattr(self.model, "kasmina_layers"):
-                for layer_idx, (layer_name, layer) in enumerate(
+                for _, (layer_name, layer) in enumerate(
                     self.model.kasmina_layers.items()
                 ):
                     # Get real layer statistics
@@ -768,7 +764,7 @@ class TolariaTrainer:
             )
 
             if decisions:
-                logger.info(f"Tamiyo recommended {len(decisions)} adaptations")
+                logger.info("Tamiyo recommended %d adaptations", len(decisions))
                 for decision in decisions:
                     logger.debug(
                         f"  - {decision.adaptation_type} for {decision.layer_name} "
@@ -804,7 +800,7 @@ class TolariaTrainer:
                     decision, target_layer_name
                 )
             else:
-                logger.warning(f"Unknown adaptation type: {decision.adaptation_type}")
+                logger.warning("Unknown adaptation type: %s", decision.adaptation_type)
                 success = False
 
             if success:
@@ -863,9 +859,11 @@ class TolariaTrainer:
             kernel_artifact_id = getattr(decision, "kernel_artifact_id", None)
 
             if kernel_artifact_id is None:
-                # Generate a placeholder kernel ID
-                kernel_artifact_id = f"kernel_{int(time.time() * 1000) % 10000}"
-                logger.debug(f"Generated placeholder kernel ID: {kernel_artifact_id}")
+                logger.error(
+                    "No kernel_artifact_id provided in adaptation decision for layer %s",
+                    layer_name
+                )
+                return False
 
             # Find a dormant seed if no specific target provided
             if target_seed_idx is None:
@@ -878,14 +876,11 @@ class TolariaTrainer:
                         break
 
                 if target_seed_idx is None:
-                    logger.warning(f"No dormant seeds available in layer {layer_name}")
+                    logger.warning("No dormant seeds available in layer %s", layer_name)
                     return False
 
-            # For now, simulate kernel loading (in production, this would load from Urza)
-            # success = await layer.load_kernel(target_seed_idx, kernel_artifact_id)
-            success = self._simulate_kernel_loading(
-                layer, target_seed_idx, kernel_artifact_id
-            )
+            # Load the kernel using the proper interface
+            success = await layer.load_kernel(target_seed_idx, kernel_artifact_id)
 
             if success:
                 logger.info(
@@ -895,43 +890,70 @@ class TolariaTrainer:
             return success
 
         except Exception as e:
-            logger.error(f"Error applying add_seed adaptation: {e}")
+            logger.error("Error applying add_seed adaptation: %s", e)
             return False
 
     async def _apply_architecture_modification(
         self, decision: AdaptationDecision, layer_name: str
     ) -> bool:
-        """Apply architecture modification adaptation."""
+        """Apply architecture modification through seed orchestration.
+        
+        This uses the Kasmina seed mechanism to achieve morphogenetic behavior
+        by dynamically loading different kernels and adjusting blend factors,
+        rather than traditional model surgery.
+        """
         try:
-            logger.info(f"Architecture modification requested for {layer_name}")
-            # This is a placeholder for more complex architectural changes
-            # In a full implementation, this might:
-            # - Add new layers
-            # - Modify layer connections
-            # - Change layer parameters
-            return True  # Simulate success
+            # Check if seed orchestrator is available
+            if not hasattr(self, 'seed_orchestrator'):
+                # Initialize seed orchestrator if not already done
+                from esper.blueprints.registry import BlueprintRegistry
+                from esper.core.seed_orchestrator import SeedOrchestrator
+                from esper.services.tamiyo.performance_tracker import PerformanceTracker
 
+                # Use existing components if available
+                performance_tracker = getattr(self, 'performance_tracker', PerformanceTracker())
+                blueprint_registry = BlueprintRegistry()
+
+                self.seed_orchestrator = SeedOrchestrator(
+                    performance_tracker=performance_tracker,
+                    blueprint_registry=blueprint_registry,
+                    oona_client=self.oona_client,
+                    urza_url=self.config.urza_url if hasattr(self.config, 'urza_url') else "http://localhost:8000"
+                )
+                logger.info("Initialized seed orchestrator for architecture modification")
+
+            # Apply modification through seed orchestration
+            success, details = await self.seed_orchestrator.apply_architecture_modification(
+                model=self.model,
+                decision=decision
+            )
+
+            if success:
+                logger.info(
+                    f"Successfully applied architecture modification to {layer_name}: {details}"
+                )
+                # Update metrics
+                self.metrics['architecture_modifications'] = self.metrics.get('architecture_modifications', 0) + 1
+                self.metrics['last_modification_epoch'] = self.state.epoch
+            else:
+                logger.warning(
+                    f"Failed to apply architecture modification to {layer_name}: {details}"
+                )
+                self.metrics['failed_modifications'] = self.metrics.get('failed_modifications', 0) + 1
+
+            return success
+
+        except ImportError as e:
+            logger.error(f"Failed to import seed orchestrator: {e}")
+            logger.warning(
+                "Architecture modification requested but seed orchestrator not available. "
+                "Ensure Phase B4 components are properly installed."
+            )
+            return False
         except Exception as e:
             logger.error(f"Error applying architecture modification: {e}")
             return False
 
-    def _simulate_kernel_loading(self, layer, seed_idx: int, kernel_id: str) -> bool:
-        """Simulate kernel loading for development/testing."""
-        try:
-            # Simulate setting seed to active state
-            from esper.execution.state_layout import SeedLifecycleState
-
-            layer.state_layout.lifecycle_states[seed_idx] = SeedLifecycleState.ACTIVE
-            layer.state_layout.alpha_blend[seed_idx] = (
-                0.3  # Set reasonable blend factor
-            )
-
-            logger.debug(f"Simulated loading kernel {kernel_id} into seed {seed_idx}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error simulating kernel loading: {e}")
-            return False
 
     async def _submit_adaptation_feedback(
         self, decision: AdaptationDecision, success: bool
@@ -941,11 +963,24 @@ class TolariaTrainer:
             return
 
         try:
-            # Calculate basic performance impact (placeholder)
+            # Calculate performance impact based on recent metrics
             performance_impact = {
                 "success": success,
                 "epoch": self.state.epoch,
                 "recent_loss": self._last_train_loss,
+                "accuracy_delta": (
+                    self._last_val_accuracy - self._baseline_val_accuracy
+                    if hasattr(self, "_baseline_val_accuracy")
+                    else 0.0
+                ),
+                "loss_delta": (
+                    self._last_train_loss - self._baseline_train_loss
+                    if hasattr(self, "_baseline_train_loss")
+                    else 0.0
+                ),
+                "layer_name": target_layer_name,
+                "adaptation_type": decision.adaptation_type,
+                "timestamp": time.time(),
             }
 
             await self.tamiyo_client.submit_adaptation_feedback(
@@ -959,7 +994,7 @@ class TolariaTrainer:
             )
 
         except Exception as e:
-            logger.warning(f"Failed to submit adaptation feedback: {e}")
+            logger.warning("Failed to submit adaptation feedback: %s", e)
 
     def _update_adaptation_state(self) -> None:
         """Update adaptation tracking state."""
@@ -1027,7 +1062,8 @@ class TolariaTrainer:
     def load_checkpoint(self, checkpoint_path: str) -> bool:
         """Load training checkpoint and restore state."""
         try:
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            # Use weights_only=False to handle custom classes like TrainingState
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
 
             self.model.load_state_dict(checkpoint["state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])

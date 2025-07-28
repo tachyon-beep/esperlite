@@ -63,7 +63,7 @@ class TamiyoClient:
             "last_request_time": None,
         }
 
-        logger.info(f"Initialized TamiyoClient for {self.base_url}")
+        logger.info("Initialized TamiyoClient for %s", self.base_url)
 
     async def analyze_model_state(
         self,
@@ -108,7 +108,7 @@ class TamiyoClient:
                     ]
 
                     self._stats["successful_requests"] += 1
-                    logger.info(f"Tamiyo analysis returned {len(decisions)} decisions")
+                    logger.info("Tamiyo analysis returned %d decisions", len(decisions))
                     return decisions
                 else:
                     logger.warning("Tamiyo response missing 'decisions' field")
@@ -120,7 +120,7 @@ class TamiyoClient:
                 self._stats["circuit_breaker_failures"] += 1
                 logger.warning("Tamiyo circuit breaker is open, skipping analysis")
             else:
-                logger.error(f"Tamiyo analysis failed: {e}")
+                logger.error("Tamiyo analysis failed: %s", e)
             return []
 
     async def _make_analyze_request(
@@ -184,7 +184,7 @@ class TamiyoClient:
 
         except Exception as e:
             self._stats["failed_requests"] += 1
-            logger.error(f"Failed to submit adaptation feedback: {e}")
+            logger.error("Failed to submit adaptation feedback: %s", e)
             return False
 
     async def _make_feedback_request(
@@ -220,7 +220,7 @@ class TamiyoClient:
 
         except Exception as e:
             self._stats["failed_requests"] += 1
-            logger.debug(f"Failed to get Tamiyo status: {e}")
+            logger.debug("Failed to get Tamiyo status: %s", e)
             return None
 
     async def _make_status_request(
@@ -308,7 +308,7 @@ class MockTamiyoClient(TamiyoClient):
             "last_request_time": None,
         }
 
-        logger.info(f"Initialized MockTamiyoClient (simulated for {self.base_url})")
+        logger.info("Initialized MockTamiyoClient (simulated for %s)", self.base_url)
 
     async def analyze_model_state(
         self,
@@ -356,7 +356,7 @@ class MockTamiyoClient(TamiyoClient):
                 decisions.append(decision)
 
         self._stats["successful_requests"] += 1
-        logger.debug(f"Mock Tamiyo analysis generated {len(decisions)} decisions")
+        logger.debug("Mock Tamiyo analysis generated %d decisions", len(decisions))
 
         return decisions
 

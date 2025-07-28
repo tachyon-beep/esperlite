@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-07-28T15:41:27.349084",
+  "tests_run": 3,
+  "tests_passed": 2,
+  "tests_failed": 1,
+  "test_results": {
+    "kasmina_layer_basic": {
+      "description": "Test basic KasminaLayer forward pass and seed management",
+      "passed": false,
+      "comparison": {
+        "shape_match": true,
+        "initial_output_similarity": -0.01121925562620163,
+        "seed_output_similarity": -0.01121925562620163,
+        "state_match": true,
+        "equivalent": false
+      }
+    },
+    "tamiyo_analyzer_decisions": {
+      "description": "Test Tamiyo analyzer decision making",
+      "passed": true,
+      "comparison": {
+        "same_num_decisions": true,
+        "same_problematic_layers": true,
+        "graph_consistency": true,
+        "equivalent": true
+      }
+    },
+    "seed_lifecycle_transitions": {
+      "description": "Test seed lifecycle state machine transitions",
+      "passed": true,
+      "comparison": {
+        "core_transitions_preserved": true,
+        "final_state_valid": true,
+        "equivalent": true
+      }
+    }
+  }
+}

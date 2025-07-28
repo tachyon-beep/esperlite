@@ -227,7 +227,7 @@ class ErrorRecoveryManager:
         # Check if we're already recovering this component
         recovery_key = f"{error_context.component}_{error_context.layer_name}"
         if recovery_key in self.active_recoveries:
-            logger.warning(f"Recovery already in progress for {recovery_key}")
+            logger.warning("Recovery already in progress for %s", recovery_key)
             return False
 
         try:
@@ -309,11 +309,11 @@ class ErrorRecoveryManager:
             return await self._escalate_recovery(error_context)
 
         elif strategy == RecoveryStrategy.IGNORE:
-            logger.info(f"Ignoring error in {error_context.component}")
+            logger.info("Ignoring error in %s", error_context.component)
             return True
 
         else:
-            logger.warning(f"Unknown recovery strategy: {strategy}")
+            logger.warning("Unknown recovery strategy: %s", strategy)
             return False
 
     async def _retry_recovery(self, error_context: ErrorContext) -> bool:
@@ -337,10 +337,11 @@ class ErrorRecoveryManager:
                 )
                 return True  # Assume success for now
 
-            except Exception as e:
-                logger.warning(f"Retry attempt {attempt + 1} failed: {e}")
+            except (RuntimeError, ValueError, KernelExecutionError, torch.cuda.OutOfMemoryError) as e:
+                logger.error("Retry attempt %d failed: %s", attempt + 1, e)
                 if attempt == max_retries - 1:
-                    return False
+                    # Re-raise to ensure we don't hide critical errors
+                    raise
 
         return False
 
@@ -348,7 +349,7 @@ class ErrorRecoveryManager:
         self, error_context: ErrorContext, fallback_action: Optional[Callable] = None
     ) -> bool:
         """Implement fallback recovery."""
-        logger.info(f"Executing fallback for {error_context.component}")
+        logger.info("Executing fallback for %s", error_context.component)
 
         if fallback_action:
             try:
@@ -356,9 +357,10 @@ class ErrorRecoveryManager:
                 if asyncio.iscoroutine(result):
                     await result
                 return True
-            except Exception as e:
-                logger.error(f"Fallback action failed: {e}")
-                return False
+            except (RuntimeError, ValueError, TypeError) as e:
+                logger.error("Fallback action failed: %s", e)
+                # Re-raise to avoid hiding errors that affect data quality
+                raise
 
         # Default fallback behavior
         if error_context.component == "kernel_executor":
@@ -369,7 +371,7 @@ class ErrorRecoveryManager:
 
     async def _circuit_breaker_recovery(self, error_context: ErrorContext) -> bool:
         """Implement circuit breaker recovery."""
-        logger.warning(f"Opening circuit breaker for {error_context.component}")
+        logger.warning("Opening circuit breaker for %s", error_context.component)
 
         # Mark component as temporarily unavailable
         # This would integrate with actual circuit breaker implementation
@@ -377,7 +379,7 @@ class ErrorRecoveryManager:
 
     async def _graceful_degradation_recovery(self, error_context: ErrorContext) -> bool:
         """Implement graceful degradation recovery."""
-        logger.info(f"Gracefully degrading {error_context.component}")
+        logger.info("Gracefully degrading %s", error_context.component)
 
         # Reduce functionality while maintaining basic operation
         if error_context.component == "kernel_cache":
@@ -392,7 +394,7 @@ class ErrorRecoveryManager:
 
     async def _escalate_recovery(self, error_context: ErrorContext) -> bool:
         """Implement escalation recovery."""
-        logger.critical(f"Escalating error in {error_context.component}")
+        logger.critical("Escalating error in %s", error_context.component)
 
         # This would typically involve:
         # 1. Notifying administrators
@@ -444,9 +446,14 @@ class HealthMonitor:
             try:
                 await self._check_system_health()
                 await asyncio.sleep(10.0)  # Check every 10 seconds
-            except Exception as e:
-                logger.error(f"Health monitoring error: {e}")
-                await asyncio.sleep(30.0)  # Back off on error
+            except asyncio.CancelledError:
+                # Allow clean shutdown
+                raise
+            except (RuntimeError, ValueError, torch.cuda.CudaError) as e:
+                logger.error("Health monitoring error: %s", e, exc_info=True)
+                # Don't continue monitoring if we can't check health - fail fast
+                self.monitoring_active = False
+                raise
 
     def stop_monitoring(self):
         """Stop health monitoring."""
@@ -460,7 +467,7 @@ class HealthMonitor:
             time_window=300.0
         )
         if error_rate > self.health_thresholds["error_rate"]:
-            logger.warning(f"High error rate detected: {error_rate:.4f} errors/sec")
+            logger.warning("High error rate detected: %.4f errors/sec", error_rate)
 
             # Trigger proactive recovery
             error_context = ErrorContext(
@@ -473,11 +480,11 @@ class HealthMonitor:
 
         # Check memory usage (simplified)
         if torch.cuda.is_available():
-            memory_usage = (
-                torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated()
-            )
-            if memory_usage > self.health_thresholds["memory_usage"]:
-                logger.warning(f"High memory usage detected: {memory_usage:.2%}")
+            max_memory = torch.cuda.max_memory_allocated()
+            if max_memory > 0:
+                memory_usage = torch.cuda.memory_allocated() / max_memory
+                if memory_usage > self.health_thresholds["memory_usage"]:
+                    logger.warning("High memory usage detected: %.2f%%", memory_usage * 100)
 
     def add_health_signal(self, signal: HealthSignal):
         """Add a health signal for analysis."""

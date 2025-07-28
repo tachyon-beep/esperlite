@@ -80,7 +80,7 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
             self.register_parameter("running_var", None)
             self.register_parameter("num_batches_tracked", None)
 
-        logger.info(f"Created KasminaBatchNorm1dLayer: num_features={num_features}")
+        logger.info("Created KasminaBatchNorm1dLayer: num_features=%d", num_features)
 
     def copy_weights_from_batchnorm(self, original_layer: nn.BatchNorm1d) -> None:
         """Copy weights from original BatchNorm1d layer."""
@@ -108,7 +108,7 @@ class KasminaBatchNorm1dLayer(KasminaLayer):
                 ):
                     self.num_batches_tracked.copy_(original_layer.num_batches_tracked)
 
-        logger.info(f"Copied weights from BatchNorm1d to {self.layer_name}")
+        logger.info("Copied weights from BatchNorm1d to %s", self.layer_name)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through batch normalization."""
@@ -251,7 +251,7 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
             self.register_parameter("running_var", None)
             self.register_parameter("num_batches_tracked", None)
 
-        logger.info(f"Created KasminaBatchNorm2dLayer: num_features={num_features}")
+        logger.info("Created KasminaBatchNorm2dLayer: num_features=%d", num_features)
 
     def copy_weights_from_batchnorm(self, original_layer: nn.BatchNorm2d) -> None:
         """Copy weights from original BatchNorm2d layer."""
@@ -279,7 +279,7 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
                 ):
                     self.num_batches_tracked.copy_(original_layer.num_batches_tracked)
 
-        logger.info(f"Copied weights from BatchNorm2d to {self.layer_name}")
+        logger.info("Copied weights from BatchNorm2d to %s", self.layer_name)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through 2D batch normalization."""
@@ -385,7 +385,7 @@ class KasminaBatchNorm2dLayer(KasminaLayer):
             )
 
     def _compute_health_score(
-        self, input_tensor: torch.Tensor, output_tensor: torch.Tensor
+        self, _input_tensor: torch.Tensor, output_tensor: torch.Tensor
     ) -> float:
         """Compute health score based on normalization quality."""
         # Check if output channels are properly normalized

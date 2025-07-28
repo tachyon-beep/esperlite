@@ -174,7 +174,7 @@ class EnhancedKernelCache(KernelCache):
                     self._cache_info[artifact_id]["last_accessed"] = time.time()
                     self._hits += 1
 
-                    logger.debug(f"Enhanced cache hit for kernel {artifact_id}")
+                    logger.debug("Enhanced cache hit for kernel %s", artifact_id)
                     return kernel_tensor, metadata
 
             # Cache miss - fetch from Urza with metadata
@@ -230,10 +230,10 @@ class EnhancedKernelCache(KernelCache):
             )
         except CircuitBreakerOpenError:
             self._circuit_breaker_failures += 1
-            logger.warning(f"Circuit breaker open, cannot fetch kernel {artifact_id}")
+            logger.warning("Circuit breaker open, cannot fetch kernel %s", artifact_id)
             return None
         except Exception as e:
-            logger.error(f"Failed to fetch kernel with metadata {artifact_id}: {e}")
+            logger.error("Failed to fetch kernel with metadata %s: %s", artifact_id, e)
             return None
 
     async def _fetch_kernel_with_metadata_impl(
@@ -259,7 +259,7 @@ class EnhancedKernelCache(KernelCache):
             # Fetch compiled kernel info from Urza API
             response = await client.get(f"{urza_url}/kernels/{artifact_id}")
             if response.status == 404:
-                logger.warning(f"Kernel {artifact_id} not found in Urza")
+                logger.warning("Kernel %s not found in Urza", artifact_id)
                 return None
 
             kernel_info = await response.json()
@@ -268,16 +268,16 @@ class EnhancedKernelCache(KernelCache):
             try:
                 metadata = KernelMetadata(**kernel_info["metadata"])
             except KeyError as e:
-                logger.error(f"Missing metadata field for kernel {artifact_id}: {e}")
+                logger.error("Missing metadata field for kernel %s: %s", artifact_id, e)
                 return None
             except Exception as e:
-                logger.error(f"Failed to parse metadata for kernel {artifact_id}: {e}")
+                logger.error("Failed to parse metadata for kernel %s: %s", artifact_id, e)
                 return None
 
             # Get binary reference
             binary_ref = kernel_info.get("binary_ref")
             if not binary_ref:
-                logger.error(f"No binary reference found for kernel {artifact_id}")
+                logger.error("No binary reference found for kernel %s", artifact_id)
                 return None
 
             # Download kernel binary
@@ -288,7 +288,7 @@ class EnhancedKernelCache(KernelCache):
             if metadata.checksum:
                 actual_checksum = hashlib.sha256(kernel_data).hexdigest()
                 if actual_checksum != metadata.checksum:
-                    logger.error(f"Checksum mismatch for kernel {artifact_id}")
+                    logger.error("Checksum mismatch for kernel %s", artifact_id)
                     return None
 
             # Deserialize kernel tensor
@@ -303,11 +303,11 @@ class EnhancedKernelCache(KernelCache):
                 if torch.cuda.is_available():
                     kernel_tensor = kernel_tensor.cuda()
 
-                logger.debug(f"Successfully fetched kernel {artifact_id} with metadata")
+                logger.debug("Successfully fetched kernel %s with metadata", artifact_id)
                 return kernel_tensor, metadata
 
             except Exception as e:
-                logger.error(f"Failed to deserialize kernel {artifact_id}: {e}")
+                logger.error("Failed to deserialize kernel %s: %s", artifact_id, e)
                 return None
 
     def _add_to_cache_with_metadata(
@@ -367,7 +367,7 @@ class EnhancedKernelCache(KernelCache):
         self.total_size_mb -= cache_info["size_mb"]
         self._evictions += 1
 
-        logger.debug(f"Evicted kernel {lru_key} ({cache_info['size_mb']:.2f} MB)")
+        logger.debug("Evicted kernel %s (%.2f MB)", lru_key, cache_info['size_mb'])
 
     def get_kernel_metadata(self, artifact_id: str) -> Optional[KernelMetadata]:
         """

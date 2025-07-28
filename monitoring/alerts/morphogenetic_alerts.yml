@@ -1,0 +1,136 @@
+groups:
+  - name: morphogenetic_performance
+    interval: 30s
+    rules:
+      - alert: HighForwardPassLatency
+        expr: histogram_quantile(0.99, morphogenetic_forward_pass_duration_seconds_bucket) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "Forward pass P99 latency exceeds 100ms target"
+          description: "P99 latency is {{ $value }}s, target is <100ms"
+          
+      - alert: LowGPUUtilization
+        expr: avg(morphogenetic_gpu_utilization_percent) < 50
+        for: 10m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "GPU utilization below 50%"
+          description: "Average GPU utilization is {{ $value }}%, target is >80%"
+          
+      - alert: HighMemoryUsage
+        expr: morphogenetic_gpu_memory_allocated_mb / morphogenetic_gpu_memory_total_mb > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: morphogenetic
+        annotations:
+          summary: "GPU memory usage exceeds 90%"
+          description: "GPU memory usage is {{ $value }}%"
+          
+      - alert: LowAdaptationSuccessRate
+        expr: |
+          rate(morphogenetic_adaptation_success_total[5m]) / 
+          rate(morphogenetic_adaptation_attempts_total[5m]) < 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "Adaptation success rate below 90%"
+          description: "Success rate is {{ $value }}, target is >95%"
+
+  - name: morphogenetic_migration
+    interval: 1m
+    rules:
+      - alert: PerformanceRegression
+        expr: |
+          (morphogenetic_forward_pass_p99_ms{implementation="v2"} / 
+           morphogenetic_forward_pass_p99_ms{implementation="legacy"}) > 1.1
+        for: 5m
+        labels:
+          severity: critical
+          team: morphogenetic
+        annotations:
+          summary: "V2 implementation shows >10% performance regression"
+          description: "V2 is {{ $value }}x slower than legacy"
+          
+      - alert: RegressionTestFailure
+        expr: morphogenetic_regression_tests_passed / morphogenetic_regression_tests_total < 1.0
+        for: 1m
+        labels:
+          severity: critical
+          team: morphogenetic
+        annotations:
+          summary: "Regression tests failing"
+          description: "{{ $value }}% of regression tests passing"
+          
+      - alert: HighRiskScore
+        expr: morphogenetic_risk_score > 15
+        for: 5m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "Migration risk score exceeds threshold"
+          description: "Risk score is {{ $value }}, threshold is 15"
+          
+      - alert: BudgetOverrun
+        expr: morphogenetic_budget_spent > morphogenetic_budget_planned * 1.1
+        for: 1m
+        labels:
+          severity: warning
+          team: morphogenetic
+          escalate: management
+        annotations:
+          summary: "Migration budget overrun by >10%"
+          description: "Spent ${{ $value }}, planned ${{ $labels.planned }}"
+
+  - name: morphogenetic_operational
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: rate(morphogenetic_layer_errors_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "High error rate in layer {{ $labels.layer }}"
+          description: "Error rate is {{ $value }} errors/sec"
+          
+      - alert: KernelExecutionTimeout
+        expr: rate(morphogenetic_kernel_timeouts_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "Kernel execution timeouts detected"
+          description: "{{ $value }} timeouts/sec in layer {{ $labels.layer }}"
+          
+      - alert: MemoryLeak
+        expr: |
+          deriv(morphogenetic_gpu_memory_allocated_mb[1h]) > 100
+        for: 30m
+        labels:
+          severity: critical
+          team: morphogenetic
+        annotations:
+          summary: "Potential GPU memory leak detected"
+          description: "Memory growing at {{ $value }}MB/hour"
+          
+      - alert: SeedLifecycleStuck
+        expr: |
+          morphogenetic_seed_lifecycle_duration_seconds > 3600
+        for: 10m
+        labels:
+          severity: warning
+          team: morphogenetic
+        annotations:
+          summary: "Seed stuck in lifecycle state"
+          description: "Seed {{ $labels.seed_id }} in state {{ $labels.state }} for {{ $value }}s"

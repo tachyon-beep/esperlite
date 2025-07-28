@@ -5,8 +5,8 @@ This module implements the training procedures for improving the GNN policy
 through reinforcement learning on collected experience data.
 """
 
+import json
 import logging
-import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -98,7 +98,7 @@ class TamiyoTrainer:
         Returns:
             Dictionary of training metrics
         """
-        logger.info(f"Starting training with {len(experience_data)} experiences")
+        logger.info("Starting training with %d experiences", len(experience_data))
 
         # Split data
         split_idx = int(len(experience_data) * (1 - validation_split))
@@ -145,7 +145,7 @@ class TamiyoTrainer:
 
         # Final evaluation
         final_metrics = self._compute_final_metrics(training_metrics)
-        logger.info(f"Training completed. Final metrics: {final_metrics}")
+        logger.info("Training completed. Final metrics: %s", final_metrics)
 
         return final_metrics
 
@@ -246,10 +246,10 @@ class TamiyoTrainer:
 
         # Placeholder implementation - in a real system this would
         # convert ModelGraphState to proper graph tensors
-        # Use the same node feature dimension as PolicyConfig default (16)
+        # Use the same node feature dimension as PolicyConfig default (20 with gradient features)
         node_features = torch.randn(
-            batch_size * 4, 16, device=self.device
-        )  # 4 nodes per graph, 16 features
+            batch_size * 4, 20, device=self.device
+        )  # 4 nodes per graph, 20 features (includes gradient features)
 
         # Create edge indices for batch of graphs
         edge_indices = []
@@ -383,12 +383,12 @@ class TamiyoTrainer:
 
         # Always save to the main model path
         torch.save(checkpoint, save_path)
-        logger.info(f"Saved checkpoint to: {save_path}")
+        logger.info("Saved checkpoint to: %s", save_path)
 
         # Update best validation score
         if val_loss < self.best_validation_score:
             self.best_validation_score = val_loss
-            logger.info(f"New best model with validation loss: {val_loss:.4f}")
+            logger.info("New best model with validation loss: %.4f", val_loss)
 
         # Save epoch-specific checkpoint for debugging
         checkpoint_path = save_path.parent / f"checkpoint_epoch_{epoch}.pt"
@@ -423,28 +423,58 @@ class TamiyoTrainer:
         self.training_step = checkpoint.get("training_step", 0)
         self.best_validation_score = checkpoint.get("val_loss", float("inf"))
 
-        logger.info(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
+        logger.info("Loaded checkpoint from epoch %d", checkpoint['epoch'])
 
     def save_experience_data(self, experience_data: List[Dict[str, Any]]) -> None:
         """Save experience data to disk."""
         save_path = Path(self.config.training_data_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(save_path, "wb") as f:
-            pickle.dump(experience_data, f)
+        # Change extension to .json
+        if save_path.suffix != '.json':
+            save_path = save_path.with_suffix('.json')
 
-        logger.info(f"Saved {len(experience_data)} experiences to {save_path}")
+        # Convert tensors to lists for JSON serialization
+        serializable_data = []
+        for exp in experience_data:
+            serializable_exp = {}
+            for key, value in exp.items():
+                if isinstance(value, torch.Tensor):
+                    serializable_exp[key] = value.tolist()
+                else:
+                    serializable_exp[key] = value
+            serializable_data.append(serializable_exp)
+
+        with open(save_path, "w") as f:
+            json.dump(serializable_data, f, indent=2)
+
+        logger.info("Saved %d experiences to %s", len(experience_data), save_path)
 
     def load_experience_data(self) -> List[Dict[str, Any]]:
         """Load experience data from disk."""
         load_path = Path(self.config.training_data_path)
 
+        # Check for .json file
+        if load_path.suffix != '.json':
+            load_path = load_path.with_suffix('.json')
+
         if not load_path.exists():
-            logger.warning(f"No experience data found at {load_path}")
+            logger.warning("No experience data found at %s", load_path)
             return []
 
-        with open(load_path, "rb") as f:
-            experience_data = pickle.load(f)
+        with open(load_path, "r") as f:
+            serializable_data = json.load(f)
 
-        logger.info(f"Loaded {len(experience_data)} experiences from {load_path}")
+        # Convert lists back to tensors
+        experience_data = []
+        for exp in serializable_data:
+            reconstructed_exp = {}
+            for key, value in exp.items():
+                if isinstance(value, list) and key in ['state', 'action', 'reward', 'next_state']:
+                    reconstructed_exp[key] = torch.tensor(value)
+                else:
+                    reconstructed_exp[key] = value
+            experience_data.append(reconstructed_exp)
+
+        logger.info("Loaded %d experiences from %s", len(experience_data), load_path)
         return experience_data

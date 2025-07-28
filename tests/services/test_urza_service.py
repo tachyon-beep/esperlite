@@ -6,6 +6,7 @@ This module tests the REST API endpoints for managing blueprints and compiled ke
 
 from datetime import datetime
 from datetime import timezone
+from unittest.mock import AsyncMock
 from unittest.mock import patch
 
 import pytest
@@ -46,15 +47,23 @@ class TestUrzaService:
 
     @pytest.fixture
     def client(self, db_session):
-        """Create test client with mocked database."""
+        """Create test client with mocked database and kernel manager."""
 
         def get_test_db():
             yield db_session
 
-        app.dependency_overrides[get_db] = get_test_db
-        with TestClient(app) as test_client:
-            yield test_client
-        app.dependency_overrides.clear()
+        # Mock the kernel manager to avoid Redis connection
+        with patch('esper.services.urza.main.kernel_manager') as mock_km:
+            # Mock the async methods
+            mock_km.initialize = AsyncMock(return_value=None)
+            mock_km.close = AsyncMock(return_value=None)
+            mock_km.store_kernel = AsyncMock(return_value={"success": True})
+            mock_km.get_kernel = AsyncMock(return_value=None)
+
+            app.dependency_overrides[get_db] = get_test_db
+            with TestClient(app) as test_client:
+                yield test_client
+            app.dependency_overrides.clear()
 
     def test_health_check(self, client):
         """Test health check endpoint."""

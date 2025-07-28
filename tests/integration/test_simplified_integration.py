@@ -5,6 +5,8 @@ This module contains realistic integration tests that validate actual behavior
 without excessive mocking or testing implementation details.
 """
 
+import os
+
 import pytest
 import torch
 import torch.nn as nn
@@ -135,7 +137,7 @@ class TestCoreIntegration:
 
         # This should fail gracefully since we don't have a real kernel cache
         try:
-            success = await morphable_model.load_kernel(test_layer, 0, "test_artifact")
+            _ = await morphable_model.load_kernel(test_layer, 0, "test_artifact")
             # If it succeeds, that's fine too
         except Exception as e:
             # Expected - no real kernel cache available
@@ -166,12 +168,16 @@ class TestCoreIntegration:
 
         # Check layer-level statistics
         layer_stats = morphable_model.get_layer_stats()
-        for layer_name, stats in layer_stats.items():
+        for _, stats in layer_stats.items():
             # Layer stats might not track individual forward calls in the same way
             assert stats["total_forward_calls"] >= 0  # Just verify structure exists
             assert "state_stats" in stats
             assert "cache_stats" in stats
 
+    @pytest.mark.skipif(
+        not os.environ.get("REDIS_AVAILABLE", False),
+        reason="Redis not available for telemetry testing"
+    )
     def test_telemetry_enable_disable(self):
         """Test telemetry enable/disable functionality."""
         model = nn.Sequential(nn.Linear(32, 16), nn.Linear(16, 8))
@@ -197,7 +203,7 @@ class TestCoreIntegration:
         """Test model comparison with original."""
         original_model = nn.Sequential(nn.Linear(32, 16), nn.ReLU(), nn.Linear(16, 8))
 
-        morphable_model = esper.wrap(original_model, preserve_original=True)
+        morphable_model = esper.wrap(original_model, preserve_original=True, telemetry_enabled=False)
 
         # Test comparison functionality
         input_data = torch.randn(4, 32)
